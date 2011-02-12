@@ -4,19 +4,19 @@
 \label{chap:sparse}
 %==============================================================================
 
-Nástroj \texttt{sparse} je syntaktickým analyzátorem kódu v~jazyce C
-a~jeho primární použití spočívá v~prevenci programátorských chyb v~jádře
+Nástroj \texttt{sparse} je syntaktickým analyzátorem kódu v jazyce C
+a jeho primární použití spočívá v prevenci programátorských chyb v jádře
 operačního systému (OS) Linux. Další text bude brát jako referenční jeho
 aktuální verzi \texttt{0.4.3} \cite{web:kernel.org:SparseDist}
 (oznámení viz \cite{web:Gmane:Sparse043}).
 
-Zde musím podotknout, že přímých zdrojů informací o~\texttt{sparse} je poskrovnu,
-takže nebude-li explicitně označeno, vycházím z~vlastních zkušeností a~poznatků
-získaných ze zdrojových souborů v~distribuci \texttt{sparse}, případně z~informací
-v~bakalářské práci \cite{web:FITVUTBR:MartinNagy:StaticAnalysis}
-a~zdroje \cite{web:Wiki:Sparse}.
+Zde musím podotknout, že přímých zdrojů informací o \texttt{sparse} je poskrovnu,
+takže nebude-li explicitně označeno, vycházím z vlastních zkušeností a poznatků
+získaných ze zdrojových souborů v distribuci \texttt{sparse}, případně z informací
+v bakalářské práci \cite{web:FITVUTBR:MartinNagy:StaticAnalysis}
+a zdroje \cite{web:Wiki:Sparse}.
 
-V~úvodní části je \texttt{sparse} představen v~obecnějším pojetí resp. pojetí
+V úvodní části je \texttt{sparse} představen v obecnějším pojetí resp. pojetí
 \uv{uživatele nástroje} zatímto následující části pak představují pohled
 \uv{uživatele stejnojmenné knihovny}, na níž je pak tento koncový nástroj postaven.
 
@@ -24,54 +24,54 @@ V~úvodní části je \texttt{sparse} představen v~obecnějším pojetí resp. 
 \section{Představení \texttt{sparse}}
 \label{sec:jako-nastroj}
 
-Vývoj \texttt{sparse}, z~jehož názvu lze odvodit slovní spojení
+Vývoj \texttt{sparse}, z jehož názvu lze odvodit slovní spojení
 \uv{semantic parse} neboli \emph{sémantický rozbor}, byl zahájen
-Linusem Torvaldsem v~roce 2003. Jedná se o~statický analyzátor
-kódu psaného v~jazyce C zaměřený především na vyhledávání chyb
-v~linuxovém jádře (právě Torvalds stojí za zrodem Linuxu).
+Linusem Torvaldsem v roce 2003. Jedná se o statický analyzátor
+kódu psaného v jazyce C zaměřený především na vyhledávání chyb
+v linuxovém jádře (právě Torvalds stojí za zrodem Linuxu).
 
-Jako takový se \texttt{sparse} skládá z~obecnější knihovny schopné vstupní program
-v~podobě zdrojových souborů řízeně rozkládat na jeho syntaktické elementy
-při zachování určitých sémantických informací o~nich, a~dále hlavního programu
+Jako takový se \texttt{sparse} skládá z obecnější knihovny schopné vstupní program
+v podobě zdrojových souborů řízeně rozkládat na jeho syntaktické elementy
+při zachování určitých sémantických informací o nich, a dále hlavního programu
 \texttt{sparse}, jež tuto knihovnu používá jako svůj \emph{front-end}
 (tj. prostředek pro vyzískávání vstupu, nad nímž manipulující program,
-v~této terminologii \emph{back-end}, teprve operuje).
+v této terminologii \emph{back-end}, teprve operuje).
 
 
-\subsection{Spolupráce hlavního programu a~knihovny \texttt{sparse}}
+\subsection{Spolupráce hlavního programu a knihovny \texttt{sparse}}
 
-Po svém spuštění předá program \texttt{sparse} jednoduše řízení knihovně, a~to
+Po svém spuštění předá program \texttt{sparse} jednoduše řízení knihovně, a to
 včetně argumentů svého spuštění. Ty určují jednak které soubory se mají knihovnou
 předzpracovat, ale také jakým se způsobem se má toto zpracování provádět, tedy
-především o~kterém typu chyb určitě informovat a~které naopak potlačit
-(vztaženo k~výchozímu nastavení knihovny). Za zmínku
+především o kterém typu chyb určitě informovat a které naopak potlačit
+(vztaženo k výchozímu nastavení knihovny). Za zmínku
 stojí, že nástroj \texttt{sparse} potažmo příslušná knihovna byly navrženy pro
-kompatibilitu s~běžnými přepínači překladače GCC a~dá se předpokládat,
+kompatibilitu s běžnými přepínači překladače GCC a dá se předpokládat,
 že cílem byla mj. také snadná integrace kontrol do překladových systému jako
 např. těch založených na programu \texttt{make}. To ostatně názorně ilustruje
 právě případ linuxového jádra \cite{web:MjmWired:SparseTxt} nebo existence
 skriptu \texttt{cggc} \cite{manual:cgcc}, který ze svých argumentů spuštění odebere ty,
-které přísluší \texttt{sparse}, spustí nejprve běžný překladač a~posléze
+které přísluší \texttt{sparse}, spustí nejprve běžný překladač a posléze
 program \texttt{sparse} na tytéž zdrojové soubory.
 
 Takto \texttt{sparse} provede inicializaci knihovny, která tímto také již vede
-v~patrnost makra, definice, případně dovezené další hlavičkové soubory (ty jsou
-rovněž ihned zpracovány) a~další konstrukce obsažené v~souborech zadaných pomocí
-argumentů uvozených přepínačem \texttt{-include}, jež budou spolu s~předdefinovanými
+v patrnost makra, definice, případně dovezené další hlavičkové soubory (ty jsou
+rovněž ihned zpracovány) a další konstrukce obsažené v souborech zadaných pomocí
+argumentů uvozených přepínačem \texttt{-include}, jež budou spolu s předdefinovanými
 symboly využity při zpracování skutečných vstupních souborů.
-To probíhá v~režii programu \texttt{sparse} tak, jak je bývá u~back-endů
+To probíhá v režii programu \texttt{sparse} tak, jak je bývá u back-endů
 této knihovny zvykem%
 %
 \footnote{odráží se zde návrh knihovny}%
 %
 , tj. nechá knihovnu předzpracovat jeden soubor,
-následně se s~jejím využitím tento abstraktní syntaktický strom dále \uv{rozpracuje}
-do takové míry, jak je třeba, a~získané informace nějak využije.
+následně se s jejím využitím tento abstraktní syntaktický strom dále \uv{rozpracuje}
+do takové míry, jak je třeba, a získané informace nějak využije.
 Toto pak opakuje postupně pro všechny zbývající vstupní soubory.
-V~případě \texttt{sparse} spočívá toto finální zpracování v~provedení některých dalších,
+V případě \texttt{sparse} spočívá toto finální zpracování v provedení některých dalších,
 poměrně abstraktních kontrol, jako je např. hlídání správného použití
 synchronizačních primitiv či prevence mísení uživatelského
-o~systémového adresového prostoru%
+o systémového adresového prostoru%
 %
 \footnote{projev orientace na komunitu vývojářů okolo linuxového
 kernelu}%
@@ -81,13 +81,13 @@ kernelu}%
 %\begin{quote}
 \noindent
 \emph{Krátká odbočka}: Jelikož jazyk C není \textit{apriori} uzpůsoben, aby nesl nějakou
-netriviální informaci o~správném použití konstrukcí v~něm definovaných%
+netriviální informaci o správném použití konstrukcí v něm definovaných%
 %
-\footnote{komentář v~běžném jazyce analyzátorům typu \texttt{sparse} pochopitelně
+\footnote{komentář v běžném jazyce analyzátorům typu \texttt{sparse} pochopitelně
 nepomůže}%
 %
-, třeba právě v~případě \emph{zámků}, zavádí se pro účely zpřístupnění
-takovýchto informací pro \texttt{sparse} tzv.\,\emph{anotace kódu}. Více o~nich
+, třeba právě v případě \emph{zámků}, zavádí se pro účely zpřístupnění
+takovýchto informací pro \texttt{sparse} tzv.\,\emph{anotace kódu}. Více o nich
 podá \cite{web:FITVUTBR:MartinNagy:StaticAnalysis}.
 %\end{quote}
 
@@ -95,71 +95,71 @@ Přestože část kontrol zprostředkuje samotný \texttt{sparse} na základě
 analyzovaných částí abstraktního syntaktického stromu, většina kontrol je na bedrech
 knihovny, které jsou, jak bylo uvedeno, konfigurovatelné skrze předané
 parametry. Týká se to všech vyhledávaných chyb lexikálních (např. neočekávná
-\emph{escape-sekvence} a~syntaktických (např. neočekávaný výskyt
-určitých \emph{tokenů} za sebou, např. dvou operátorů), a~valné většiny
+\emph{escape-sekvence} a syntaktických (např. neočekávaný výskyt
+určitých \emph{tokenů} za sebou, např. dvou operátorů), a valné většiny
 chyb sémantických (např. konstantní přístup za hranici pole).
-Pokud v~kódu nalezne potenciálně chybnou konstrukci a~varování pro tento
+Pokud v kódu nalezne potenciálně chybnou konstrukci a varování pro tento
 druh chyb přitom není potlačeno, je varovná zpráva vypsána přímo
 na standardní chybový výstup.
 
 
 \subsection{Shrnutí hlavních myšlenek \texttt{sparse}}
 
-Výhoda tohoto vyčlenění knihovny a~\uv{obálky} nad ní spočívá v~možnosti
+Výhoda tohoto vyčlenění knihovny a \uv{obálky} nad ní spočívá v možnosti
 používat  knihovnu při dodržení licenčních podmínek
 (\uv{\emph{Open Software License v1.1}})
-k~vlastním účelům, kdy je potřeba převést zdrojové
-texty v~jazyce C do odpovídající a~dále dobře zpracovatelné
-interpretace včetně dostatku přímých i~odvozených
-podrobností o~kódu. Tím si lze ulehčit práci při psaní nadstavbového
-nástroje pro formální analýzu (což je i~částečný cíl této práce) stejně
+k vlastním účelům, kdy je potřeba převést zdrojové
+texty v jazyce C do odpovídající a dále dobře zpracovatelné
+interpretace včetně dostatku přímých i odvozených
+podrobností o kódu. Tím si lze ulehčit práci při psaní nadstavbového
+nástroje pro formální analýzu (což je i částečný cíl této práce) stejně
 dobře jako při konstrukci vlastního kompilátoru. Není divu, že se
-v~distribuci \texttt{sparse} nachází další programy\ndash\emph{back-endy},
-jež demonstrují, k~čemu je možné knihovnu využít.
+v distribuci \texttt{sparse} nachází další programy\ndash\emph{back-endy},
+jež demonstrují, k čemu je možné knihovnu využít.
 %Stručnou ukázku použití každé včetně samotného \texttt{sparse} uvádí
 %příloha \ref{app:sparse-backends}.
 
-Jak z~výše uvedeného částečně vyplývá, detailní rozbor kódu
-na popud \emph{back-endu} neproběhne ihned s~okamžitým vyjádřením
-všech podrobností, z~počátku je k~dispozici informace pouze o~symbolech
+Jak z výše uvedeného částečně vyplývá, detailní rozbor kódu
+na popud \emph{back-endu} neproběhne ihned s okamžitým vyjádřením
+všech podrobností, z počátku je k dispozici informace pouze o symbolech
 nejvyšší úrovně (tj. včetně funkcí), na základě níž pak může
-\emph{backend} prozkoumávat abstraktní syntaktický strom do hloubky a~získavat
-detaily o~konkrétních uzlech k~tomu určenými knihovními funkcemi.
-Část informací z~tohoto stromu je vyhodnocena teprve až na žádost
-o~její získání učiněnou skrze některou z~těchto funkcí
-(tzn. princip \emph{líného vyhodnocení}). Toto spolu s~dalšími principy
+\emph{backend} prozkoumávat abstraktní syntaktický strom do hloubky a získavat
+detaily o konkrétních uzlech k tomu určenými knihovními funkcemi.
+Část informací z tohoto stromu je vyhodnocena teprve až na žádost
+o její získání učiněnou skrze některou z těchto funkcí
+(tzn. princip \emph{líného vyhodnocení}). Toto spolu s dalšími principy
 (např. \uv{soubor je nedělitelná jednotka zpracování}) podporuje
-ideály, které Torvalds v~počátku projektu stanovil, tj. aby
+ideály, které Torvalds v počátku projektu stanovil, tj. aby
 knihovna byla co nejprostší, snadno
 použitelná, nezávislá na dalších projektech, ale přitom zbytečně
-nenabobtnalá (viz také \texttt{README} v~distribuci \texttt{sparse}).
+nenabobtnalá (viz také \texttt{README} v distribuci \texttt{sparse}).
 
 
 \section{Vnitřní činnost \texttt{sparse}}
 
-Pozornost nyní přesuneme od obecnějšího pojednání o~\texttt{sparse}
-k~částem věnovaným \uv{vnitřku}, tedy jakým způsobem knihovna pracuje,
-jaké datové struktury k~tomu využívá a~podobně. Začneme od nejvyšší\ndash{}přehledové
-úrovně a~později se budeme věnovat detailům.
+Pozornost nyní přesuneme od obecnějšího pojednání o \texttt{sparse}
+k částem věnovaným \uv{vnitřku}, tedy jakým způsobem knihovna pracuje,
+jaké datové struktury k tomu využívá a podobně. Začneme od nejvyšší\ndash{}přehledové
+úrovně a později se budeme věnovat detailům.
 
 Faktem je, že pro neseznámeného je alespoň částečné pochopení vnitřního
-chodu knihovny i~přes dostupnost zdrojových kódů poměrně obtížně.
+chodu knihovny i přes dostupnost zdrojových kódů poměrně obtížně.
 Je to důsledkem jednak citelného nedostatku dostatečně
-ozřejmňujících komentářů v~kódu a~jednak neexistencí nějaké
+ozřejmňujících komentářů v kódu a jednak neexistencí nějaké
 dokumentace, natož podrobnější.
 
 Pro lepší pochopení souvislostí
-zejména mezi funkcemi a~dále pro rychlou orientaci v~kódu typu
-\uv{mám název funkce a~chci vidět, v~jakém kontextu se ještě
+zejména mezi funkcemi a dále pro rychlou orientaci v kódu typu
+\uv{mám název funkce a chci vidět, v jakém kontextu se ještě
 používá} jsem se rozhodl ručně sepsat hieararckou posloupnost
 volání funkcí, jaká odpovídá běžné činnosti programu \texttt{sparse}.
-Výsledek uvádím také v~příloze \ref{app:call-hieararchy}%
+Výsledek uvádím také v příloze \ref{app:call-hieararchy}%
 %
-\footnote{v~samostatném textovém souboru se používá podstatně lépe!}%
+\footnote{v samostatném textovém souboru se používá podstatně lépe!}%
 %
 .
-Posloužil mi pro seznamování se s~kódem a~také posloužil
-pro vizualizaci toho, která funkce má větší význam a~které jsou
+Posloužil mi pro seznamování se s kódem a také posloužil
+pro vizualizaci toho, která funkce má větší význam a které jsou
 naopak čistě pomocné.
 
 \section{Pohled na činnost knihovny shora}
@@ -178,19 +178,19 @@ prostředí jsem zvolil nákres, který je na obr.\,\ref{fig:chod} na str.\pager
     \end{center}
 \end{figure}
 
-Jsou v~něm dobře patrné fáze, kterými kód během zpracování prochází:
+Jsou v něm dobře patrné fáze, kterými kód během zpracování prochází:
 \begin{enumerate}
     \item\label{lex} lexikální analýza, výsledkem jsou tokeny (viz funkce \texttt{tokenize()})
     \item průchod preprocesoru, výsledkem jsou upravené tokeny (viz funkce \texttt{preprocess()})
     \item syntaktická analýza, výsledkem je seznam symbolů,
           které ve stromech, které reprezentují, obsahují různé
-          příkazy a~výrazy (v~terminologii jazyka C)
-    \item\label{sym} symboly doplněné o~informaci o~typu (viz funkce \texttt{evaluate\_symbol\_list()},
+          příkazy a výrazy (v terminologii jazyka C)
+    \item\label{sym} symboly doplněné o informaci o typu (viz funkce \texttt{evaluate\_symbol\_list()},
           týká se pouze vstupních souborů)
     \item zjednodušené symboly, což se týká např. zjednodušení aritmetických výrazů
-          a~porovnání v~případech, kde to lze (viz funkce \texttt{expand\_symbol()})
+          a porovnání v případech, kde to lze (viz funkce \texttt{expand\_symbol()})
     \item funkční symboly převedené na vstupní body (\emph{entry points})
-          a~jejich těla transformovaná na graf základních bloků (\emph{basic blocks}),
+          a jejich těla transformovaná na graf základních bloků (\emph{basic blocks}),
           %
           \footnote{lineárně uspořádaná posloupnost příkazů/instrukcí bez \uv{odskoků} jinam}
           %
@@ -198,19 +198,19 @@ Jsou v~něm dobře patrné fáze, kterými kód během zpracování prochází:
           potažmo funkce \texttt{linearize\_fn()})
 \end{enumerate}
 
-Rovněž lze dobře vidět, že fáze \ref{lex} až \ref{sym} probíhají z~pohledu
+Rovněž lze dobře vidět, že fáze \ref{lex} až \ref{sym} probíhají z pohledu
 uživatele knihovny atomicky, čili snažit se ovlivnit tuto část zpracování
 jinak než pomocí argumentů předaných funkci \texttt{sparse\_initialize()}
 by patrně přineslo mnohé komplikace.
 
-Dále se zaměříme na výstup poslední uvedené fáze zpracování, a~to na linearizovaný
-kód a~jeho reprezentaci.
+Dále se zaměříme na výstup poslední uvedené fáze zpracování, a to na linearizovaný
+kód a jeho reprezentaci.
 
-\section{Linearizovaný kód a~jeho reprezentace}
+\section{Linearizovaný kód a jeho reprezentace}
 
 Vrchní úroveň linearizovaného kódu představuje struktura \texttt{entrypoint}
 definovaná, tak jako ostatní struktury podílející se na této
-reprezentaci kódu, v~souboru \texttt{linearize.h}. Výčet jejích položek
+reprezentaci kódu, v souboru \texttt{linearize.h}. Výčet jejích položek
 zachycuje tab.\,\ref{tab:entrypoint}.
 
 \begin{table}[!h]
@@ -222,7 +222,7 @@ zachycuje tab.\,\ref{tab:entrypoint}.
         	    \texttt{struct symbol *name} & odpovídající symbol \\
             	\texttt{struct symbol\_list *syms} & seznam využitých symbolů \\
             	\texttt{struct pseudo\_list *accesses} & seznam využitých \uv{pseudoproměnných} \\
-             	\texttt{struct basic\_block\_list *bbs} & seznam všech bloků v~grafu toku řízení \\
+             	\texttt{struct basic\_block\_list *bbs} & seznam všech bloků v grafu toku řízení \\
                 \texttt{struct basic\_block *active} & příslušný \emph{basic blok} \\
                 \texttt{struct instruction *entry} & instrukce typu \texttt{OP\_ENTRY} \\
             \hline
@@ -232,7 +232,7 @@ zachycuje tab.\,\ref{tab:entrypoint}.
     \end{center}
 \end{table}
 
-Jednu z~položek struktury \texttt{entrypoint} tvoří struktura \texttt{basic\_block},
+Jednu z položek struktury \texttt{entrypoint} tvoří struktura \texttt{basic\_block},
 jejíž položky uvádí tab.\,\ref{tab:basicblock}.
 
 \begin{table}[!h]
@@ -241,12 +241,12 @@ jejíž položky uvádí tab.\,\ref{tab:basicblock}.
             \hline
             \textsl{název položky} & \textsl{význam} \\
             \hline
-            	\texttt{struct position pos} & příslušný soubor a~pozice v~něm \\
+            	\texttt{struct position pos} & příslušný soubor a pozice v něm \\
                 \texttt{unsigned long generation} & položka použita při eliminaci mrtvého kódu \\
                 \texttt{int context} & \\
                 \texttt{struct entrypoint *ep} & příslušný vstupní bod \\
                 \texttt{struct basic\_block\_list *parents} & \emph{basic bloky}, které směřují do tohoto\\
-                \texttt{struct basic\_block\_list *children} & \emph{basic bloky}, kam lze přejít z~tohoto \\
+                \texttt{struct basic\_block\_list *children} & \emph{basic bloky}, kam lze přejít z tohoto \\
 	            \texttt{struct instruction\_list *insns} & příslušný seznam instrukcí \\
 	            \texttt{struct pseudo\_list *needs} & na kterých \emph{pseudoproměnných} tento blok závisí \\
                 \texttt{struct pseudo\_list *defines} & které \emph{pseudoproměnné} tento blok definuje\\
