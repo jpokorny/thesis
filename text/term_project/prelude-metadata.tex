@@ -1,0 +1,96 @@
+% Term project, 2011 Jan Pokorny <xpokor04@stud.fit.vutbr.cz>
+
+\setDocInfo{
+    project             = SP,  % BP/SP/DP/DR
+    year                = 2011,
+    date                = 11.\,ledna 2011,
+    %
+    title.cs            = Symbolická exekuce C programů založená na Sparse,
+    title.en            = Symbolic Execution of C Programs Based on Sparse,
+    %
+    author              = Jan Pokorný,
+    author.title.p      = Bc.,
+    %author.title.a      = Ph.D.,
+    author.email        = xpokor04@stud.fit.vutbr.cz,
+    %
+    department          = UITS,  % UPSY/UIFS/UITS/UPGM
+    %
+    supervisor          = Kamil Dudka,
+    supervisor.title.p  = Ing.,
+    %supervisor.title.a  = Ph.D.,
+    %
+    assignment.img       = fig/req/assignment,
+    %
+    % Following can be set separately below
+    %
+    %abstract.cs         = abstract,
+    %abstract.en         = abstract,
+    %
+    %keywords.cs         = keywords,
+    %keywords.en         = keywords,
+    %
+    %declaration         = declaration,
+    %acknowledgement     = acknowledgement,
+}
+
+%%%
+
+\setAbstract[CS]{%
+    Statická analýza je jednou z možností kontroly správnosti programů.
+    Právě tímto směrem je orientována knihovna {\ttfamily code listener}
+    poskytující rozhraní, jehož účelem je sjednotit výstup produkovaný
+    dostupnými parsery kódu (zde představují přední části/front-endy
+    celého systému) a nabídnout tak stabilní infrastrukturu pro navázání
+    komponent provádějících další zpracování/analýzy (zadní části/back-endy
+    systému).
+    Cílem této práce je co nejvhodnějším způsobem na toto rozhraní přivést
+    výstup produkovaný svobodným statickým analyzátorem {\ttfamily sparse},
+    který pracuje nad zdrojovými kódy v jazyce C. Řešení si může
+    vynutit případné změny v jeho kódu tohoto nástroje.
+    Počítáno je i s eventualní potřebou provést zásahy do kódu
+    tohoto nástroje.
+    
+    Finálním krokem pak bude porovnání s alternativním front-endem
+    postaveným jako zásuvný modul pro překladač GCC.
+}
+\setAbstract[EN]{%
+    Static analysis is one of the methods of programs checking.
+    This approach is the main direction of {\ttfamily code listener}
+    library that offers an API with endeavour to unify output produced
+    of available code parsers (representing front-ends of the overall system)
+    and hence to offer stable infrastructure for components doing further
+    processing/analysis (system back-ends).
+    The aim of this work is to brings output produced by the open source
+    static analyser {\ttfamily sparse} to this API, which may in turn
+    also require changes in the code of this tool. Being capable of C
+    code processing, {\ttfamily sparse} primarily serves for Linux kernel
+    checking.
+
+    The final step lies in the comparison of similar front-end
+    already implemented as a GCC compiler plugin.
+}
+
+%%%
+
+\setKeywords[CS]{%
+    statická analýza, sparse, rozhraní code listener, symbolická exekuce
+}
+\setKeywords[EN]{%
+    static analysis, sparse, code listener API, symbolic execution
+}
+
+%%%
+
+\setDeclaration{%
+    Prohlašuji, že jsem tuto práci vypracoval samostatně pod vedením pana
+    Ing.\,Kamila~Dudky.
+    % Další informace mi poskytli...
+    Uvedl jsem všechny literární prameny a publikace, ze kterých jsem čerpal.
+}
+
+%%%
+
+%\setAcknowledgement{%
+%    V této sekci je možno uvést poděkování vedoucímu práce a těm, kteří poskytli odbornou pomoc
+%    (externí zadavatel, konzultant, apod.).
+%}

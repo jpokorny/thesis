@@ -1,0 +1,1 @@
+../fitthesis.cls

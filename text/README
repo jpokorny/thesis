@@ -1,0 +1,69 @@
+.. Master thesis (incl. term project) @ BUT FIT <www.fit.vutbr.cz>
+.. Symbolic Execution of C Programs Based on Sparse
+.. Copyright (C) 2011 Jan Pokorný
+
+.. written in reStructuredText format so feel free to convert me using
+   e.g. `rst2html README > README.html` (requires Docutils)
+
+===============================================================================
+                       Master thesis (incl. term project)
+===============================================================================
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         Jan Pokorný: Symbolic Execution of C Programs Based on Sparse
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+.. contents::
+
+
+
+1. Prerequisities
+=================
+
+A. `xelatex` for translation sources into PDF; version used::
+
+    $ xelatex -v
+    XeTeX 3.1415926-2.2-0.9997.4 (TeX Live 2010)
+    kpathsea version 6.0.0
+    Copyright 2010 SIL International and Jonathan Kew.
+    There is NO warranty.  Redistribution of this software is
+    covered by the terms of both the XeTeX copyright and
+    the Lesser GNU General Public License.
+    For more information about these matters, see the file
+    named COPYING and the XeTeX source.
+    Primary author of XeTeX: Jonathan Kew.
+    Compiled with ICU version 4.4 [with modifications for XeTeX]
+    Compiled with zlib version 1.2.3; using 1.2.3
+    Compiled with FreeType2 version 2.3.11; using 2.3.11
+    Compiled with fontconfig version 2.3.1; using 2.8.0
+    Compiled with libpng version 1.2.40; using 1.2.40
+    Compiled with xpdf version 3.02pl4
+
+
+B. LaTeX and XeLaTeX packages that comes with TeX Live 2010, especially:
+
+   * `ifxetex`
+   * `fontspec` (XeLaTeX-specific)
+   * `xunicode` (XeLaTeX-specific)
+   * `polyglossia` (XeLaTeX-specific)
+   * `graphicx`
+   * `fancyvrb`
+   * `natbib`
+   * `makeidx`
+   * `url`
+   * `color`
+   * `hyperref`
+   * `backref`
+
+
+C. in addition to fonts contained in TeX Live 2010 distribution,
+   `TeX Gyre Pagella
+   <http://www.gust.org.pl/projects/e-foundry/tex-gyre/pagella>`_ is used
+
+
+D. to convert included figures from source to expected format, following tools
+   are required:
+
+   * `dia`
+   * `epstopdf`
+   * `inkscape`

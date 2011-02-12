@@ -1,0 +1,54 @@
+%============================================================================
+% tento soubor pouzijete pro vysazeni desek
+% (c) 2008 Michal Bidlo
+% E-mail: bidlom AT fit vutbr cz
+% kodovaní: iso-8859-2 (zmena prikazem iconv, recode nebo cstocs)
+%----------------------------------------------------------------------------
+% zpracování: make desky, make clean
+% vim: set syntax=tex encoding=utf-8:
+%============================================================================
+\documentclass[print]{fitthesis}
+\usepackage[T1]{fontenc}
+%Je-li prace psana v anglickem jazyce, je zapotrebi u tridy pouzit parametr 
+%english  \documentclass[english]{fitthesis}
+
+% zde zvolime kodovani, ve kterem je napsan text prace
+% "latin2" pro iso8859-2 nebo "cp1250" pro windows-1250
+% \usepackage[utf8]{inputenc} % & není potřeba, přednastaveno ze šablony
+
+%Informace o praci/projektu
+%---------------------------------------------------------------------------
+\def\dcs{\true}
+\def\den{\false}
+
+\def\dauthor{Jan Pokorný}
+\def\dtitle#1{%
+  \ifx#1\dcs Symbian S60% nazev prace v cestine
+  \else      Symbian S60% nazev prace v anglictine
+  \fi}
+
+\projectinfo{
+  %Prace
+  project=BP,            %typ prace BP/SP/DP/DR
+  year=2009,             %rok
+  date=\today,           %datum odevzdani
+  %Nazev prace
+  title.cs=\dtitle{\dcs},  %nazev prace v cestine
+  title.en=\dtitle{\den},  %nazev prace v anglictine
+  %Autor
+  author=\dauthor,   %jmeno prijmeni autora
+  %author.title.p=Bc., %titul pred jmenem (nepovinne)
+  %author.title.a=PhD, %titul za jmenem (nepovinne)
+  %Ustav
+  department=UIFS, % doplnte prislusnou zkratku: UPSY/UIFS/UITS/UPGM
+  %Skolitel
+  supervisor={Petr Chmelař}, %jmeno prijmeni skolitele
+  supervisor.title.p={Ing.}, %titul pred jmenem (nepovinne)
+}
+
+
+\begin{document}
+  % Vysazeni desek
+  % ----------------------------------------------
+  \makecover
+\end{document}
