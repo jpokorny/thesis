@@ -17,7 +17,7 @@ v bakalářské práci \cite{web:FITVUTBR:MartinNagy:StaticAnalysis}
 a zdroje \cite{web:Wiki:Sparse}.
 
 V úvodní části je \texttt{sparse} představen v obecnějším pojetí resp. pojetí
-\uv{uživatele nástroje} zatímto následující části pak představují pohled
+\uv{uživatele nástroje}, zatímco následující části pak představují pohled
 \uv{uživatele stejnojmenné knihovny}, na níž je pak tento koncový nástroj postaven.
 
 
@@ -94,7 +94,7 @@ podá \cite{web:FITVUTBR:MartinNagy:StaticAnalysis}.
 Přestože část kontrol zprostředkuje samotný \texttt{sparse} na základě
 analyzovaných částí abstraktního syntaktického stromu, většina kontrol je na bedrech
 knihovny, které jsou, jak bylo uvedeno, konfigurovatelné skrze předané
-parametry. Týká se to všech vyhledávaných chyb lexikálních (např. neočekávná
+parametry. Týká se to všech vyhledávaných chyb lexikálních (např. neočekávaná
 \emph{escape-sekvence} a syntaktických (např. neočekávaný výskyt
 určitých \emph{tokenů} za sebou, např. dvou operátorů), a valné většiny
 chyb sémantických (např. konstantní přístup za hranici pole).
@@ -123,7 +123,7 @@ Jak z výše uvedeného částečně vyplývá, detailní rozbor kódu
 na popud \emph{back-endu} neproběhne ihned s okamžitým vyjádřením
 všech podrobností, z počátku je k dispozici informace pouze o symbolech
 nejvyšší úrovně (tj. včetně funkcí), na základě níž pak může
-\emph{backend} prozkoumávat abstraktní syntaktický strom do hloubky a získavat
+\emph{back-end} prozkoumávat abstraktní syntaktický strom do hloubky a získávat
 detaily o konkrétních uzlech k tomu určenými knihovními funkcemi.
 Část informací z tohoto stromu je vyhodnocena teprve až na žádost
 o její získání učiněnou skrze některou z těchto funkcí
@@ -151,7 +151,7 @@ dokumentace, natož podrobnější.
 Pro lepší pochopení souvislostí
 zejména mezi funkcemi a dále pro rychlou orientaci v kódu typu
 \uv{mám název funkce a chci vidět, v jakém kontextu se ještě
-používá} jsem se rozhodl ručně sepsat hieararckou posloupnost
+používá} jsem se rozhodl ručně sepsat hierarchickou posloupnost
 volání funkcí, jaká odpovídá běžné činnosti programu \texttt{sparse}.
 Výsledek uvádím také v příloze \ref{app:call-hieararchy}%
 %

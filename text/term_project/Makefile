@@ -38,6 +38,11 @@ BUILD_DONE_FILE    =  build.done
 
 BACKUP_DIR         =  bck
 
+SPELL_TEXT         = spell-text
+SPELL_TEXT_REF     = spell-text-ref
+SPELL_METADATA     = spell-metadata
+SPELL_METADATA_REF = spell-metadata-ref
+
 ###
 
 BATCHMODE          =  1
@@ -74,8 +79,11 @@ PURGE_CMD = echo "purging..."; \
 
 ###
 
-.PHONY: all figures purge clean deepclean inputfiles metadata setdraft \
-        setfinal backup hunspell
+.PHONY: all figures purge clean deepclean \
+        inputfiles metadata               \
+        setdraft setfinal                 \
+        statistics hunspell hunspell-metadata hunspell-text \
+        backup
 all: $(DOC_NAME).pdf
 
 # Tho-phased prerequisities to take changes in figures into account
@@ -117,11 +125,23 @@ statistics: $(INPUTFILES_LISTS)
         texcount $$(cat $$i | sed "s/$$/.tex/"); echo "---"; \
     done
 
-hunspell: $(INPUTFILES_LISTS)
+hunspell: hunspell-text hunspell-metadata
+
+hunspell-text: $(SPELL_TEXT)
+$(SPELL_TEXT): $(INPUTFILES_LISTS)
+	@:> $@
 	@for i in $^; do for j in $$(cat $$i | sed "s/$$/.tex/"); do \
-        echo "---"; echo $$j; echo "---";                        \
-        cat $$j | hunspell -l -t -d cs_CZ,en_US -p spell.dic | sort | uniq;         \
+        echo "---" >> $@; echo $$j >> $@; echo "---" >> $@;      \
+        cat $$j | hunspell -l -t -d cs_CZ,en_US -p spell.dic |   \
+                  sort | uniq >> $@;                             \
     done; done
+	[ -f $(SPELL_TEXT_REF) ] && diff $(SPELL_TEXT_REF) $@ ||:
+
+hunspell-metadata: $(SPELL_METADATA)
+$(SPELL_METADATA): $(METADATA_PREREQ)
+	@cat $^ | hunspell -l -t -d cs_CZ,en_US -p spell.dic | \
+              sort | uniq > $@
+	[ -f $(SPELL_METADATA_REF) ] && diff $(SPELL_METADATA_REF) $@ ||:
 
 purge:
 	@$(PURGE_CMD)

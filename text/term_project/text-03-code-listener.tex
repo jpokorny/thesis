@@ -14,7 +14,7 @@ příslušným hlavičkovým souborem \texttt{code\_listener.h}.
 Knihovna tvoří infrastrukturu pro provádění analýz zdrojového kódu, kdy
 propojuje komponenty provádějící extrakci syntaktických a sémantických
 informací ze zdrojových kódů programů a komponenty obstarávající jejich
-další vyhodnocení. Nejprve je knivovna stručně představena v obecnější rovině,
+další vyhodnocení. Nejprve je knihovna stručně představena v obecnější rovině,
 pak v rovině použití tohoto rozhraní.
 
 \section{Knihovna základ infrastruktury pro statickou analýzu}
@@ -139,7 +139,7 @@ nad níž je daný adaptér vystavěn.
 %půjde v tom případě patrně o přístup na pomezí obou uvedených.
 %
 %\medskip
-Očekávané pořadí volání jednotlivých call-back funkcí předávajích
+Očekávané pořadí volání jednotlivých call-back funkcí předávajících
 skrze knihovnu (pomocí připraveného objektu pro tuto komunikaci,
 viz sekce \ref{code-listener:objekt}) informaci o parsovaných elementech
 programu pro další zpracování přibližně odpovídá syntaktickému stromu
@@ -221,7 +221,7 @@ objevit v za sebou v uvedeném pořadí:
         \end{myitemize}
       \item \texttt{file\_close}: \textit{informuje, že zpracování aktuálního souboru bylo dokončeno}
     \end{myitemize}
-  \item \texttt{acknowledge}: \textit{informuje, že zpracování proběhlo vpořádku}
+  \item \texttt{acknowledge}: \textit{informuje, že zpracování proběhlo v pořádku}
   \item \texttt{destroy}: \textit{deinicializační funkce, který uvolní použitý objekt pro komunikaci s knihovnou}
 \end{myitemize}
 
