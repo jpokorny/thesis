@@ -74,7 +74,8 @@ PURGE_CMD = echo "purging..."; \
 
 ###
 
-.PHONY: all figures purge clean deepclean inputfiles metadata setdraft setfinal backup
+.PHONY: all figures purge clean deepclean inputfiles metadata setdraft \
+        setfinal backup hunspell
 all: $(DOC_NAME).pdf
 
 # Tho-phased prerequisities to take changes in figures into account
@@ -83,25 +84,25 @@ $(BUILD_DONE_FILE): figures $(OTHERS) $(INPUTFILES_LISTS)
 
 inputfiles: $(INPUTFILES_LISTS)
 $(INPUTFILES_LISTS): $(INPUTFILES_LISTS:=.tex)
-	for i in $^; do mv $$i $$(echo $$i | sed "s/.tex//g"); done
+	@for i in $^; do mv $$i $$(echo $$i | sed "s/.tex//g"); done
 $(INPUTFILES_LISTS:=.tex): $(INPUTFILES_GETTER) $(INPUTFILES_PREREQ)
-	pdflatex -interaction=batchmode -draftmode $<
+	@pdflatex -interaction=batchmode -draftmode $<; \
 	rm -rf -- $(<:.tex=.aux) $(<:.tex=.log)
 
 metadata: $(METADATA_FILES)
 $(METADATA_FILES): $(METADATA_FILES:=.tex)
-	for i in $^; do \
-        cat $$i | sed "s/\\\\enc@update/§/g" | \
+	@for i in $^; do                                                           \
+        cat $$i | sed "s/\\\\enc@update/§/g" |                                 \
             sed -e "s/{\\\\protect[^§]\+[§]/{/g" -e "s/\\\\par\s\+/\\n\\n/g" | \
-            detex | fmt -u > $$(echo $$i | sed "s/.tex//g"); \
-        rm -f -- $$i; \
+            detex | fmt -u > $$(echo $$i | sed "s/.tex//g");                   \
+        rm -f -- $$i;                                                          \
     done
 $(METADATA_FILES:=.tex): $(METADATA_GETTER) $(METADATA_PREREQ)
 	pdflatex -interaction=batchmode -draftmode $<
 	rm -rf -- $(<:.tex=.aux) $(<:.tex=.log)
 
 $(DOC_NAME).pdf: $(DOC_MAIN_SRC) $(DOC_PRELUDE_SRC) $(BUILD_DONE_FILE)
-	$(VLNA) $< $$(cat $(INPUTFILES_LISTS) | sed "s/$$/.tex/") \
+	$(VLNA) $< $$(cat $(INPUTFILES_LISTS) | sed "s/$$/.tex/")      \
     && $(LATEX) $(LATEXFLAGS) -jobname $(@:.pdf=) $<               \
     && $(BIBTEX) $(@:.pdf=)                                        \
     && $(LATEX) $(LATEXFLAGS) -jobname $(@:.pdf=) $<               \
@@ -112,7 +113,15 @@ figures:
 	$(MAKE) -C $(FIGS_DIR) $(FIGS)
 
 statistics: $(INPUTFILES_LISTS)
-	for i in $^; do texcount $$(cat $$i | sed "s/$$/.tex/"); echo "---"; done
+	@for i in $^; do                                         \
+        texcount $$(cat $$i | sed "s/$$/.tex/"); echo "---"; \
+    done
+
+hunspell: $(INPUTFILES_LISTS)
+	@for i in $^; do for j in $$(cat $$i | sed "s/$$/.tex/"); do \
+        echo "---"; echo $$j; echo "---";                        \
+        cat $$j | hunspell -l -t -d cs_CZ,en_US -p spell.dic | sort | uniq;         \
+    done; done
 
 purge:
 	@$(PURGE_CMD)
