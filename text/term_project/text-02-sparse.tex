@@ -174,28 +174,28 @@ prostředí jsem zvolil nákres, který je na obr.\,\ref{fig:chod} na str.\,\pag
         \includegraphics[width=1\textwidth,keepaspectratio]{fig/schema_chodu}
         \label{fig:chod}
         \caption{Schéma reprezentující činnost knihovny \texttt{sparse} na nejvyšší úrovni
-                 při typickém použití}
+                 při typickém použití.}
     \end{center}
 \end{figure}
 
 Jsou v něm dobře patrné fáze, kterými kód během zpracování prochází:
 \begin{enumerate}
-    \item\label{lex} lexikální analýza, výsledkem jsou tokeny (viz funkce \texttt{tokenize()})
-    \item průchod preprocesoru, výsledkem jsou upravené tokeny (viz funkce \texttt{preprocess()})
-    \item syntaktická analýza, výsledkem je seznam symbolů,
+    \item\label{lex} \textbf{Lexikální analýza}, výsledkem jsou tokeny (viz funkce \texttt{tokenize()}).
+    \item \textbf{Průchod preprocesoru}, výsledkem jsou upravené tokeny (viz funkce \texttt{preprocess()}).
+    \item \textbf{Syntaktická analýza}, výsledkem je seznam symbolů,
           které ve stromech, které reprezentují, obsahují různé
-          příkazy a výrazy (v terminologii jazyka C)
-    \item\label{sym} symboly doplněné o informaci o typu (viz funkce \texttt{evaluate\_symbol\_list()},
-          týká se pouze vstupních souborů)
-    \item zjednodušené symboly, což se týká např. zjednodušení aritmetických výrazů
-          a porovnání v případech, kde to lze (viz funkce \texttt{expand\_symbol()})
-    \item funkční symboly převedené na vstupní body (\emph{entry points})
+          příkazy a výrazy (v terminologii jazyka C).
+    \item\label{sym} \textbf{Symboly doplněné o informaci o typu} (viz funkce \texttt{evaluate\_symbol\_list()},
+          týká se pouze vstupních souborů).
+    \item \textbf{Zjednodušené symboly}, což se týká např. zjednodušení aritmetických výrazů
+          a porovnání v případech, kde to lze (viz funkce \texttt{expand\_symbol()}).
+    \item \textbf{Funkční symboly převedené na vstupní body} (\emph{entry points})
           a jejich těla transformovaná na graf základních bloků%
           %
           \footnote{lineárně uspořádaná posloupnost příkazů/instrukcí bez \uv{odskoků} jinam}
           %
           (\emph{basic blocks}), tj. graf toku řízení (\emph{control flow graph};
-          viz funkce \texttt{linearize\_symbol()} potažmo funkce \texttt{linearize\_fn()})
+          viz funkce \texttt{linearize\_symbol()} potažmo funkce \texttt{linearize\_fn()}).
 \end{enumerate}
 
 Rovněž lze dobře vidět, že fáze \ref{lex} až \ref{sym} probíhají z pohledu
@@ -227,7 +227,7 @@ zachycuje tab.\,\ref{tab:entrypoint}.
                 \texttt{struct instruction *entry} & instrukce typu \texttt{OP\_ENTRY} \\
             \hline
         \end{tabular}
-        \caption{položky pro \texttt{struct entrypoint}}
+        \caption{Položky pro \texttt{struct entrypoint}.}
         \label{tab:entrypoint}
     \end{center}
 \end{table}
@@ -252,7 +252,7 @@ jejíž položky uvádí tab.\,\ref{tab:basicblock}.
                 \texttt{struct pseudo\_list *defines} & které \emph{pseudoproměnné} tento blok definuje\\
             \hline
         \end{tabular}
-        \caption{položky pro \texttt{struct basic\_block}}
+        \caption{Položky pro \texttt{struct basic\_block}.}
         \label{tab:basicblock}
     \end{center}
 \end{table}
@@ -273,7 +273,7 @@ jejíž položky uvádí tab.\,\ref{tab:instruction}.
                 \texttt{struct symbol *type} & typ výsledné \emph{pseudoproměnné}\\
             \hline
         \end{tabular}
-        \caption{položky pro \texttt{struct instruction}}
+        \caption{Položky pro \texttt{struct instruction}.}
         \label{tab:instruction}
     \end{center}
 \end{table}
