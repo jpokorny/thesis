@@ -190,12 +190,12 @@ Jsou v něm dobře patrné fáze, kterými kód během zpracování prochází:
     \item zjednodušené symboly, což se týká např. zjednodušení aritmetických výrazů
           a porovnání v případech, kde to lze (viz funkce \texttt{expand\_symbol()})
     \item funkční symboly převedené na vstupní body (\emph{entry points})
-          a jejich těla transformovaná na graf základních bloků (\emph{basic blocks}),
+          a jejich těla transformovaná na graf základních bloků%
           %
           \footnote{lineárně uspořádaná posloupnost příkazů/instrukcí bez \uv{odskoků} jinam}
           %
-          tj. graf toku řízení (\emph{control flow graph}) (viz funkce \texttt{linearize\_symbol()}
-          potažmo funkce \texttt{linearize\_fn()})
+          (\emph{basic blocks}), tj. graf toku řízení (\emph{control flow graph};
+          viz funkce \texttt{linearize\_symbol()} potažmo funkce \texttt{linearize\_fn()})
 \end{enumerate}
 
 Rovněž lze dobře vidět, že fáze \ref{lex} až \ref{sym} probíhají z pohledu
