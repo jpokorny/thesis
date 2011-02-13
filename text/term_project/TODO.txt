@@ -1,0 +1,97 @@
+technical:
+- problems with quotations
+- problems with excessing right border in certain cases
+
+
+---
+
+from supervisor (in Czech):
+
+- úvod by neměl duplikovat zadání, ale uvést čtenáře do problematiky
+  a struktury práce
+
+- zdrojem informací ke sparse je mimo jiné zdrojový kód, který je stručný
+  a dobře se čte -- určitě stojí za zmínku mezi ostatními alternativami
+
+- ty souvětí jsou někdy příliš dlouhé na to, aby dávaly smysl -- chtělo by
+  rozdělit do jednodušších vět a eliminovat všechny duplicitní informace
+
+- často tam operuješ s pojmem "symbol", který AFAIK nikde nemáš definovaný.
+  Pokud to čte někdo, kdo nezná sparse, tak vůbec nemůže tušit, o co jde.
+  Je potřeba upozornit, že se nejedná o symbol na úrovni C modulu.
+
+- odstavec "Krátká odbočka" je typograficky špatně
+
+- u toho popisu činnosti sparse je potřeba někde začít a někde skončit,
+  nepřeskakovat neustále mezi jednotlivými bloky zpracování
+
+- preprocesing bych tam moc nerozváděl -- stačí říct jednou větou, že jej
+  sparse provádí samo -- pro nás je nedůležitý
+
+- vyhnout se konstrukcím typu "Jak z výše uvedeného částečně vyplývá, ..."
+  (čtenáře asi nepřekvapí, že to, co je výše, tam není pro nafouknutí pdf
+   o pár stran, ale k tomu, abychom uvedli, co bude následovat)
+
+- ty čárky na začátku řádku jsou typograficky špatně (stejně tak mezery před
+  čárkou)
+
+- "Pro lepší pochopení souvislostí zejména mezi funkcemi a dále pro rychlou
+  orientaci v kódu typu „mám název funkce a chci vidět, v jakém kontextu se
+  ještě používá“ jsem se rozhodl ručně sepsat hieararckou posloupnost volání
+  funkcí, jaká odpovídá běžné činnosti programu sparse. Výsledek je uvádím
+  také v příloze A4 ."  ->  "V příloze A4 je k dispozici graf volání."
+
+- "výsledkem je seznam symbolů, které ve stromech, které reprezentují,
+  obsahují různé příkazy a výrazy (v terminologii jazyka C)"  ->  "výsledek je
+  syntaktický strom, jehož uzly (nebo jen listy??) tvoří symboly"
+
+- "Rovněž lze dobře vidět, ..." -- nějaká reference?
+
+- Tu reprezentaci linearizovaného kódu jsem nějak nepobral.  Čekal bych spíš,
+  že v této části nějak popíšeš, jak funguje převod syntaktického stromu na
+  linearizovaný kód.  Také je potřeba nějak prostudovat vlastnosti toho
+  linearizovaného kódu.  Vypíchnout třeba nějaké axiomy, které jej
+  charakterizují -- např. žádná instrukce linearizovaného kódu v sobě
+  neobsahuje dvě (nebo víc??) dereference najednou, atd.
+
+- Ve výsledné práci budeš mít potom nějaký teoretický úvod -- tam je potřeba
+  vysvětlit, co to je call-graph, CFG, basic-block, atd.  A hlavně tyto pojmy
+  uvést do souvislostí.
+
+- "A nakonec uveďme také používanou strukturu instruction:" je typograficky
+  špatně.  Pokud máš tabulku jako float, _vždy_ se na ni v textu odkazuješ
+  pomocí ID.  Nesnaž se predikovat, v jakém pořadí ty objekty budou nakonec
+  vysázeny.
+
+- ten první odstavec kapitoly 2.1 je potřeba přepsat, aby dával smysl;
+  preprocessing bych tam už znovu neopakoval
+
+- "..., tj. nechat jej vytvořit své datové struktury apod." -- na to jsi
+  přišel kde?  V dokumentaci je "global initialization - it sets message
+  printing call-backs"
+
+- "Takto může ten, kdo rozhraní implementuje např. za tento výpis přidat
+   podrobnější informaci o stavu zpracování, umožňuje-li jej použitá
+   komponenta získat."  --  nejsem si jistý, jestli by tohle fungovalo.
+   Účelem toho error streamu je, aby se daly chyby a varování ošetřit
+   standardní cestou a tím třeba vrátit nenulový exit-status pro kód, který
+   analýzou neprošel ... a přitom vzít do úvahy přepínače typu -Werror,
+   -Wfatal-errors, atd.
+
+- pokud tu "abstraktní továrnu" myslíš ve stylu návrhových vzorů GoF, tak já
+  ji tam nějak nevidím...
+
+- celou stranu 10 bych vyhodil -- v této podobě to je nepoužitelné (Tohle by
+  bylo dobré popsat pomocí gramatiky, což v té dokumentaci IMHO je.  Možná by
+  mělo smysl to přepsat do nějakého standardního formátu typu yacc.)
+
+- "se teprve postupně ukázalo, že sparse je komplikovanější, než se zpočátku
+  jevilo" -- u nástroje, kterým se provádí kompletní analýza jádra operačního
+  systému by se dalo čekat, že nebude zcela triviální ... ale musím souhlasit,
+  že gcc je komplikovanější ;-)
+
+- dodatek A jsem nějak nepobral -- to je ten call-graph sparse?  Ten bych tam
+  nedával vůbec, případně ho tam můžeš dát v podobě grafu -- zabere to méně
+  místa a je to přehlednější.  Btw. přímo ve sparse je jako příklad program,
+  který call-graphy umí generovat -- stejně tak jsou k dispozici nějaké
+  listenery, které generují různé grafy.
