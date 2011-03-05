@@ -8,6 +8,7 @@
 % 2008       [MB]
 % 2009       Modification for nicer typesetting (golden ratios etc.) [JP]
 % 2011/01/07 Modification to fit XeLaTeX and overall simplification [JP]
+% 2011/03/05 Fix undesired spaces, remove quotes relates section [JP]
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesClass{fitthesis}[2011/01/07 Sablona pro BP/DP]
 
@@ -306,25 +307,6 @@
 \setlength{\@doc@names@width}{\textwidth}
 \addtolength{\@doc@names@width}{-\@doc@supervisor@width}
 
-% Quotation marks
-
-%\def\ifundefined#1{\expandafter\ifx\csname#1\endcsname\relax }%
-%
-%\global\chardef\f@@r=4
-%
-%\ifundefined{bq}%
-%\gdef\bq{\kern-.25\fontdimen\f@@r\font,\kern-.8\fontdimen\f@@r\font,%
-%                \kern-.35\fontdimen\f@@r\font}%
-%\fi
-%\ifundefined{eq}%
-%\gdef\eq{\kern-.35\fontdimen\f@@r\font`\kern-.8\fontdimen\f@@r\font`%
-%                \kern-.25\fontdimen\f@@r\font}
-%\fi
-%
-%\def\uv#1{\ifCzech {„#1“} \else{“#1”} \fi}
-%\catcode`\"=\active
-%\def"{\bgroup \ifCzech {„\def"{“\egroup}} {“\def"{”\egroup}}\fi}
-
 
 %============================================================================
 % COVER PAGE, \makeCover
@@ -431,7 +413,7 @@
   
   \vspace{6mm}
   
-  \@mktxt{14}{
+  \@mktxt{14}{%
     \MakeUppercase{\str@get{author}{CS}}
     \hfill
     \doc@getCommon{author}\hspace*{0.145924\@doc@names@width}
@@ -440,8 +422,8 @@
   
   \vspace{6mm}
   
-  \@mktxt{14}{\MakeUppercase{
-    \str@get{supervisor}{CS}}
+  \@mktxt{14}{%
+    \MakeUppercase{\str@get{supervisor}{CS}}
     \hfill
     \doc@getCommon{supervisor}\hspace*{0.145924\@doc@names@width}
   }
