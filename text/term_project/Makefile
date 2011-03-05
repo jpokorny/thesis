@@ -45,15 +45,15 @@ SPELL_METADATA_REF = spell-metadata-ref
 
 ###
 
-BATCHMODE          =  1
-LATEX              =  xelatex
+#BATCHMODE          =  1
+XELATEX            =  xelatex
 ifdef BATCHMODE
-    LATEXFLAGS     =  -interaction=batchmode
+    XELATEXFLAGS   =  -interaction=batchmode
 else
-    LATEXFLAGS     =  -interaction=errorstopmode
+    XELATEXFLAGS   =  -interaction=errorstopmode
 endif
 
-BIBTEX             =  bibtex
+BIBER              =  biber
 
 CZECHLANG          =  1
 ifdef CZECHLANG
@@ -66,16 +66,20 @@ PURGE_CMD = echo "purging..."; \
             for f in $$(ls -1 *.te~ 2>/dev/null); do \
                 mv -f "$$f" "`echo $$f | sed "s/te~/tex/"`"; \
             done; \
-            rm -f -- $(DOC_NAME).aux   \
-                     $(DOC_NAME).bbl   \
-                     $(DOC_NAME).blg   \
-                     $(DOC_NAME).brf   \
-                     $(DOC_NAME).idx   \
-                     $(DOC_NAME).log   \
-                     $(DOC_NAME).out   \
-                     $(DOC_NAME).toc   \
-                     $(METADATA_FILES) \
-                     $(INPUTFILES_LISTS)
+            rm -f -- \
+                     $(METADATA_FILES)   \
+                     $(INPUTFILES_LISTS) \
+                     $(DOC_NAME).aux     \
+                     $(DOC_NAME).log     \
+                     $(DOC_NAME).out     \
+                     $(DOC_NAME).toc     \
+                     $(DOC_NAME).bcf     \
+                     $(DOC_NAME).blg     \
+                     $(DOC_NAME).run.xml \
+                     $(DOC_NAME).bbl     \
+                     $(DOC_NAME).idx
+
+#                     $(DOC_NAME).brf
 
 ###
 
@@ -110,11 +114,11 @@ $(METADATA_FILES:=.tex): $(METADATA_GETTER) $(METADATA_PREREQ)
 	rm -rf -- $(<:.tex=.aux) $(<:.tex=.log)
 
 $(DOC_NAME).pdf: $(DOC_MAIN_SRC) $(DOC_PRELUDE_SRC) $(BUILD_DONE_FILE)
-	$(VLNA) $< $$(cat $(INPUTFILES_LISTS) | sed "s/$$/.tex/")      \
-    && $(LATEX) $(LATEXFLAGS) -jobname $(@:.pdf=) $<               \
-    && $(BIBTEX) $(@:.pdf=)                                        \
-    && $(LATEX) $(LATEXFLAGS) -jobname $(@:.pdf=) $<               \
-    && $(LATEX) $(LATEXFLAGS) -jobname $(@:.pdf=) $<
+	$(VLNA) $< $$(cat $(INPUTFILES_LISTS) | sed "s/$$/.tex/")
+	$(XELATEX) $(XELATEXFLAGS) -jobname $(@:.pdf=) $<      
+	$(BIBER) $(@:.pdf=)                                    
+	$(XELATEX) $(XELATEXFLAGS) -jobname $(@:.pdf=) $<      
+#	$(XELATEX) $(XELATEXFLAGS) -jobname $(@:.pdf=) $<
 	@$(PURGE_CMD)
 
 figures:

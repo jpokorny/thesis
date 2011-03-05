@@ -37,53 +37,61 @@
 %\usepackage{amsmath, amssymb}
 \usepackage{textcomp}
 
-% Other packages (not XeLaTeX-specific)
+% Priority packages
+\usepackage{url}
+\usepackage{color}
+\usepackage{csquotes}
+
+% Bibliography
+%\usepackage[numbers]{natbib}
+\usepackage[bibstyle=numeric
+           ,citestyle=numeric-comp
+           ,sorting=none
+           ,backend=biber
+           ]{biblatex}
+
+% Other packages
 \usepackage[xetex]{graphicx}
 \usepackage{fancyvrb}
-\usepackage[numbers]{natbib}
 \usepackage{makeidx}
-\usepackage{url}
 \usepackage{multicol}
 \usepackage{enumitem}
 \usepackage{listings}
-\usepackage{color}
-\usepackage{csquotes}
 \ifWis
     \ifxetex
-            \definecolor{links}{rgb}{0.8,0.1,0.1}
-            \definecolor{urls}{rgb}{0.1,0.1,0.8}
-            \definecolor{cite}{rgb}{0.1,0.8,0.1}
-        \usepackage[
-            backref=page,
-            % Bookmarks
-            bookmarksnumbered=true,
-            bookmarksopenlevel=1,
-            bookmarksopen=true,
-            bookmarks=true,
-            %
-            citecolor=cite,
-            colorlinks=true,
-            %
-            draft={\ifDraft{true}\else{false}\fi},
-            %
-            hyperindex=true,
-            linkcolor=links,
-            pagebackref=true,
-            pdfborder={0 0 0},
-            pdfdisplaydoctitle=true,
-            pdflang={\ifCzech{cs}\else{en}\fi},
-            % XeTeX backend
-            xetex,
-            plainpages=false,
-            % Connected with "Failed to convert input string to UTF16" message?
-            %unicode=true,
-            urlcolor=urls,
-            % PDF metadata
-            pdftitle={\localizedDocInfo{title}},
-            pdfauthor={\fullDocAuthor},
-            pdfsubject={\localizedDocInfo{project}},
-            pdfkeywords={\localizedDocInfo{keywords}},
-        ]{hyperref}
+        \definecolor{links}{rgb}{0.8,0.1,0.1}
+        \definecolor{urls}{rgb}{0.1,0.1,0.8}
+        \definecolor{cite}{rgb}{0.1,0.8,0.1}
+        \usepackage[%backref=page,
+                    % Bookmarks
+                   ,bookmarksnumbered=true
+                   ,bookmarksopenlevel=1
+                   ,bookmarksopen=true
+                   ,bookmarks=true
+                    %
+                   ,citecolor=cite
+                   ,colorlinks=true
+                    %
+                   ,draft={\ifDraft{true}\else{false}\fi}
+                    %
+                   ,hyperindex=true
+                   ,linkcolor=links
+                   %,pagebackref=true
+                   ,pdfborder={0 0 0}
+                   ,pdfdisplaydoctitle=true
+                   ,pdflang={\ifCzech{cs}\else{en}\fi}
+                    % XeTeX backend
+                   ,xetex
+                   ,plainpages=false
+                    % Connected with "Failed to convert input string to UTF16" message?
+                    %unicode=true,
+                   ,urlcolor=urls
+                    % PDF metadata
+                   ,pdftitle={\localizedDocInfo{title}}
+                   ,pdfauthor={\fullDocAuthor}
+                   ,pdfsubject={\localizedDocInfo{project}}
+                   ,pdfkeywords={\localizedDocInfo{keywords}}
+                   ]{hyperref}
         \def\UrlLeft{{\color{black}{<}}}
         \def\UrlRight{{\color{black}{>}}}
         \bgroup\catcode`\#=12\gdef\hash{#}\egroup \newcommand{\urlhash}[3]{\url{#1\hash#3}}
@@ -101,11 +109,11 @@
 
 
 % Customization for `backref'
-\ifCzech
-    \renewcommand*\backref[1]{\ifx#1\relax \else (odkazuje s.\,#1) \fi}
-\else
-    \renewcommand*\backref[1]{\ifx#1\relax \else (referring p.\,#1) \fi}
-\fi
+%\ifCzech
+%    \renewcommand*\backref[1]{\ifx#1\relax \else (odkazuje s.\,#1) \fi}
+%\else
+%    \renewcommand*\backref[1]{\ifx#1\relax \else (referring p.\,#1) \fi}
+%\fi
 
 \makeindex
 
@@ -180,27 +188,35 @@
 \fi
 
 
-% enumitem
+%
+% Customization for `enumitem'
+%
 \newlist{myitemize}{itemize}{40}
 \setlist[myitemize]{label=\textbullet}
 
 
-% natbib
-\ifCzech
-    \bibliographystyle{csplainnat}
-\else
-%    \bibliographystyle{plain}
-    \bibliographystyle{alpha}
-\fi
+%%
+%% Customization for `natbib'
+%%
+%\ifCzech
+%    \bibliographystyle{csplainnat}
+%\else
+%%    \bibliographystyle{plain}
+%    \bibliographystyle{alpha}
+%\fi
 
 
 %
 % Customization for `csquotes'
 %
 \MakeOuterQuote{"}
-
 \DeclareQuoteStyle{czech}{„}{“}{‚}{‘}
 
+
+%
+% Customization for bibliography
+%
 \ifCzech
     \renewcommand{\bibname}{Seznam použitých zdrojů}
 \fi
+\addbibresource{ref/references.bib}
