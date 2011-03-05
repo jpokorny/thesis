@@ -47,6 +47,7 @@
 \usepackage{enumitem}
 \usepackage{listings}
 \usepackage{color}
+\usepackage{csquotes}
 \ifWis
     \ifxetex
             \definecolor{links}{rgb}{0.8,0.1,0.1}
@@ -63,7 +64,7 @@
             citecolor=cite,
             colorlinks=true,
             %
-            draft={\ifDraft{true}\else{false}\fi},%
+            draft={\ifDraft{true}\else{false}\fi},
             %
             hyperindex=true,
             linkcolor=links,
@@ -192,4 +193,14 @@
     \bibliographystyle{alpha}
 \fi
 
-\renewcommand{\bibname}{Seznam použitých zdrojů}
+
+%
+% Customization for `csquotes'
+%
+\MakeOuterQuote{"}
+
+\DeclareQuoteStyle{czech}{„}{“}{‚}{‘}
+
+\ifCzech
+    \renewcommand{\bibname}{Seznam použitých zdrojů}
+\fi

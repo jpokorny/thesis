@@ -321,9 +321,9 @@
 %                \kern-.25\fontdimen\f@@r\font}
 %\fi
 %
-\def\uv#1{\ifCzech {„#1“} \else{“#1”} \fi}
-\catcode`\"=\active
-\def"{\bgroup \ifCzech {„\def"{“\egroup}} {“\def"{”\egroup}}\fi}
+%\def\uv#1{\ifCzech {„#1“} \else{“#1”} \fi}
+%\catcode`\"=\active
+%\def"{\bgroup \ifCzech {„\def"{“\egroup}} {“\def"{”\egroup}}\fi}
 
 
 %============================================================================

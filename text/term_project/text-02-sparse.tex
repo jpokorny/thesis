@@ -17,15 +17,15 @@ v bakalářské práci \cite{web:FITVUTBR:MartinNagy:StaticAnalysis}
 a zdroje \cite{web:Wiki:Sparse}.
 
 V úvodní části je \texttt{sparse} představen v obecnějším pojetí resp. pojetí
-\uv{uživatele nástroje}, zatímco následující části pak představují pohled
-\uv{uživatele stejnojmenné knihovny}, na níž je pak tento koncový nástroj postaven.
+"uživatele nástroje", zatímco následující části pak představují pohled
+"uživatele stejnojmenné knihovny", na níž je pak tento koncový nástroj postaven.
 
 
 \section{Představení \texttt{sparse}}
 \label{sec:jako-nastroj}
 
 Vývoj \texttt{sparse}, z jehož názvu lze odvodit slovní spojení
-\uv{semantic parse} neboli \emph{sémantický rozbor}, byl zahájen
+"semantic parse" neboli \emph{sémantický rozbor}, byl zahájen
 Linusem Torvaldsem v roce 2003. Jedná se o statický analyzátor
 kódu psaného v jazyce C zaměřený především na vyhledávání chyb
 v linuxovém jádře (právě Torvalds stojí za zrodem Linuxu).
@@ -65,7 +65,7 @@ této knihovny zvykem%
 \footnote{odráží se zde návrh knihovny}%
 %
 , tj. nechá knihovnu předzpracovat jeden soubor,
-následně se s jejím využitím tento abstraktní syntaktický strom dále \uv{rozpracuje}
+následně se s jejím využitím tento abstraktní syntaktický strom dále "rozpracuje"
 do takové míry, jak je třeba, a získané informace nějak využije.
 Toto pak opakuje postupně pro všechny zbývající vstupní soubory.
 V případě \texttt{sparse} spočívá toto finální zpracování v provedení některých dalších,
@@ -105,9 +105,9 @@ na standardní chybový výstup.
 
 \subsection{Shrnutí hlavních myšlenek \texttt{sparse}}
 
-Výhoda tohoto vyčlenění knihovny a \uv{obálky} nad ní spočívá v možnosti
+Výhoda tohoto vyčlenění knihovny a "obálky" nad ní spočívá v možnosti
 používat  knihovnu při dodržení licenčních podmínek
-(\uv{\emph{Open Software License v1.1}})
+("\emph{Open Software License v1.1}")
 k vlastním účelům, kdy je potřeba převést zdrojové
 texty v jazyce C do odpovídající a dále dobře zpracovatelné
 interpretace včetně dostatku přímých i odvozených
@@ -128,7 +128,7 @@ detaily o konkrétních uzlech k tomu určenými knihovními funkcemi.
 Část informací z tohoto stromu je vyhodnocena teprve až na žádost
 o její získání učiněnou skrze některou z těchto funkcí
 (tzn. princip \emph{líného vyhodnocení}). Toto spolu s dalšími principy
-(např. \uv{soubor je nedělitelná jednotka zpracování}) podporuje
+(např. "soubor je nedělitelná jednotka zpracování") podporuje
 ideály, které Torvalds v počátku projektu stanovil, tj. aby
 knihovna byla co nejprostší, snadno
 použitelná, nezávislá na dalších projektech, ale přitom zbytečně
@@ -138,7 +138,7 @@ nenabobtnalá (viz také \texttt{README} v distribuci \texttt{sparse}).
 \section{Vnitřní činnost \texttt{sparse}}
 
 Pozornost nyní přesuneme od obecnějšího pojednání o \texttt{sparse}
-k částem věnovaným \uv{vnitřku}, tedy jakým způsobem knihovna pracuje,
+k částem věnovaným "vnitřku", tedy jakým způsobem knihovna pracuje,
 jaké datové struktury k tomu využívá a podobně. Začneme od nejvyšší\ndash{}přehledové
 úrovně a později se budeme věnovat detailům.
 
@@ -150,8 +150,8 @@ dokumentace, natož podrobnější.
 
 Pro lepší pochopení souvislostí
 zejména mezi funkcemi a dále pro rychlou orientaci v kódu typu
-\uv{mám název funkce a chci vidět, v jakém kontextu se ještě
-používá} jsem se rozhodl ručně sepsat hierarchickou posloupnost
+"mám název funkce a chci vidět, v jakém kontextu se ještě
+používá" jsem se rozhodl ručně sepsat hierarchickou posloupnost
 volání funkcí, jaká odpovídá běžné činnosti programu \texttt{sparse}.
 Výsledek uvádím také v příloze \ref{app:call-hieararchy}%
 %
@@ -192,7 +192,7 @@ Jsou v něm dobře patrné fáze, kterými kód během zpracování prochází:
     \item \textbf{Funkční symboly převedené na vstupní body} (\emph{entry points})
           a jejich těla transformovaná na graf základních bloků%
           %
-          \footnote{lineárně uspořádaná posloupnost příkazů/instrukcí bez \uv{odskoků} jinam}
+          \footnote{lineárně uspořádaná posloupnost příkazů/instrukcí bez "odskoků" jinam}
           %
           (\emph{basic blocks}), tj. graf toku řízení (\emph{control flow graph};
           viz funkce \texttt{linearize\_symbol()} potažmo funkce \texttt{linearize\_fn()}).
@@ -221,7 +221,7 @@ zachycuje tab.\,\ref{tab:entrypoint}.
             \hline
         	    \texttt{struct symbol *name} & odpovídající symbol \\
             	\texttt{struct symbol\_list *syms} & seznam využitých symbolů \\
-            	\texttt{struct pseudo\_list *accesses} & seznam využitých \uv{pseudoproměnných} \\
+                \texttt{struct pseudo\_list *accesses} & seznam využitých "pseudoproměnných" \\
              	\texttt{struct basic\_block\_list *bbs} & seznam všech bloků v grafu toku řízení \\
                 \texttt{struct basic\_block *active} & příslušný \emph{basic blok} \\
                 \texttt{struct instruction *entry} & instrukce typu \texttt{OP\_ENTRY} \\

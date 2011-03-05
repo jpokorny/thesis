@@ -5,10 +5,10 @@
 %==============================================================================
 
 Pokud se hovoří o rozhraní \texttt{code listener} \cite{web:FITVUTBR:VeriFIT:CodeListener},
-má se výrazem \uv{rozhraní} na mysli především ten fakt, že jde softwarový
+má se výrazem "rozhraní" na mysli především ten fakt, že jde softwarový
 celek (přesněji knihovnu) zajišťující propojení dalších k tomu uzpůsobených
 komponent. V užším pojetí \ndash\ a bude tomu tak i v dalším textu \ndash\ jde ovšem
-za \uv{rozhraní} považovat skutečné rozhraní k této knihovně určené
+za "rozhraní" považovat skutečné rozhraní k této knihovně určené
 příslušným hlavičkovým souborem \texttt{code\_listener.h}.
 
 Knihovna tvoří infrastrukturu pro provádění analýz zdrojového kódu, kdy
@@ -20,7 +20,7 @@ pak v rovině použití tohoto rozhraní.
 \section{Knihovna základ infrastruktury pro statickou analýzu}
 
 Samotné analýze kódu vždy předchází fáze předzpracování (tj. lexikální,
-syntaktické/sémantické analýzy, dále jen shrnutu pojmem \uv{parsování})
+syntaktické/sémantické analýzy, dále jen shrnutu pojmem "parsování")
 zdrojových souborů do podoby nějaké vnitřní reprezentace, přes syntaktický
 strom až po \emph{graf toku řízení} (\emph{control flow graph}, \emph{CFG}).
 Tato příprava pracovních dat pro další usuzování nad nimi může být
@@ -42,9 +42,9 @@ by pak mělo být obdobné využití (s pomocí vytvořeného adaptéru) nástro
 
 Zatím byla diskutována pouze jedna strana propojovacího rozhraní, a sice
 ta, která se také jinak označuje jako \emph{front-end}, poněvadž slouží
-komponentám, jež přímo \uv{čelí} vstupním souborům s kódem programu
+komponentám, jež přímo "čelí" vstupním souborům s kódem programu
 k analýze. Jeho reprezentace je pak skrze rozhraní unifikovaným způsobem
-předána \uv{dozadu}, konkrétnímu \emph{back-endu} připojenému na opačné straně
+předána "dozadu", konkrétnímu \emph{back-endu} připojenému na opačné straně
 tohoto rozhraní.
 
 Mimo samotné rozhraní pro přenos reprezentace kódu je přítomna
@@ -79,7 +79,7 @@ funkcemi%
 nějakým způsobem předá jiné jednotce informaci, které funkce
 volat např. při výskytu nějaké události, a posléze ji předá řízení
 s tím, že ve vhodný okamžik dostane řízení zpět prostřednictvím
-některé z předaných funkcí \ndash\ tyto funkce \uv{zpětného volání}
+některé z předaných funkcí \ndash\ tyto funkce "zpětného volání"
 se tedy v terminologii označují jako \emph{call-back} funkce}%
 %
 
@@ -109,10 +109,10 @@ funkcí%
 \linebreak
 \texttt{cl\_code\_listener\_create} z rozhraní knihovny, přičemž
 na její straně dochází právě k dosazení správných funkcí call-backů.
-Jde tak vlastně o obdobu návrhového vzoru \uv{továrna}, který se
+Jde tak vlastně o obdobu návrhového vzoru "továrna", který se
 vzhledem k možnosti tuto konstrukci ovlivnit parametrem
 \texttt{config\_string} (jediný, který tato funkce deklaruje) blíží
-\uv{abstraktní továrně}.
+"abstraktní továrně".
 
 Pokud zůstaneme u OO pojetí, můžeme také odhalit analogii s návrhovým
 vzorem \texttt{kompozit}, a to u kombinace funkcí
