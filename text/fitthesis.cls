@@ -1,5 +1,5 @@
 % ----------------------------------------------------------------------------
-% FIT thesis
+% FIT thesis reloaded
 % ----------------------------------------------------------------------------
 % Based on LaTeX class (C) 2007 Zdeněk Vašíček, 2008 Michal Bidlo
 % Modifications: (C) 2009, 2011 Jan Pokorný
@@ -14,13 +14,12 @@
 
 % Builds upon `report' class
 \LoadClass[a4paper,oneside,onecolumn,11pt]{report}
+% Avoid clashes with some names defined in `report' class
+\let\title=\undefined\let\abstract=\undefined
 % Required for further class keyword arguments manipulation
 \usepackage{keyval}
 % For convenient construction of conditionals
 \usepackage{ifthen}
-
-% New file writer for `writeLocalizedDocInfo' and `writeLocalizedIn'
-\newwrite\doc@tempfile
 
 %============================================================================
 % CLASS OPTIONS
@@ -45,10 +44,10 @@
 \ProcessOptions\relax
 
 %============================================================================
-% META-CONSTRUCTS
+% META-CONSTRUCTS (TODO?)
 
 %
-%\newcommand{\fitthesis@newGetterSetter}[1]{%
+%\newcommand{\thesis@newGetterSetter}[1]{%
 %  \def\@tmpname{#1}
 %  \newcommand{\@nameuse{{\@tmpname}@set}}[3]{%
 %    \expandafter\def \csname {\@tmpname}@#1@#2\endcsname{#3}%
@@ -67,53 +66,86 @@
 \newcommand{\str@get}[2]{\@nameuse{str@#1@#2}}
 
 
-\str@set{uni}{CS}              {Vysoké učení technické v~Brně}
-\str@set{uni}{EN}              {Brno University of Technology}
-\str@set{uni}{logo}            {fig/req/vut-zp2}
-
-\str@set{fac}{CS}              {Fakulta informačních technologií}
-\str@set{fac}{EN}              {Faculty of Information Technology}
-\str@set{fac}{logo}            {fig/req/fit-zp2}
-
+% Headers
 \str@set{author}{CS}           {Autor práce}
 \str@set{author}{EN}           {Author}
-
 \str@set{department}{CS}       {Ústav}
 \str@set{department}{EN}       {Department of}
-
 \str@set{supervisor}{CS}       {Vedoucí práce}
 \str@set{supervisor}{EN}       {Supervisor}
 
+
+% Preface captions
+\str@set{assignment}{CS}       {Zadání}
+\str@set{assignment}{EN}       {Assignment}
+\str@set{assignmentcue}{CS}    {toto nahradit zadáním}
+\str@set{assignmentcue}{EN}    {assignment to be inserted here instead}
 \str@set{abstract}{CS}         {Abstrakt}
 \str@set{abstract}{EN}         {Abstract}
-
 \str@set{keywords}{CS}         {Klíčová slova}
 \str@set{keywords}{EN}         {Keywords}
-
 \str@set{cite}{CS}             {Citace}
-\str@set{copyright}{CS}        {Tato práce vznikla jako školní dílo na Vysokém
-                                učení technickém v Brně, Fakultě informačních
-                                technologií. Práce je chráněna autorským
-                                zákonem a její užití bez udělení oprávnění
-                                autorem je nezákonné, s výjimkou zákonem
-                                definovaných případů.
-                               }
+\str@set{cite}{EN}             {Bibliographic record}
 \str@set{declaration}{CS}      {Prohlášení}
+\str@set{declaration}{EN}      {Declaration}
 \str@set{acknowledgement}{CS}  {Poděkování}
+\str@set{acknowledgement}{EN}  {Acknowledgement}
 
-\str@set{assignmentpage}{CS}   {zde vložit zadání}
+% Preface pages as to be shown in PDF index
+\str@set{prefacepages}{CS}     {Úvodní strany}
+\str@set{prefacepages}{EN}     {Preface Pages}
+\str@set{prefacecover}{CS}     {Desky}
+\str@set{prefacecover}{EN}     {Cover}
+\str@set{prefacetitle}{CS}     {Titulní strana}
+\str@set{prefacetitle}{EN}     {Title Page}
+\str@set{prefaceassignment}{CS}{\str@get{assignment}{CS}}
+\str@set{prefaceassignment}{EN}{\str@get{assignment}{EN}}
+\str@set{prefaceabstract}{CS}{%
+    \str@get{abstract}{CS} + \str@get{keywords}{CS} + \str@get{cite}{CS}
+}
+\str@set{prefaceabstract}{EN}{%
+    \str@get{abstract}{EN} + \str@get{keywords}{EN} + \str@get{cite}{CS}
+}
+\str@set{prefacedeclaration}{CS}{\str@get{declaration}{CS}}
+\str@set{prefacedeclaration}{EN}{\str@get{declaration}{EN}}
 
-\str@set{BP}{CS}               {Bakalářská práce}
-\str@set{BP}{EN}               {Bachelor's thesis}
+
+% Contents captions
+\str@set{contents}{CS}         {Obsah}
+\str@set{contents}{EN}         {Contents}
+
+% Contents pages as to be shown in PDF index
+\str@set{contentspages}{CS}    {Obsah dokumentu}
+\str@set{contentspages}{EN}    {Document Contents}
+\str@set{contentscontents}{CS} {\str@get{contents}{CS}}
+\str@set{contentscontents}{EN} {\str@get{contents}{EN}}
+
+
+% Bibliography/appendices captions
+\str@set{bibliography}{CS}     {Seznam použitých zdrojů}
+\str@set{bibliography}{EN}     {Bibliography}
+\str@set{listofappendices}{CS} {Seznam příloh}
+\str@set{listofappendices}{EN} {List of Appendices}
+\str@set{appendix}{CS}         {Příloha}
+\str@set{appendix}{EN}         {Appendix}
+
+
+% Project types enumeration
+\str@set{BT}{CS}               {Bakalářská práce}
+\str@set{BT}{EN}               {Bachelor's thesis}
 \str@set{SP}{CS}               {Semestrální projekt}
 \str@set{SP}{EN}               {Term project}
-\str@set{DP}{CS}               {Diplomová práce}
-\str@set{DP}{EN}               {Master's thesis}
-\str@set{DR}{CS}               {Disertační práce}
-\str@set{DR}{EN}               {PhD thesis}
+\str@set{MT}{CS}               {Diplomová práce}
+\str@set{MT}{EN}               {Master's thesis}
+\str@set{PT}{CS}               {Disertační práce}
+\str@set{PT}{EN}               {PhD thesis}
+%...
 
-%%% Specific for BUT FIT
+%
+% University specific (BUT FIT), TODO: split?
+%
 
+% Departments
 \str@set{UIFS}{CS}             {informačních systémů}
 \str@set{UIFS}{EN}             {Information Systems}
 \str@set{UPSY}{CS}             {počítačových systémů}
@@ -122,7 +154,16 @@
 \str@set{UITS}{EN}             {Intelligent Systems}
 \str@set{UPGM}{CS}             {počítačové grafiky a multimédií}
 \str@set{UPGM}{EN}             {Computer Graphics and Multimedia}
+%...
 
+%---------------------------------------------------
+% [public]
+\let\strGetIn\str@get
+
+\newcommand{\strGet}[1]{%
+  \ifCzech\strGetIn{#1}{CS}%
+  \else\strGetIn{#1}{EN}\fi%
+}
 
 %============================================================================
 % TEMPLATE PARAMETERIZATION
@@ -146,10 +187,12 @@
 % Special handling of enumerated choices
 
 \newif\iffound
-\def\doc@setLocalizedIfStrEq#1#2#3#4{\def\tmp@testa{#1}\def\tmp@testb{#2}%
-  \ifx\tmp@testa\tmp@testb \doc@setLocalized{#3}{#2}{#4} \fi%
+\newcommand{\doc@setLocalizedIfStrEq}[4]{
+  \def\tmp@testa{#1}\def\tmp@testb{#2}
+  \ifx\tmp@testa\tmp@testb \doc@setLocalized{#3}{#2}{#4} \fi
 }
-\def\doc@setPrefabricatedIfStrEq#1#2#3{\def\tmp@testa{#1}\def\tmp@testb{#2}%
+\newcommand{\doc@setPrefabricatedIfStrEq}[3]{
+  \def\tmp@testa{#1}\def\tmp@testb{#2}
   \ifx\tmp@testa\tmp@testb
     \doc@setLocalized{#3}{CS}{\str@get{#2}{CS}}
     \doc@setLocalized{#3}{EN}{\str@get{#2}{EN}} \foundtrue
@@ -158,13 +201,13 @@
 % Project (type) choice
 \newcommand{\doc@setProject}[1]{
   \foundfalse
-  \doc@setPrefabricatedIfStrEq{#1}{BP}{project}
+  \doc@setPrefabricatedIfStrEq{#1}{BT}{project}
   \doc@setPrefabricatedIfStrEq{#1}{SP}{project}
-  \doc@setPrefabricatedIfStrEq{#1}{DP}{project}
-  \doc@setPrefabricatedIfStrEq{#1}{DR}{project}
+  \doc@setPrefabricatedIfStrEq{#1}{MT}{project}
+  \doc@setPrefabricatedIfStrEq{#1}{PT}{project}
   \iffound\else
-     \typeout{Bad project type! Choices: BP, SP, DP, DR}
-     \doc@setProject{BP}
+     \typeout{Bad project type! Choices: BT, SP, MP, PT}
+     \doc@setProject{BT}
   \fi
 }
 
@@ -187,6 +230,19 @@
 
 % Implementation of the interface above to store passed document information
 % items into variables
+
+\define@key{docinfo}{organization.cs}    {\doc@setLocalized{organization}{CS}{#1}}
+\define@key{docinfo}{organization.en}    {\doc@setLocalized{organization}{EN}{#1}}
+\define@key{docinfo}{organization.logo}  {\doc@setCommon{organization@logo}{#1}}
+\define@key{docinfo}{organization.logo.w}{\doc@setCommon{organization@logo@w}{#1}}
+\define@key{docinfo}{subsidiary.cs}      {\doc@setLocalized{subsidiary}{CS}{#1}}
+\define@key{docinfo}{subsidiary.en}      {\doc@setLocalized{subsidiary}{EN}{#1}}
+\define@key{docinfo}{subsidiary.logo}    {\doc@setCommon{subsidiary@logo}{#1}}
+\define@key{docinfo}{subsidiary.logo.w}  {\doc@setCommon{subsidiary@logo@w}{#1}}
+
+\define@key{docinfo}{title.cs}           {\doc@setlocalized{title}{CS}{#1}}
+\define@key{docinfo}{title.en}           {\doc@setlocalized{title}{EN}{#1}}
+
 \define@key{docinfo}{project}            {\doc@setProject{#1}}
 \define@key{docinfo}{year}               {\doc@setCommon{year}{#1}}
 \define@key{docinfo}{date}               {\doc@setCommon{date}{#1}}
@@ -212,6 +268,7 @@
 \define@key{docinfo}{keywords.cs}        {\doc@setLocalized{keywords}{CS}{#1}}
 \define@key{docinfo}{keywords.en}        {\doc@setLocalized{keywords}{EN}{#1}}
 
+\define@key{docinfo}{copyright}          {\doc@setCommon{copyright}{#1}}
 \define@key{docinfo}{declaration}        {\doc@setCommon{declaration}{#1}}
 \define@key{docinfo}{acknowledgement}    {\doc@setCommob{acknowledgement}{#1}}
 
@@ -219,22 +276,12 @@
 
 % Initially, default data is passed for later overriding from main document
 \setDocInfo{
-  project     = BP,
-  date        = \today,
-  location    = Brno,
-  title.cs    = Název práce (česky),
-  title.en    = Název práce (anglicky),
-  author      = Jmeno Prijmeni,
-  department  = UIFS,
-  supervisor  = Jmeno Prijmeni,
-  abstract.cs = ,
-  abstract.en = ,
-  keywords.cs = ,
-  keywords.en = ,
-  declaration = ,
+  date                = \today,
+  organization.logo.w = 3.5cm,
+  subsidiary.logo.w   = 3.5cm,
 }
 
-% Composite strings
+% Composite strings (as lazy evaluated macros)
 \doc@setLocalized{department}{CS}{%
   \str@get{department}{CS}\ \doc@getLocalized{department@part}{CS}
 }
@@ -260,6 +307,7 @@
 \newcommand{\setAcknowledgement}[1]{\doc@setCommon{acknowledgement}{#1}}
 \newcommand{\setAbstract}[2][CS]{\doc@setLocalized{abstract}{#1}{#2}}
 \newcommand{\setKeywords}[2][CS]{\doc@setLocalized{keywords}{#1}{#2}}
+\newcommand{\setCopyright}[1]{\doc@setCommon{copyright}{#1}}
 
 % [public] Getters of previously passed information items about document
 %          (first requires language spec. [CS, EN], the second makes
@@ -309,70 +357,71 @@
 
 
 %============================================================================
-% COVER PAGE, \makeCover
+% COVER PAGE, \prefacecover
 
-\ifCover
-  \newcommand\makeCover{\thispagestyle{empty}\sffamily%
+\newcommand\prefacecover{\thispagestyle{empty}\sffamily%
 %---------------------------------------------------
-  \@mktxt@uc{24}{\str@get{uni}{CS}}
+  \@mktxt@uc{24}{\doc@getLocalized{organization}{CS}}
   \vspace{0.4mm}
-  \@mktxt@uc{11}{\str@get{uni}{EN}}
-  
+  \@mktxt@uc{11}{\doc@getLocalized{organization}{EN}}
+
   \vspace{13.6mm}
-  
-  \@mktxt@uc{14}{\str@get{fac}{CS}}
+
+  \@mktxt@uc{14}{\doc@getLocalized{subsidiary}{CS}}
   \vspace{0.4mm}
   \@mktxt@uc{14}{\doc@getLocalized{department}{CS}}
-  
+
   \vspace{3mm}
-  
-  \@mktxt@uc{11}{\str@get{fac}{EN}}
+
+  \@mktxt@uc{11}{\doc@getLocalized{subsidiary}{EN}}
   \vspace{-0.72mm}
   \@mktxt@uc{11}{\doc@getLocalized{department}{EN}}
-  
+
   \vspace{\stretch{0.382}}
-  
+
   \@mktxt@uc{18}{\localizedDocInfo{title}} % In original language
-  
+
   \vspace{\stretch{0.618}}
-  
+
   \@mktxt@uc{14}{\doc@getLocalized{project}{CS}}
   \@mktxt@uc{10}{\doc@getLocalized{project}{EN}}
-  
+
   \vspace{6mm}
-  
-  \@mktxt{14}{
+
+  \@mktxt{14}{%
     \MakeUppercase{\str@get{author}{CS}}
     \hfill
     \doc@getCommon{author}\hspace*{0.145924\@doc@names@width}
   }
   \@mktxt@uc{10}{\str@author@EN}
-  
+
   \vspace{16.32mm}
-  
+
   \@mktxt{11}{\MakeUppercase{\doc@getCommon{location}} \doc@getCommon{year}}
 %---------------------------------------------------
-  \newpage}
-\else
-  \newcommand\makeCover{}
-\fi
+  \clearpage
+}
 
 %============================================================================
-% TITLE PAGE, \makeTitle
+% TITLE PAGE, \prefacetitle
 
-\ifDraft
-  \newcommand\makeTitle{}
-\else
-  \newcommand\makeTitle{\thispagestyle{empty}\sffamily%
+\newcommand\prefacetitle{\thispagestyle{empty}\sffamily%
 %
 \newsavebox{\@uni@logo}\newsavebox{\@uni@text}
 \newlength{\@uni@logo@height}\newlength{\@uni@text@height}
 \savebox{\@uni@logo}{%
-  \includegraphics[width=3.5cm,keepaspectratio]{\str@get{uni}{logo}}%
+  \ifthenelse{\equal{}{\doc@getCommon{organization@logo}}}{}{%
+    \includegraphics[width=\doc@getCommon{organization@logo@w}cm
+                    ,keepaspectratio
+                    ]{\doc@getCommon{organization@logo}}
+    \hspace{10pt}
+  }%
 }
-\savebox{\@uni@text}{\vbox{\@mktxt@uc{18}{%
-  \str@get{uni}{CS}}\vspace{0.4mm}\@mktxt@uc{11}{\str@get{uni}{EN}}}%
-}
+\savebox{\@uni@text}{\vbox{%
+  \@mktxt@uc{18}{\doc@getLocalized{organization}{CS}}
+  \vspace{0.4mm}
+  \@mktxt@uc{11}{\doc@getLocalized{organization}{EN}}
+}}
 \settoheight{\@uni@logo@height}{\makebox{\usebox{\@uni@logo}}}
 \settoheight{\@uni@text@height}{\makebox{\usebox{\@uni@text}}}
 \addtolength{\@uni@logo@height}{-\@uni@text@height}
@@ -381,145 +430,148 @@
 \newsavebox{\@fac@logo}\newsavebox{\@fac@text}
 \newlength{\@fac@logo@height}\newlength{\@fac@text@height}
 \savebox{\@fac@logo}{%
-  \includegraphics[width=3.5cm,keepaspectratio]{\str@get{fac}{logo}}%
+  \ifthenelse{\equal{}{\doc@getCommon{subsidiary@logo}}}{}{%
+    \includegraphics[width=\doc@getCommon{organization@logo@w}cm
+                    ,keepaspectratio
+                    ]{\doc@getCommon{subsidiary@logo}}
+    \hspace{10pt}
+  }%
 }
-\savebox{\@fac@text}{\vbox{\@mktxt@uc{18}{%
-  \str@get{fac}{CS}}\vspace{0.4mm}\@mktxt@uc{11}{\str@get{fac}{EN}}}%
-}
+\savebox{\@fac@text}{\vbox{%
+  \@mktxt@uc{18}{\doc@getLocalized{subsidiary}{CS}}
+  \vspace{0.4mm}
+  \@mktxt@uc{11}{\doc@getLocalized{subsidiary}{EN}}
+}}
 \settoheight{\@fac@logo@height}{\makebox{\usebox{\@fac@logo}}}
 \settoheight{\@fac@text@height}{\makebox{\usebox{\@fac@text}}}
 \addtolength{\@fac@logo@height}{-\@fac@text@height}
 \addtolength{\@fac@logo@height}{-0.1mm}
 %---------------------------------------------------
   \noindent
-  \usebox{\@uni@logo}\raisebox{\@uni@logo@height}{\hspace{10pt}
-  \usebox{\@uni@text}}
-  
+  \usebox{\@uni@logo}\raisebox{\@uni@logo@height}{\usebox{\@uni@text}}
+
   \vspace{6mm}
-  
+
   \noindent
-  \usebox{\@fac@logo}\raisebox{\@fac@logo@height}{\hspace{10pt}
-  \usebox{\@fac@text}}
-  
+  \usebox{\@fac@logo}\raisebox{\@fac@logo@height}{\usebox{\@fac@text}}
+
   \vspace{\stretch{0.382}}
-  
+
   \@mktxt@uc{18}{\doc@getLocalized{title}{CS}}
   \@mktxt@uc{10}{\doc@getLocalized{title}{EN}}
-  
+
   \vspace{\stretch{0.618}}
-  
+
   \@mktxt@uc{14}{\doc@getLocalized{project}{CS}}
   \@mktxt@uc{10}{\doc@getLocalized{project}{EN}}
-  
+
   \vspace{6mm}
-  
+
   \@mktxt{14}{%
     \MakeUppercase{\str@get{author}{CS}}
     \hfill
     \doc@getCommon{author}\hspace*{0.145924\@doc@names@width}
   }
   \@mktxt@uc{10}{\str@get{author}{EN}}
-  
+
   \vspace{6mm}
-  
+
   \@mktxt{14}{%
     \MakeUppercase{\str@get{supervisor}{CS}}
     \hfill
     \doc@getCommon{supervisor}\hspace*{0.145924\@doc@names@width}
   }
   \@mktxt@uc{10}{\str@get{supervisor}{EN}}
-  
+
   \vspace{12.24mm}
-  
+
   \@mktxt{11}{\MakeUppercase{\doc@getCommon{location}} \doc@getCommon{year}}
 %---------------------------------------------------
-  \newpage}
-\fi
+  \clearpage
+}
 
 %============================================================================
-% ASSIGNMENT, \makeAssignment
+% ASSIGNMENT, \prefaceassignment
 
-\ifDraft
-  \newcommand\makeAssignment{}
-\else
-  \newcommand\makeAssignment{\thispagestyle{empty}\rmfamily%
+\newcommand\prefaceassignment{\thispagestyle{empty}\rmfamily%
 %---------------------------------------------------
   \ifWis
-    \ifx\doc@getCommon{assignment@img}\undefined
-    \else
-      \noindent\hspace*{\fill}\\
-      \vspace{\stretch{0.382}}
-      \noindent
-      \includegraphics[width=\textwidth, keepaspectratio]{\doc@getCommon{assignment@img}}\\
-      \vspace{\stretch{0.618}}
-      \hspace*{\fill}
-    \fi
-  \else
-    \ifAssignment
-      \ifx\doc@getCommon{assignment@img}\undefined
-      \else
+      \ifthenelse{\equal{}{\doc@getCommon{assignment@img}}}{
+        \typeout{Assignment image not found!}
+        \noindent\framebox[\textwidth]{\Huge{\textsl\textbf{Assignment image not found!}}}
+      }{
         \noindent\hspace*{\fill}\\
         \vspace{\stretch{0.382}}
         \noindent
         \includegraphics[width=\textwidth, keepaspectratio]{\doc@getCommon{assignment@img}}\\
         \vspace{\stretch{0.618}}
         \hspace*{\fill}
-      \fi
+      }
+  \else
+    \ifAssignment
+      \ifthenelse{\equal{}{\doc@getCommon{assignment@img}}}{
+        \typeout{Assignment image not found!}
+        \noindent\framebox[\textwidth]{\Huge{\textsl\textbf{Assignment image not found!}}}
+      }{
+        \noindent\hspace*{\fill}\\
+        \vspace{\stretch{0.382}}
+        \noindent
+        \includegraphics[width=\textwidth, keepaspectratio]{\doc@getCommon{assignment@img}}\\
+        \vspace{\stretch{0.618}}
+        \hspace*{\fill}
+      }
     \else
       \noindent
-      \framebox[\textwidth]{\Large{\slshape{}\str@get{assignmentpage}{CS}}}
+      \framebox[\textwidth]{\Large{\slshape{}\str@get{assignmentcue}{CS}}}
 
       \vspace{\stretch{0.382}}
 
       \begin{center}
-      \noindent\framebox[\textwidth]{\Huge{\slshape\bfseries{}\str@get{assignmentpage}{CS}}}
+      \noindent\framebox[\textwidth]{\Huge{\slshape\bfseries{}\str@get{assignmentcue}{CS}}}
       \end{center}
 
       \vspace{\stretch{0.618}}
 
-      \noindent\framebox[\textwidth]{\Large{\slshape{}\str@get{assignmentpage}{CS}}}
+      \noindent\framebox[\textwidth]{\Large{\slshape{}\str@get{assignmentcue}{CS}}}
     \fi
   \fi
 %---------------------------------------------------
-  \newpage}
-\fi
+  \clearpage
+}
 
 %============================================================================
-% ABSTRACT+KEYWORDS PAGE, \makeAbstract
+% ABSTRACT+KEYWORDS PAGE, \prefaceabstract
 
-\ifDraft
-  \newcommand\makeAbstract{}
-\else
-  \newcommand\makeAbstract{\thispagestyle{empty}\rmfamily%
+\newcommand\prefaceabstract{\thispagestyle{empty}\rmfamily%
 %---------------------------------------------------
   \@mktxt@b{16}{\str@get{abstract}{CS}}
   \vspace{0.25\headsep}
   \noindent
   \doc@getLocalized{abstract}{CS}
-  
+
   \vfill
-  
+
   \@mktxt@b{16}{\str@get{abstract}{EN}}
   \vspace{0.25\headsep}
   \noindent
   \doc@getLocalized{abstract}{EN}
-  
+
   \vfill
-  
+
   \@mktxt@b{16}{\str@get{keywords}{CS}}
   \vspace{0.25\headsep}
   \noindent
   \doc@getLocalized{keywords}{CS}
-  
+
   \vfill
-  
+
   \@mktxt@b{16}{\str@get{keywords}{EN}}
   \vspace{0.25\headsep}
   \noindent
   \doc@getLocalized{keywords}{EN}
-  
+
   \vfill
-  
+
   \@mktxt@b{16}{\str@get{cite}{CS}}
   \vspace{0.25\headsep}
   \noindent
@@ -527,19 +579,16 @@
   \MakeLowercase{\doc@getLocalized{project}{CS}}, Brno,
   FIT VUT v~Brně, \doc@getCommon{year}
 %---------------------------------------------------
-  \newpage}
-\fi
+  \clearpage
+}
 
 %============================================================================
-% DECLARATION+ACKNOWLEDGEMENT PAGE, \makeDeclaration
+% DECLARATION+ACKNOWLEDGEMENT PAGE, \prefacedeclaration
 
-\ifDraft
-  \newcommand\makeDeclaration{}
-\else
-  \newcommand\makeDeclaration{\thispagestyle{empty}\rmfamily%
+\newcommand\prefacedeclaration{\thispagestyle{empty}\rmfamily%
 %---------------------------------------------------
   \@mktxt@b{18}{\localizedDocInfo{title}}
-  
+
   \vspace{1.5\headsep}
   \@mktxt@b{16}{\str@get{declaration}{CS}}
   \vspace{0.25\headsep}
@@ -552,40 +601,25 @@
       \doc@getCommon{author@name}\\
       \doc@getCommon{date}}
   \end{flushright}
-  
+
   \ifthenelse{\equal{}{\doc@getCommon{acknowledgement}}}{
     \vfill
   }{
     \vspace{\stretch{0.382}}
-  
+
     \@mktxt@b{16}{\str@get{acknowledgement}{CS}}
     \vspace{0.25\headsep}
     \noindent\doc@getCommon{acknowledgement}
-  
+
     \vspace{\stretch{0.618}}
   }
-  
+
   \noindent
   \copyright\ \doc@getCommon{author@name}, \doc@getCommon{year}.
   \newline
-  \emph{\str@get{copyright}{CS}}
+  \emph{\doc@getCommon{copyright}}
 %---------------------------------------------------
-  \newpage}
-\fi
-
-%============================================================================
-% PRINT OUT COMMANDS
-
-\newcommand\writeLocalizedDocInfo[2]{
-  \immediate\openout\doc@tempfile=#2
-  \immediate\write\doc@tempfile{\localizedDocInfo{#1}}
-  \immediate\closeout\doc@tempfile
-}
-
-\newcommand\writeLocalizedDocInfoIn[3]{
-  \immediate\openout\doc@tempfile=#3
-  \immediate\write\doc@tempfile{\localizedDocInfoIn{#1}{#2}}
-  \immediate\closeout\doc@tempfile
+  \clearpage
 }
 
 \endinput

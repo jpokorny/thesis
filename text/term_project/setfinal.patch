@@ -1,11 +1,11 @@
---- prelude-arrangement.tex.orig	2011-01-16 15:25:38.000000000 +0100
-+++ prelude-arrangement.tex	2011-01-16 15:26:14.000000000 +0100
-@@ -74,7 +74,7 @@
+--- prelude-arrangement.tex.orig	2011-03-07 02:40:56.000000000 +0100
++++ prelude-arrangement.tex	2011-03-07 01:02:55.000000000 +0100
+@@ -6,7 +6,7 @@
  
  % Options for `fitthesis.cls'
- \def\thesisOptions{
--    draft,
-+    %draft,
-     cover,
-     keepassignment,
- }
+ \def\thesisOptions{%
+-    draft,%
++%    draft,%
+     cover,%
+     keepassignment,%
+     english,%

@@ -10,11 +10,11 @@
     % Font settings
     %\usepackage{mathpazo}
     \setmainfont{TeX Gyre Pagella}
+    %\setmonofont[Scale=MatchLowercase]{DejaVu Sans Mono}
 
     %\defaultfontfeatures{Mapping=tex-text}
     %\setromanfont[Mapping=tex-text]{URW Palladio L}
     %\setsansfont[Scale=MatchLowercase,Mapping=tex-text]{URW Palladio L}
-    \setmonofont[Scale=MatchLowercase]{DejaVu Sans Mono}
 
     % Language settings
     \usepackage{polyglossia}
@@ -25,6 +25,7 @@
         \setdefaultlanguage{english}
         \setotherlanguage{czech}
     \fi
+    \usepackage{xltxtra}
 \else
     \typeout{Document intended to be processed exclusively with XeLaTeX!}
 \fi
@@ -33,27 +34,35 @@
 %============================================================================
 % OTHER PACKAGES
 
+\usepackage[text={152mm,230mm},left=35.84mm,top=31.63mm]{geometry}
+
 % Additional symbols and mathematic stuff
 %\usepackage{amsmath, amssymb}
 \usepackage{textcomp}
 
 % Priority packages
-\usepackage{url}
+%\usepackage{url}
 \usepackage{color}
-\usepackage{csquotes}
+\usepackage[autostyle=try]{csquotes} % adapt without warnings
 
 % Bibliography
 %\usepackage[numbers]{natbib}
-\usepackage[bibstyle=numeric
+\usepackage[backend=biber
+           ,sortlocale=cs_CZ
+           %,sortlocale=en_US
+           ,style=iso
+           ,bibstyle=numeric
            ,citestyle=numeric-comp
            ,sorting=none
-           ,backend=biber
+           ,natbib=true
            ]{biblatex}
 
 % Other packages
-\usepackage[xetex]{graphicx}
-\usepackage{fancyvrb}
+%\usepackage[xetex]{graphicx}
+%\usepackage{fancyvrb}
 \usepackage{makeidx}
+\usepackage[nottoc]{tocbibind}
+\usepackage[titles]{tocloft}
 \usepackage{multicol}
 \usepackage{enumitem}
 \usepackage{listings}
@@ -71,6 +80,7 @@
                     %
                    ,citecolor=cite
                    ,colorlinks=true
+                   ,linktoc=all
                     %
                    ,draft={\ifDraft{true}\else{false}\fi}
                     %
@@ -84,17 +94,12 @@
                    ,xetex
                    ,plainpages=false
                     % Connected with "Failed to convert input string to UTF16" message?
-                    %unicode=true,
+                    unicode=true,
                    ,urlcolor=urls
-                    % PDF metadata
-                   ,pdftitle={\localizedDocInfo{title}}
-                   ,pdfauthor={\fullDocAuthor}
-                   ,pdfsubject={\localizedDocInfo{project}}
-                   ,pdfkeywords={\localizedDocInfo{keywords}}
                    ]{hyperref}
         \def\UrlLeft{{\color{black}{<}}}
         \def\UrlRight{{\color{black}{>}}}
-        \bgroup\catcode`\#=12\gdef\hash{#}\egroup \newcommand{\urlhash}[3]{\url{#1\hash#3}}
+        %\bgroup\catcode`\#=12\gdef\hash{#}\egroup \newcommand{\urlhash}[3]{\url{#1\hash#3}}
     \fi
 \else
     \usepackage{backref}
@@ -107,6 +112,14 @@
 %============================================================================
 % PACKAGES-SPECIFIC CUSTOMIZATION
 
+\ifWis
+% PDF metadata
+\hypersetup{pdftitle={\localizedDocInfo{title}}
+           ,pdfauthor={\fullDocAuthor}
+           ,pdfsubject={\localizedDocInfo{project}}
+           ,pdfkeywords={\localizedDocInfo{keywords}}}
+\fi           
+
 
 % Customization for `backref'
 %\ifCzech
@@ -117,8 +130,8 @@
 
 \makeindex
 
-% \DeclareUrlCommand\url{\def\UrlLeft{<url:\ }\def\UrlRight{>}\urlstyle{tt}}
-\DeclareUrlCommand\url{\def\UrlLeft{<}\def\UrlRight{>}\urlstyle{tt}}
+%\DeclareUrlCommand\url{\def\UrlLeft{<url:\ }\def\UrlRight{>}\urlstyle{tt}}
+%\DeclareUrlCommand\url{\def\UrlLeft{<}\def\UrlRight{>}\urlstyle{tt}}
 
 \definecolor{lightgray}{rgb}{0.8,0.8,0.8}
 \ifWis
@@ -131,62 +144,6 @@
 
 \setlength{\columnseprule}{0.333pt}
 
-%
-% Customization for `fancyvrb'
-%
-
-\newcounter{codecnt}
-% \setcounter{codecnt}{0}
-\renewcommand{\thecodecnt}{\thechapter{}.\arabic{codecnt}}
-
-\ifWis
-    \definecolor{code}{rgb}{0,0.6,0.4}
-    \DefineVerbatimEnvironment%
-        {code}{Verbatim}{
-            commandchars=?\|$,
-            fontsize=\small,
-            formatcom=\color{code},
-            %framerule=0.4pt,
-            framesep=3mm,
-            frame=topline,
-            gobble=4,
-            labelposition=topline,
-            label={[\refstepcounter{codecnt}\label{code\arabic{chapter}.\arabic{codecnt}}\small{\textbf{Kód \thecodecnt}}%
-                \ifx\codelabel\undefined \else \small{\textbf{:} \textit{\codelabel}} \fi]},
-            numbersep=1.5mm,
-            numbers=left,
-            rulecolor=\color{black},
-            xleftmargin=3.00mm,
-        }
-    \renewcommand{\theFancyVerbLine}{%
-        \textcolor{black}{\tiny\arabic{FancyVerbLine}}
-    }
-    \def\lineRef#1#2{\hyperref[code:#1:#2]{\texttt{#2}}}
-    % \def\lineRef#1#2{\normalsize{\texttt{\ref{code:#1:#2}}}}
-\else
-    \ifPrint
-        \DefineVerbatimEnvironment%
-            {code}{Verbatim}{
-                commandchars=?\|$
-                fontsize=\small,
-                %framerule=0.4pt,
-                framesep=3.00mm,
-                frame=topline,
-                gobble=4,
-                labelposition=topline,
-                label={[\refstepcounter{codecnt}\label{code\arabic{chapter}.\arabic{codecnt}}\small{\textbf{kód \thecodecnt}}%
-                    \ifx\codelabel\undefined \else \small{\textbf{:} \textit{\codelabel}} \fi]},
-                numbersep=1.5mm,
-                numbers=left,
-                xleftmargin=3.00mm,
-            }
-        \renewcommand{\theFancyVerbLine}{%
-            {\tiny\arabic{FancyVerbLine}}
-        }
-        \def\lineRef#1#2{\texttt{\ref{code:#1:#2}}}
-    \fi
-\fi
-
 
 %
 % Customization for `enumitem'
@@ -195,28 +152,14 @@
 \setlist[myitemize]{label=\textbullet}
 
 
-%%
-%% Customization for `natbib'
-%%
-%\ifCzech
-%    \bibliographystyle{csplainnat}
-%\else
-%%    \bibliographystyle{plain}
-%    \bibliographystyle{alpha}
-%\fi
-
-
 %
 % Customization for `csquotes'
 %
 \MakeOuterQuote{"}
 \DeclareQuoteStyle{czech}{„}{“}{‚}{‘}
-
-
-%
-% Customization for bibliography
-%
-\ifCzech
-    \renewcommand{\bibname}{Seznam použitých zdrojů}
-\fi
-\addbibresource{ref/references.bib}
+%\DeclareQuoteStyle{czech}%     [variant]{style}
+%  {\quotedblbase }%                   opening outer mark
+%  {\textquotedblleft}%                  closing outer mark
+%  {\textquoteleft}%                      opening inner mark
+%  {\textquoteright}%    
+%%\DeclarePlainStyle{,,}{''}{,}{'}

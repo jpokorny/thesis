@@ -1,5 +1,16 @@
 \documentclass[draft]{fitthesis}
 \input{prelude-metadata}
+\newwrite\tempfile
+\newcommand\writeLocalizedDocInfo[2]{
+  \immediate\openout\tempfile=#2
+  \immediate\write\tempfile{\localizedDocInfo{#1}}
+  \immediate\closeout\tempfile
+}
+\newcommand\writeLocalizedDocInfoIn[3]{
+  \immediate\openout\tempfile=#3
+  \immediate\write\tempfile{\localizedDocInfoIn{#1}{#2}}
+  \immediate\closeout\tempfile
+}
 \writeLocalizedDocInfoIn{CS}{abstract}{metadata-abstract-cs}
 \writeLocalizedDocInfoIn{EN}{abstract}{metadata-abstract-en}
 \writeLocalizedDocInfoIn{CS}{keywords}{metadata-keywords-cs}

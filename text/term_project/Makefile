@@ -7,7 +7,7 @@ DOC_MAIN_SRC       =  main.tex
 DOC_PRELUDE_SRCS   =  prelude-arrangement.tex     \
                       prelude-metadata.tex        \
                       prelude-packages.tex        \
-                      prelude-customization.tex
+                      prelude-misc.tex
 
 # Files that can change between builds
 OTHERS             =  fitthesis.cls               \
@@ -38,19 +38,20 @@ BUILD_DONE_FILE    =  build.done
 
 BACKUP_DIR         =  bck
 
-SPELL_TEXT         = spell-text
-SPELL_TEXT_REF     = spell-text-ref
-SPELL_METADATA     = spell-metadata
-SPELL_METADATA_REF = spell-metadata-ref
+SPELL_TEXT         =  spell-text
+SPELL_TEXT_REF     =  spell-text-ref
+SPELL_METADATA     =  spell-metadata
+SPELL_METADATA_REF =  spell-metadata-ref
 
 ###
 
-#BATCHMODE          =  1
+AUTOPURGE           =  1
+#BATCHMODE           =  1
 XELATEX            =  xelatex
 ifdef BATCHMODE
-    XELATEXFLAGS   =  -interaction=batchmode
+    XELATEXVERB   =  -interaction=batchmode
 else
-    XELATEXFLAGS   =  -interaction=errorstopmode
+    XELATEXVERB   =  -interaction=errorstopmode
 endif
 
 BIBER              =  biber
@@ -77,7 +78,8 @@ PURGE_CMD = echo "purging..."; \
                      $(DOC_NAME).blg     \
                      $(DOC_NAME).run.xml \
                      $(DOC_NAME).bbl     \
-                     $(DOC_NAME).idx
+                     $(DOC_NAME).idx     \
+                     $(DOC_NAME).app
 
 #                     $(DOC_NAME).brf
 
@@ -98,8 +100,10 @@ inputfiles: $(INPUTFILES_LISTS)
 $(INPUTFILES_LISTS): $(INPUTFILES_LISTS:=.tex)
 	@for i in $^; do mv $$i $$(echo $$i | sed "s/.tex//g"); done
 $(INPUTFILES_LISTS:=.tex): $(INPUTFILES_GETTER) $(INPUTFILES_PREREQ)
-	@pdflatex -interaction=batchmode -draftmode $<; \
+	@$(XELATEX) $(XELATEXVERB) $<
+ifdef AUTOPURGE
 	rm -rf -- $(<:.tex=.aux) $(<:.tex=.log)
+endif
 
 metadata: $(METADATA_FILES)
 $(METADATA_FILES): $(METADATA_FILES:=.tex)
@@ -110,16 +114,20 @@ $(METADATA_FILES): $(METADATA_FILES:=.tex)
         rm -f -- $$i;                                                          \
     done
 $(METADATA_FILES:=.tex): $(METADATA_GETTER) $(METADATA_PREREQ)
-	pdflatex -interaction=batchmode -draftmode $<
+	$(XELATEX) $(XELATEXVERB) $<
+ifdef AUTOPURGE	
 	rm -rf -- $(<:.tex=.aux) $(<:.tex=.log)
+endif	
 
 $(DOC_NAME).pdf: $(DOC_MAIN_SRC) $(DOC_PRELUDE_SRC) $(BUILD_DONE_FILE)
 	$(VLNA) $< $$(cat $(INPUTFILES_LISTS) | sed "s/$$/.tex/")
-	$(XELATEX) $(XELATEXFLAGS) -jobname $(@:.pdf=) $<      
-	$(BIBER) $(@:.pdf=)                                    
-	$(XELATEX) $(XELATEXFLAGS) -jobname $(@:.pdf=) $<      
-#	$(XELATEX) $(XELATEXFLAGS) -jobname $(@:.pdf=) $<
+	$(XELATEX) $(XELATEXVERB) -jobname $(@:.pdf=) $<
+	$(BIBER) $(@:.pdf=)
+	$(XELATEX) $(XELATEXVERB) -jobname $(@:.pdf=) $<
+	$(XELATEX) $(XELATEXVERB) -jobname $(@:.pdf=) $<  # TOC item for bib.
+ifdef AUTOPURGE
 	@$(PURGE_CMD)
+endif
 
 figures:
 	$(MAKE) -C $(FIGS_DIR) $(FIGS)

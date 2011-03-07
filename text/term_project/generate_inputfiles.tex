@@ -1,6 +1,13 @@
 \input{prelude-arrangement}
 \documentclass{article}
-\thesisWriteInputted{chapters}{inputfiles-chapters}
-\thesisWriteInputted{appendices}{inputfiles-appendices}
 \begin{document}
+\newwrite\tempfile
+% chapters
+\immediate\openout\tempfile=inputfiles-chapters
+\thesisArrayMap{\immediate\write\tempfile}{chapters}
+\immediate\closeout\tempfile
+% appendices
+\immediate\openout\tempfile=inputfiles-appendices
+\thesisArrayMap{\immediate\write\tempfile}{appendices}
+\immediate\closeout\tempfile
 \end{document}

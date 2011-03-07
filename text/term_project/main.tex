@@ -31,35 +31,111 @@
 \input{prelude-packages}
 
 % Other customization, macros etc.
-\input{prelude-customization}
+\input{prelude-misc}
 
 %============================================================================
 
-\begin{document}\pagenumbering{Roman}
-    % Initial pages (cover, title, assignment, abstract and declaration)
-    \thesisInitialPages
-    %\setcounter{tocdepth}{2}\pagenumbering{roman}%\setcounter{page}{1}
+\thesisArrayMap{\addbibresource}{bibresources}
 
-    % Table of contents
+\begin{document}
+%---------------------------------------------------
+% Preface
+    \newcommand{\makePreface}[1]{%
+        \ifWis
+            \pdfbookmark[1]{\strGet{preface#1}}{pf.#1}
+        \fi
+        \@nameuse{preface#1}
+    }
     \ifWis
-        \pdfbookmark[0]{\contentsname}{kap:Uvod}
+        \pdfbookmark[0]{\strGet{prefacepages}}{pref}
     \fi
-    \addtocontents{toc}{\protect\thispagestyle{empty}}%
-    %\addtocontents{toc}{\protect\vskip -0.876\baselineskip}%
-    \tableofcontents\newpage\pagenumbering{arabic}
+    %---
+    \pagenumbering{Roman}
+    \thesisArrayMap{\makePreface}{prefacepages}
+    %---
+    \clearpage
+%---------------------------------------------------
+% Content pages
+    \ifWis
+        \pdfbookmark[0]{\strGet{contentspages}}{cont}
+    \fi
+    \renewcommand{\contentsname}{\strGet{contents}}
+    \addtocontents{toc}{
+        \ifWis\protect\pdfbookmark[1]{\strGet{contentscontents}}{cont.cont}\fi
+    }
+    %---
+    \pagenumbering{roman}
+    \tableofcontents
+    %---
+    \clearpage
+    \newcommand{\makeList}[1]{\@nameuse{listof##1}}
+    %---
+    \thesisArrayMap{\makeList}{lists}
+    %---
+    \clearpage
+%---------------------------------------------------
+% Chapters
+    \pagenumbering{arabic}
+    \newcommand{\inputChapters}[1]{\input{#1}\clearpage}
+    %---
+    \thesisArrayMap{\inputChapters}{chapters}
+    %---
+    \clearpage
+%---------------------------------------------------
+% Bibliography
+    \renewcommand{\bibname}{\strGet{bibliography}}
 
-    % List of figures/tables
-    %\listoffigures
-    %\listoftables
+    \defbibheading{simplechapter}{\begingroup
+        \renewcommand{\simplechapterdelim}{.}
+        \simplechapter
+        \chapter{#1}
+    \endgroup}
 
-    % Chapters
-    \thesisInput{chapters}
+    \newcounter{altchapter}
+    \let\oldchapter\chapter
+    \renewcommand{\chapter}[1]{\stepcounter{altchapter}\oldchapter{#1}}
+    \renewcommand{\thechapter}{\Alph{altchapter}}
+    %---
+    \printbibliography[heading=simplechapter]
+    %---
+    \clearpage
+%---------------------------------------------------
+% Appendices
+    \newenvironment{appendices}[1]{%
+        \renewcommand{\thechapter}{\arabic{chapter}}
+        \renewcommand{\chapter}[1]{
+            \stepcounter{chapter}
+            \phantomsection
+            \protect\pdfbookmark[1]{##1}{appendix.\thechapter}
+            \@makechapterhead{##1}
+            \addcontentsline{#1}{chapter}{##1}
+        }
+    }{\let\chapter\oldchapter}
 
-    % References
-    \newpage\addcontentsline{toc}{chapter}{\bibname}
-    \printbibliography
+    \newcommand{\listofappendices}{\begingroup
+        \renewcommand{\simplechapterdelim}{.}
+        \tocchapter
+        \renewcommand\cftchapdotsep{9}
+        \tocfile{\strGet{listofappendices}}{app}
+    \endgroup}
 
-    % Appendices
-    \renewcommand{\chaptername}{\appendixname}\appendix
-    \thesisInput{appendices}
+    \newcommand{\inputAppendices}[1]{\input{#1}\clearpage}
+
+    \thesisArrayIfEmpty{appendices}{}{
+        \clearpage
+        %---
+        \listofappendices
+        %---
+        \clearpage
+        \let\chapter\oldchapter
+        \renewcommand{\appendixname}{\strGet{appendix}}
+        \appendix
+        \begin{appendices}{app}
+            %---
+            \thesisArrayMap{\inputAppendices}{appendices}
+            %---
+        \end{appendices}
+    }
+    \clearpage
+%---------------------------------------------------
 \end{document}
