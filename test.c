@@ -177,24 +177,6 @@ static struct cl_type_item* create_ptr_type_item(struct symbol *type)
     return item;
 }
 
-static enum cl_type_e clt_code_from_string(const char *name)
-{
-    if (STREQ(name, "void"))
-        return CL_TYPE_VOID;
-
-    if (STREQ(name, "int") || /* FIXME */ STREQ(name, "unsigned int"))
-        return CL_TYPE_INT;
-
-    if (STREQ(name, "char") || /* FIXME */ STREQ(name, "unsigned char"))
-        return CL_TYPE_CHAR;
-
-    if (STREQ(name, "bool"))
-        return CL_TYPE_BOOL;
-
-    // unknown base type
-    return CL_TYPE_UNKNOWN;
-}
-
 static enum cl_type_e clt_code_from_type(struct symbol *type)
 {
     if (type == &void_ctype)
@@ -478,13 +460,13 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
             read_pseudo_sym(op, pseudo->sym);
             break;
 
-#if 0            
         case PSEUDO_REG:
-            op->code                = CL_OPERAND_REG;
-            // not used: op->name = strdup(show_ident(pseudo->ident));
-            op->data.reg.id         = pseudo->nr;
+            op->code                = CL_OPERAND_VAR;
+            op->type                = add_type_if_needed(pseudo->def->type);
+            op->data.var            = SP_NEW(struct cl_var);
+            op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
+            op->data.var->name      = NULL;
             break;
-#endif
 
         case PSEUDO_VAL: {
             long long value = pseudo->value;
@@ -1000,9 +982,6 @@ static void handle_fnc_ep(struct entrypoint *ep)
     struct instruction *entry = ep->entry;
     struct basic_block *bb;
     char *entry_name;
-
-    if (!bb)
-        return;
 
     // jump to entry basic block
     if (asprintf(&entry_name, "%p", entry->bb) < 0)
