@@ -18,7 +18,7 @@
  */
 
 
-#define _GNU_SOURCE
+#define _GNU_SOURCE // asprintf, ppoll...
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -26,6 +26,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
+#include <poll.h>
+#include <errno.h>
+#include <sys/wait.h>
 
 //#include "config.h"
 #include "trap.h"
@@ -77,16 +81,33 @@
 #   define STREQ(s1, s2) (0 == strcmp(s1, s2))
 #endif
 
+//static volatile sig_atomic_t worker_can_continue = 0;
+static volatile sig_atomic_t worker_is_zombie = 0;
+
 typedef struct typen_data *type_db_t;
 
 static struct cl_code_listener *cl = NULL;
 static type_db_t type_db = NULL;
+
+
+#if 0
+static void enable_worker(int)
+{
+    worker_can_continue = 1;
+}
+#endif
+
+static void get_worker_feedback(int signum)
+{
+    worker_is_zombie = 1;
+}
 
 static void cb_free_clt(struct cl_type *clt)
 {
     enum cl_type_e code = clt->code;
     switch (code) {
         case CL_TYPE_PTR:
+        case CL_TYPE_FNC:
             free(clt->items);
             break;
 
@@ -161,7 +182,8 @@ static void read_sparse_scope(enum cl_scope_e *p, struct scope *scope)
         *p = CL_SCOPE_FUNCTION;
 }
 
-static struct cl_type* add_type_if_needed(struct symbol *type);
+static struct cl_type* add_type_if_needed(struct symbol *type,
+                                          struct instruction *insn);
 
 static struct cl_type_item* create_ptr_type_item(struct symbol *type)
 {
@@ -170,7 +192,7 @@ static struct cl_type_item* create_ptr_type_item(struct symbol *type)
         die("SP_NEW failed");
 
     item->type = /* FIXME: unguarded recursion */
-                 add_type_if_needed(type->ctype.base_type);
+                 add_type_if_needed(type->ctype.base_type, NULL);
     item->name = NULL;
 
     // guaranteed to NOT return NULL
@@ -182,8 +204,11 @@ static enum cl_type_e clt_code_from_type(struct symbol *type)
     if (type == &void_ctype)
         return CL_TYPE_VOID;
 
-    if (type == &int_ctype ||
-        /* FIXME */ type == &sint_ctype || type == &uint_ctype)
+    if (type == &int_ctype || type == &sint_ctype || type == &uint_ctype
+        || type == &short_ctype || type == &sshort_ctype || type == &ushort_ctype
+        || type == &long_ctype || type == &slong_ctype || type == &ulong_ctype
+        || type == &llong_ctype || type == &sllong_ctype || type == &ullong_ctype
+        || type == &lllong_ctype || type == &slllong_ctype || type == &ulllong_ctype)
         return CL_TYPE_INT;
 
     if (type == &char_ctype ||
@@ -205,7 +230,7 @@ static void dig_fn_arguments(struct cl_type *clt, struct symbol_list* args)
         if (!clt->items)
             die("SP_RESIZE failed");
         struct cl_type_item *item = &clt->items[clt->item_cnt++];
-        item->type = /* recursion */ add_type_if_needed(sym->ctype.base_type);
+        item->type = /* recursion */ add_type_if_needed(sym->ctype.base_type, NULL);
         item->name = NULL;
     } END_FOR_EACH_PTR(sym);
     clt->item_cnt++;
@@ -283,10 +308,14 @@ static void skip_sparse_accessors(struct symbol **ptype)
     }
 }
 
-static struct cl_type* add_type_if_needed(struct symbol *type)
+static struct cl_type* add_type_if_needed(struct symbol *type,
+                                          struct instruction *insn)
 {
     struct cl_type *clt;
-    
+
+    if (!type && insn)
+        type = insn->type;
+
     // FIXME: this approach is completely wrong since we get type info for the
     // operand's base however we need to get type info in regards to the given
     // accessor
@@ -319,6 +348,11 @@ static struct cl_type* add_type_if_needed(struct symbol *type)
         read_sparse_scope(&clt->scope, type->scope);
         int bit_size = bits_to_bytes(type->bit_size);
         clt->size = bit_size >= 0 ? bit_size : 0;
+    } else if (insn) {
+        clt->code = CL_TYPE_INT;
+        read_sparse_location(&clt->loc, insn->pos);
+        int bit_size = bits_to_bytes(insn->size);
+        clt->size = bit_size >= 0 ? bit_size : 0;
     }
     
     if (clt->code == CL_TYPE_UNKNOWN && !clt->name)
@@ -333,7 +367,7 @@ static struct cl_type* clt_from_sym(struct symbol *sym)
     if (!sym || !sym->ctype.base_type)
         TRAP;
 
-    return add_type_if_needed(sym->ctype.base_type);
+    return add_type_if_needed(sym->ctype.base_type, NULL);
 }
 
 static bool is_pseudo(pseudo_t pseudo)
@@ -476,7 +510,7 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
 
         case PSEUDO_REG: { /* union -> def */
             op->code                = CL_OPERAND_VAR;
-            op->type                = add_type_if_needed(pseudo->def->type);
+            op->type                = add_type_if_needed(NULL, pseudo->def);
             op->data.var            = SP_NEW(struct cl_var);
             op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
             op->data.var->name      = NULL;
@@ -567,7 +601,81 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
         read_insn_op_deref(op, insn);
 
     if (!op->type)
-        op->type = add_type_if_needed(insn->type);
+        op->type = add_type_if_needed(NULL, insn);
+}
+
+static void handle_insn_sel(struct instruction *insn)
+{
+    // at first, create and emit CL_INSN_COND, then
+    // create and emit respective basic blocks
+    //
+    // note: BB label uniqueness: addr(insn) + (1 or 2),
+    //       provided that pointer has size of 4+
+
+    struct cl_insn cli;
+    struct cl_operand cond, src, dst;
+    char *bb_label_true = NULL,
+         *bb_label_false = NULL,
+         *bb_label_end = NULL;
+
+    // BB labels
+    if (asprintf(&bb_label_true, "%p", ((char *) insn) + 1) < 0)
+        die("asprintf failed");
+    if (asprintf(&bb_label_false, "%p", ((char *) insn) + 2) < 0)
+        die("asprintf failed");
+    if (asprintf(&bb_label_end, "%p", ((char *) insn) + 3) < 0)
+        die("asprintf failed");
+
+    cli.code = CL_INSN_COND;
+    read_sparse_location(&cli.loc, insn->pos);
+
+    pseudo_to_cl_operand(insn, insn->src1 , &cond, false);
+    cli.data.insn_cond.src = &cond;
+
+    cli.data.insn_cond.then_label = bb_label_true;
+    cli.data.insn_cond.else_label = bb_label_false;
+
+    cl->insn(cl, &cli);
+
+    free_cl_operand_data(&cond);
+
+    // first BB ("then" branch)
+    cl->bb_open(cl, bb_label_true);
+
+    cli.code = CL_INSN_UNOP;
+    cli.data.insn_unop.code = CL_UNOP_ASSIGN;
+
+    pseudo_to_cl_operand(insn, insn->target , &dst, false);
+    cli.data.insn_unop.dst = &dst;
+    pseudo_to_cl_operand(insn, insn->src2 , &src, false);
+    cli.data.insn_unop.src = &src;
+
+    cl->insn(cl, &cli);
+    free_cl_operand_data(&src);
+
+    cli.code = CL_INSN_JMP;
+    cli.data.insn_jmp.label = bb_label_end;
+    cl->insn(cl, &cli);
+
+    // second BB ("else" branch) .. warning: copy-paste from above
+    cl->bb_open(cl, bb_label_false);
+
+    cli.code = CL_INSN_UNOP;
+    cli.data.insn_unop.code = CL_UNOP_ASSIGN;
+
+    pseudo_to_cl_operand(insn, insn->src3 , &src, false);
+    cli.data.insn_unop.src = &src;
+
+    cl->insn(cl, &cli);
+    free_cl_operand_data(&src);
+    free_cl_operand_data(&dst);
+
+    cli.code = CL_INSN_JMP;
+    cli.data.insn_jmp.label = bb_label_end;
+    cl->insn(cl, &cli);
+
+    // merging BB
+    cl->bb_open(cl, bb_label_end);
 }
 
 static bool handle_insn_call(struct instruction *insn)
@@ -880,7 +988,9 @@ static bool handle_insn(struct instruction *insn)
         WARN_CASE_UNHANDLED(insn->pos, OP_NEG)
 
         /* Select - three input values */
-        WARN_CASE_UNHANDLED(insn->pos, OP_SEL)
+        case OP_SEL:
+            handle_insn_sel(insn);
+            break;
 
         /* Memory */
         WARN_CASE_UNHANDLED(insn->pos, OP_MALLOC)
@@ -1239,22 +1349,107 @@ int main(int argc, char **argv)
     // initialize type database
     type_db = type_db_create();
 
-    cl->file_open(cl, "sparse-internal-symbols");
-    clean_up_symbols(symlist, cl);
-    cl->file_close(cl);
+#define NFORK
+#ifndef NFORK
 
-    FOR_EACH_PTR_NOTAG(filelist, file) {
-        if (0 < verbose)
-            fprintf(stderr, "%s: about to process '%s'...\n", argv[0], file);
+    // prepare signals configurarion
+    sigset_t old_sigset, sigset, unblock_sigset;
+    struct sigaction saction = {
+        .sa_handler = get_worker_feedback,
+        .sa_flags = 0,
+    }, old_saction;
+    if (sigemptyset(&saction.sa_mask) == -1
+        || sigaction(SIGCHLD, &saction, &old_saction) == -1
+        /* block SIGUSR1 (ensure it is unblocked and backup the mask first) */
+        || sigemptyset(&sigset) == -1
+        || sigaddset(&sigset, SIGCHLD) == -1
+        || sigprocmask(SIG_UNBLOCK, &sigset, &old_sigset) == -1
+        || sigprocmask(SIG_BLOCK, &sigset, &unblock_sigset) == -1)
+        perror("Blocked signals mangling");
 
-        cl->file_open(cl, file);
-        clean_up_symbols(sparse(file), cl);
+    // pipe
+    int fildes[2];
+    if (pipe(fildes) == -1)
+        die("Pipe error");
+
+    pid_t pid = fork();
+    if (pid == -1)
+        die("Fork error");
+    else if (pid == 0) { /* child = worker, use fildes[1] for writing */
+#if 0        
+        // restore signals configuration
+        if (sigprocmask(SIG_SETMASK, &old_sigset) == -1
+            || sigaction(SIGCHLD, &old_saction, NULL) == -1)
+            perror("Restoring signals configuration");
+#endif        
+        // redefine stderr
+        if (close(STDERR_FILENO) == -1)
+            perror("Closing stderr in worker process");
+        if (dup2(fildes[1], STDERR_FILENO) == -1)
+            perror("Duplicating file descriptor to stderr in worker process");
+#endif        
+        // proceed internal symbol
+        cl->file_open(cl, "sparse-internal-symbols");
+        clean_up_symbols(symlist, cl);
         cl->file_close(cl);
-    } END_FOR_EACH_PTR_NOTAG(file);
+        // proceed the rest
+        FOR_EACH_PTR_NOTAG(filelist, file) {
+            if (0 < verbose)
+                fprintf(stderr, "%s: about to process '%s'...\n", argv[0], file);
+            cl->file_open(cl, file);
+            clean_up_symbols(sparse(file), cl);
+            cl->file_close(cl);
+        } END_FOR_EACH_PTR_NOTAG(file);
+#ifndef NFORK        
+    } else { /* parent = master, use fildes[0] for reading */
+#define BUFFSIZE          4096
+        size_t alloc_size = 0, remain_size = 0;
+        ssize_t read_size;
+        char *buffer = NULL;
+        int stat_loc;
+        struct pollfd fds = { .fd = fildes[0], .events = POLLIN };
+        for (;;) {
+            if (ppoll(&fds, 1, NULL, &unblock_sigset) == -1) {
+                if (errno == EINTR)
+                    break;
+                perror("ppol");
+            } else {
+                    if (!remain_size) {
+                        alloc_size += BUFFSIZE;
+                        remain_size = BUFFSIZE;
+                        buffer = realloc(buffer, sizeof(*buffer) * alloc_size);
+                        if (!buffer)
+                            perror("realloc");
+                    }
+                    read_size = read(fildes[0], &buffer[alloc_size-remain_size],
+                                     remain_size);
+                    if (read_size == -1) {
+                        perror("read");
+                        break;
+                    }
+                    remain_size -= read_size;
+            }
+        }
+        if (wait(&stat_loc) == (pid_t)-1)
+            perror("wait");
+        if (WIFEXITED(stat_loc)) {
+            fprintf(stderr, "sparse returned %i\n", WEXITSTATUS(stat_loc));
+        } else {
+            printf("???\n");
+        }
+        
+        fprintf(stderr, "sparse diagnostics:\n");
+        write(STDERR_FILENO, buffer, alloc_size-remain_size);
+        free(buffer);
 
-    type_db_destroy(type_db);
-    cl->destroy(cl);
-    cl_global_cleanup();
+#endif
 
-    return 0;
+        type_db_destroy(type_db);
+        cl->destroy(cl);
+        cl_global_cleanup();
+#ifndef NFORK
+    }
+#endif    
+
+    exit(EXIT_SUCCESS);
 }

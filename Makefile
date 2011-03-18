@@ -1,6 +1,6 @@
 CC ?= gcc
 CFLAGS ?= -Wall -DTRAP="do { } while (0)" # -Wextra # -pedantic 
-CFLAGS += -g #-O2
+CFLAGS += -g -ggdb3 #-O2
 
 CL = cl
 CL_LIB = lib$(CL).a
