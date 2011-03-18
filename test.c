@@ -453,22 +453,37 @@ static void read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
     }
 }
 
+static struct symbol *get_symbol_at_nr(pseudo_t pseudo)
+{
+    struct symbol *sym, *retval = NULL;
+    int nr = pseudo->nr;
+
+    // FIXME: lot of possible but missing checks
+    FOR_EACH_PTR(pseudo->def->bb->ep->name->ctype.base_type->arguments, sym) {
+        if (--nr == 0)
+            retval = sym;
+    } END_FOR_EACH_PTR(sym);
+    return retval;
+}
+
+
 static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
 {
     switch(pseudo->type) {
-        case PSEUDO_SYM:
+        case PSEUDO_SYM:  /* union -> sym */
             read_pseudo_sym(op, pseudo->sym);
             break;
 
-        case PSEUDO_REG:
+        case PSEUDO_REG: { /* union -> def */
             op->code                = CL_OPERAND_VAR;
             op->type                = add_type_if_needed(pseudo->def->type);
             op->data.var            = SP_NEW(struct cl_var);
             op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
             op->data.var->name      = NULL;
             break;
+        }
 
-        case PSEUDO_VAL: {
+        case PSEUDO_VAL: { /* union -> val */
             long long value = pseudo->value;
 
             op->code                = CL_OPERAND_CST;
@@ -478,12 +493,27 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
             return;
         }
 
-#if 0                         
-        case PSEUDO_ARG:
-            op->code                = CL_OPERAND_ARG;
-            op->data.arg.id         = pseudo->nr;
+        case PSEUDO_ARG: { /* union -> def */
+            struct symbol *sym = get_symbol_at_nr(pseudo);
+            if (!sym)
+                printf("not sym\n");
+
+            op->code                = CL_OPERAND_VAR;
+            op->scope               = CL_SCOPE_FUNCTION;
+            if (!sym) {
+                op->type                = /* TODO */ &builtin_int_type;
+                op->data.var            = SP_NEW(struct cl_var);
+                op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
+                op->data.var->name      = NULL;
+            } else {
+                op->type                = clt_from_sym(sym);
+                op->data.var            = SP_NEW(struct cl_var);
+                op->data.var->uid       = (int)(long) sym;
+                op->data.var->name      = strdup(show_ident(sym->ident));
+            }
+            //op->data.var->artificial = true;
             break;
-#endif
+        }
 
 #if 0
         case PSEUDO_PHI:
