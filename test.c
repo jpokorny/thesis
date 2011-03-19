@@ -47,7 +47,7 @@
 #include "sparse/token.h"
 
 
-#define NFORK                       1
+#define FORK                        1
 #define DO_EXPAND_SYMBOL            1
 #define DO_PER_EP_UNSAA             1
 #define DO_PER_EP_SET_UP_STORAGE    1
@@ -326,7 +326,7 @@ static struct symbol *get_arg_at_pos(struct symbol *fn, int pos)
 
     // FIXME: lot of possible but missing checks
     FOR_EACH_PTR(fn->ctype.base_type->arguments, sym) {
-        if (--pos <= 0)
+        if (--pos == 0)
             retval = sym;
     } END_FOR_EACH_PTR(sym);
     return retval;
@@ -1478,7 +1478,7 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     type_db = type_db_create();
 
-#if NFORK
+#if FORK
     // prepare signals configurarion
     sigset_t old_sigset, sigset, unblock_sigset;
     struct sigaction saction = {
@@ -1520,7 +1520,7 @@ int main(int argc, char **argv)
         // main processing loop
         retval = worker_loop(argc, argv);
 
-#if NFORK
+#if FORK
     } else { /* parent = master, use fildes[0] for reading */
         retval = master_loop(fildes[0], &unblock_sigset);
 #endif
@@ -1530,7 +1530,7 @@ int main(int argc, char **argv)
         cl->destroy(cl);
         cl_global_cleanup();
 
-#if NFORK
+#if FORK
     }
 #endif
 
