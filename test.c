@@ -185,7 +185,8 @@ static void read_sparse_scope(enum cl_scope_e *p, struct scope *scope)
 }
 
 static struct cl_type* add_type_if_needed(struct symbol *type,
-                                          struct instruction *insn);
+                                          struct instruction *insn,
+                                          int fargn);
 
 static struct cl_type_item* create_ptr_type_item(struct symbol *type)
 {
@@ -194,7 +195,7 @@ static struct cl_type_item* create_ptr_type_item(struct symbol *type)
         die("SP_NEW failed");
 
     item->type = /* FIXME: unguarded recursion */
-                 add_type_if_needed(type->ctype.base_type, NULL);
+                 add_type_if_needed(type->ctype.base_type, NULL, 0);
     item->name = NULL;
 
     // guaranteed to NOT return NULL
@@ -232,7 +233,7 @@ static void dig_fn_arguments(struct cl_type *clt, struct symbol_list* args)
         if (!clt->items)
             die("SP_RESIZE failed");
         struct cl_type_item *item = &clt->items[clt->item_cnt++];
-        item->type = /* recursion */ add_type_if_needed(sym->ctype.base_type, NULL);
+        item->type = /* recursion */ add_type_if_needed(sym->ctype.base_type, NULL, 0);
         item->name = NULL;
     } END_FOR_EACH_PTR(sym);
     clt->item_cnt++;
@@ -310,13 +311,43 @@ static void skip_sparse_accessors(struct symbol **ptype)
     }
 }
 
+static inline
+int bits_to_bytes_ceil(int bits)
+{
+	return bits >= 0 ? (bits + bits_in_char - 1) / bits_in_char : 0;    
+}
+
+static struct symbol *get_arg_at_pos(struct symbol *fn, int pos)
+{
+    struct symbol *sym, *retval = NULL;
+
+    if (pos <= 0)
+        return NULL;
+
+    // FIXME: lot of possible but missing checks
+    FOR_EACH_PTR(fn->ctype.base_type->arguments, sym) {
+        if (--pos <= 0)
+            retval = sym;
+    } END_FOR_EACH_PTR(sym);
+    return retval;
+}
+
+static struct symbol *get_instruction_type(struct instruction *insn)
+{
+    if (insn->opcode >= OP_BINCMP && insn->opcode <= OP_BINCMP_END)
+        return &bool_ctype;
+    else
+        return insn->type;
+}
+
 static struct cl_type* add_type_if_needed(struct symbol *type,
-                                          struct instruction *insn)
+                                          struct instruction *insn,
+                                          int fargn)
 {
     struct cl_type *clt;
 
     if (!type && insn)
-        type = insn->type;
+        type = get_instruction_type(insn);
 
     // FIXME: this approach is completely wrong since we get type info for the
     // operand's base however we need to get type info in regards to the given
@@ -348,14 +379,21 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
         read_sparse_type(clt, type);
         read_sparse_location(&clt->loc, type->pos);
         read_sparse_scope(&clt->scope, type->scope);
-        int bit_size = bits_to_bytes(type->bit_size);
-        clt->size = bit_size >= 0 ? bit_size : 0;
+        clt->size = bits_to_bytes_ceil(type->bit_size);
     } else if (insn) {
-        clt->code = CL_TYPE_INT;
+        // FIXME: bool et. al. not properly handled (sparse does not offer this)
+        if (insn->opcode == OP_CALL) {
+            struct symbol *fn = get_arg_at_pos(insn->func->sym, fargn+1);
+            clt->code = clt_code_from_type(fn);
+        }
+        else
+            clt->code = CL_TYPE_INT;
         read_sparse_location(&clt->loc, insn->pos);
-        int bit_size = bits_to_bytes(insn->size);
-        clt->size = bit_size >= 0 ? bit_size : 0;
+        clt->size = bits_to_bytes_ceil(insn->size);
     }
+    // FIXME: this is unwanted "override" behaviour
+    if (insn && insn->opcode >= OP_BINCMP && insn->opcode <= OP_BINCMP_END)
+        clt->code = CL_TYPE_BOOL;
 
     if (clt->code == CL_TYPE_UNKNOWN && !clt->name)
         clt->name = strdup("<sparse type not available>");
@@ -369,7 +407,7 @@ static struct cl_type* clt_from_sym(struct symbol *sym)
     if (!sym || !sym->ctype.base_type)
         TRAP;
 
-    return add_type_if_needed(sym->ctype.base_type, NULL);
+    return add_type_if_needed(sym->ctype.base_type, NULL, 0);
 }
 
 static bool is_pseudo(pseudo_t pseudo)
@@ -489,19 +527,6 @@ static void read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
     }
 }
 
-static struct symbol *get_symbol_at_nr(pseudo_t pseudo)
-{
-    struct symbol *sym, *retval = NULL;
-    int nr = pseudo->nr;
-
-    // FIXME: lot of possible but missing checks
-    FOR_EACH_PTR(pseudo->def->bb->ep->name->ctype.base_type->arguments, sym) {
-        if (--nr == 0)
-            retval = sym;
-    } END_FOR_EACH_PTR(sym);
-    return retval;
-}
-
 
 static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
 {
@@ -512,7 +537,7 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
 
         case PSEUDO_REG: { /* union -> def */
             op->code                = CL_OPERAND_VAR;
-            op->type                = add_type_if_needed(NULL, pseudo->def);
+            op->type                = add_type_if_needed(NULL, pseudo->def, 0);
             op->data.var            = SP_NEW(struct cl_var);
             op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
             op->data.var->name      = NULL;
@@ -530,7 +555,7 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
         }
 
         case PSEUDO_ARG: { /* union -> def */
-            struct symbol *sym = get_symbol_at_nr(pseudo);
+            struct symbol *sym = get_arg_at_pos(pseudo->def->bb->ep->name, pseudo->nr);
             if (!sym)
                 printf("not sym\n");
 
@@ -586,7 +611,7 @@ static void read_insn_op_deref(struct cl_operand *op, struct instruction *insn)
 }
 
 static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
-                                 struct cl_operand *op, bool deref)
+                                 struct cl_operand *op, bool deref, int fargn)
 {
     op->code        = CL_OPERAND_VOID;
     op->scope       = CL_SCOPE_GLOBAL;
@@ -602,8 +627,8 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
     if (deref)
         read_insn_op_deref(op, insn);
 
-    if (!op->type)
-        op->type = add_type_if_needed(NULL, insn);
+    if (!op->type || insn->opcode == OP_CALL)
+        op->type = add_type_if_needed(NULL, insn, fargn);
 }
 
 static void handle_insn_sel(struct instruction *insn)
@@ -631,7 +656,7 @@ static void handle_insn_sel(struct instruction *insn)
     cli.code = CL_INSN_COND;
     read_sparse_location(&cli.loc, insn->pos);
 
-    pseudo_to_cl_operand(insn, insn->src1 , &cond, false);
+    pseudo_to_cl_operand(insn, insn->src1 , &cond, false, 0);
     cli.data.insn_cond.src = &cond;
 
     cli.data.insn_cond.then_label = bb_label_true;
@@ -647,9 +672,9 @@ static void handle_insn_sel(struct instruction *insn)
     cli.code = CL_INSN_UNOP;
     cli.data.insn_unop.code = CL_UNOP_ASSIGN;
 
-    pseudo_to_cl_operand(insn, insn->target , &dst, false);
+    pseudo_to_cl_operand(insn, insn->target , &dst, false, 0);
     cli.data.insn_unop.dst = &dst;
-    pseudo_to_cl_operand(insn, insn->src2 , &src, false);
+    pseudo_to_cl_operand(insn, insn->src2 , &src, false, 0);
     cli.data.insn_unop.src = &src;
 
     cl->insn(cl, &cli);
@@ -665,7 +690,7 @@ static void handle_insn_sel(struct instruction *insn)
     cli.code = CL_INSN_UNOP;
     cli.data.insn_unop.code = CL_UNOP_ASSIGN;
 
-    pseudo_to_cl_operand(insn, insn->src3 , &src, false);
+    pseudo_to_cl_operand(insn, insn->src3 , &src, false, 0);
     cli.data.insn_unop.src = &src;
 
     cl->insn(cl, &cli);
@@ -690,8 +715,8 @@ static bool handle_insn_call(struct instruction *insn)
     read_sparse_location(&loc, insn->pos);
 
     // open call
-    pseudo_to_cl_operand(insn, insn->target , &dst  , false);
-    pseudo_to_cl_operand(insn, insn->func   , &fnc  , false);
+    pseudo_to_cl_operand(insn, insn->target , &dst  , false, 0);
+    pseudo_to_cl_operand(insn, insn->func   , &fnc  , false, 0);
     cl->insn_call_open(cl, &loc, &dst, &fnc);
     free_cl_operand_data(&dst);
     free_cl_operand_data(&fnc);
@@ -699,7 +724,7 @@ static bool handle_insn_call(struct instruction *insn)
     // go through arguments
     FOR_EACH_PTR(insn->arguments, arg) {
         struct cl_operand src;
-        pseudo_to_cl_operand(insn, arg, &src, false);
+        pseudo_to_cl_operand(insn, arg, &src, false, cnt);
 
         cl->insn_call_arg(cl, ++cnt, &src);
         free_cl_operand_data(&src);
@@ -743,7 +768,7 @@ static void handle_insn_br(struct instruction *insn)
     if (asprintf(&bb_name_false, "%p", insn->bb_false) < 0)
         die("asprintf failed");
 
-    pseudo_to_cl_operand(insn, insn->cond, &op, false);
+    pseudo_to_cl_operand(insn, insn->cond, &op, false, 0);
 
     // TODO: move to function?
     {
@@ -768,7 +793,7 @@ static void handle_insn_switch(struct instruction *insn)
     struct multijmp *jmp;
 
     // emit insn_switch_open
-    pseudo_to_cl_operand(insn, insn->target, &op, false);
+    pseudo_to_cl_operand(insn, insn->target, &op, false, 0);
     read_sparse_location(&loc, insn->pos);
     cl->insn_switch_open(cl, &loc, &op);
     free_cl_operand_data(&op);
@@ -817,7 +842,7 @@ static void handle_insn_ret(struct instruction *insn)
     struct cl_operand op;
     struct cl_insn cli;
 
-    pseudo_to_cl_operand(insn, insn->src, &op, false);
+    pseudo_to_cl_operand(insn, insn->src, &op, false, 0);
     cli.code                = CL_INSN_RET;
     cli.data.insn_ret.src   = &op;
     read_sparse_location(&cli.loc, insn->pos);
@@ -832,8 +857,8 @@ static void insn_assignment_base(struct instruction                 *insn,
     struct cl_operand op_lhs;
     struct cl_operand op_rhs;
 
-    pseudo_to_cl_operand(insn, lhs, &op_lhs, lhs_deref);
-    pseudo_to_cl_operand(insn, rhs, &op_rhs, rhs_deref);
+    pseudo_to_cl_operand(insn, lhs, &op_lhs, lhs_deref, 0);
+    pseudo_to_cl_operand(insn, rhs, &op_rhs, rhs_deref, 0);
 
 #if 0
     if (op_lhs.deref && op_lhs.name && op_lhs.offset
@@ -884,9 +909,9 @@ static void handle_insn_binop(struct instruction *insn, enum cl_binop_e code)
 {
     struct cl_operand dst, src1, src2;
 
-    pseudo_to_cl_operand(insn, insn->target , &dst  , false);
-    pseudo_to_cl_operand(insn, insn->src1   , &src1 , false);
-    pseudo_to_cl_operand(insn, insn->src2   , &src2 , false);
+    pseudo_to_cl_operand(insn, insn->target , &dst  , false, 0);
+    pseudo_to_cl_operand(insn, insn->src1   , &src1 , false, 0);
+    pseudo_to_cl_operand(insn, insn->src2   , &src2 , false, 0);
 
     // TODO: move to function?
     {
@@ -936,24 +961,41 @@ static bool handle_insn(struct instruction *insn)
         case OP_ADD /*= OP_BINARY*/:
             handle_insn_binop(insn, CL_BINOP_PLUS);
             break;
+        case OP_SUB:
+            handle_insn_binop(insn, CL_BINOP_MINUS);
+            break;
+        case OP_MULU:
+        case OP_MULS:
+            handle_insn_binop(insn, CL_BINOP_MULT);
+            break;
+        case OP_DIVU:
+        case OP_DIVS:
+            handle_insn_binop(insn, CL_BINOP_TRUNC_DIV);
+            break;
+        case OP_MODU:
+        case OP_MODS:
+            handle_insn_binop(insn, CL_BINOP_TRUNC_MOD);
+            break;
 
-        WARN_CASE_UNHANDLED(insn->pos, OP_SUB)
-        WARN_CASE_UNHANDLED(insn->pos, OP_MULU)
-        WARN_CASE_UNHANDLED(insn->pos, OP_MULS)
-        WARN_CASE_UNHANDLED(insn->pos, OP_DIVU)
-        WARN_CASE_UNHANDLED(insn->pos, OP_DIVS)
-        WARN_CASE_UNHANDLED(insn->pos, OP_MODU)
-        WARN_CASE_UNHANDLED(insn->pos, OP_MODS)
         WARN_CASE_UNHANDLED(insn->pos, OP_SHL)
         WARN_CASE_UNHANDLED(insn->pos, OP_LSR)
         WARN_CASE_UNHANDLED(insn->pos, OP_ASR)
 
         /* Logical */
-        WARN_CASE_UNHANDLED(insn->pos, OP_AND)
-        WARN_CASE_UNHANDLED(insn->pos, OP_OR)
+        case OP_AND:
+            handle_insn_binop(insn, CL_BINOP_BIT_AND);
+            break;
+        case OP_OR:
+            handle_insn_binop(insn, CL_BINOP_BIT_IOR);
+            break;
         WARN_CASE_UNHANDLED(insn->pos, OP_XOR)
-        WARN_CASE_UNHANDLED(insn->pos, OP_AND_BOOL)
-        WARN_CASE_UNHANDLED(insn->pos, OP_BINARY_END /*= OP_OR_BOOL*/)
+
+        case OP_AND_BOOL:
+            handle_insn_binop(insn, CL_BINOP_TRUTH_AND);
+            break;
+        case OP_BINARY_END:
+            handle_insn_binop(insn, CL_BINOP_TRUTH_OR);
+            break;
 
         /* Binary comparison */
         case OP_SET_EQ /*= OP_BINCMP*/:
@@ -1403,8 +1445,10 @@ int master_loop(int read_fd, sigset_t *unblock_sigset)
               cl->acknowledge(cl);
       }
 
-      fprintf(stderr, "sparse diagnostics:\n");
-      write(STDERR_FILENO, buffer, alloc_size-remain_size);
+      if (alloc_size-remain_size) {
+          fprintf(stderr, "sparse diagnostics:\n");
+          write(STDERR_FILENO, buffer, alloc_size-remain_size);
+      }
       free(buffer);
 
       return res;
