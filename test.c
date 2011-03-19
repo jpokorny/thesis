@@ -47,7 +47,8 @@
 #include "sparse/token.h"
 
 
-#define FORK                        1
+#define DO_FORK                     1
+#define DO_PROCEED_INTERNAL         0
 #define DO_EXPAND_SYMBOL            1
 #define DO_PER_EP_UNSAA             1
 #define DO_PER_EP_SET_UP_STORAGE    1
@@ -55,7 +56,7 @@
 
 #define WARN_UNHANDLED(pos, what) do { \
     sl_warn(pos, "warning: '%s' not handled", what); \
-    fprintf(stderr, \
+    fprintf(real_stderr, \
             "%s:%d: note: raised from function '%s' [internal location]\n", \
             __FILE__, __LINE__, __FUNCTION__); \
 } while (0)
@@ -65,7 +66,7 @@
 
 #define WARN_VA(pos, fmt, ...) do {\
     sl_warn(pos, "warning: " fmt, __VA_ARGS__); \
-    fprintf(stderr, \
+    fprintf(real_stderr, \
             "%s:%d: note: raised from function '%s' [internal location]\n", \
             __FILE__, __LINE__, __FUNCTION__); \
 } while (0)
@@ -152,13 +153,13 @@ static void sl_warn(struct position pos, const char *fmt, ...)
 {
     va_list ap;
 
-    fprintf(stderr, "%s:%d: ", stream_name(pos.stream), pos.line);
+    fprintf(real_stderr, "%s:%d: ", stream_name(pos.stream), pos.line);
 
     va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
+    vfprintf(real_stderr, fmt, ap);
     va_end(ap);
 
-    fprintf(stderr, "\n");
+    fprintf(real_stderr, "\n");
 }
 
 static void read_sparse_location(struct cl_loc *loc, struct position pos)
@@ -225,17 +226,27 @@ static enum cl_type_e clt_code_from_type(struct symbol *type)
     return CL_TYPE_UNKNOWN;
 }
 
-static void dig_fn_arguments(struct cl_type *clt, struct symbol_list* args)
+static void add_fn_argument(struct cl_type *clt, struct symbol *type)
+{
+    clt->items = SP_RESIZE(clt->items, clt->item_cnt+1);
+    if (!clt->items)
+        die("SP_RESIZE failed");
+    struct cl_type_item *item = &clt->items[clt->item_cnt++];
+    item->type = /* recursion */ add_type_if_needed(type, NULL, 0);
+    item->name = NULL;
+}
+
+static void add_fn_arguments(struct cl_type *clt, struct symbol_list* args)
 {
     struct symbol *sym;
-    FOR_EACH_PTR(args, sym) {
-        clt->items = SP_RESIZE(clt->items, clt->item_cnt+1);
-        if (!clt->items)
-            die("SP_RESIZE failed");
-        struct cl_type_item *item = &clt->items[clt->item_cnt++];
-        item->type = /* recursion */ add_type_if_needed(sym->ctype.base_type, NULL, 0);
-        item->name = NULL;
-    } END_FOR_EACH_PTR(sym);
+    if (ptr_list_size((struct ptr_list *)args) == 0) {
+        add_fn_argument(clt, &void_ctype);
+        return;
+    }
+    FOR_EACH_PTR(args, sym)
+        add_fn_argument(clt, sym->ctype.base_type);
+    END_FOR_EACH_PTR(sym);
+    // not sure why this necessary
     clt->item_cnt++;
 }
 
@@ -278,7 +289,7 @@ static void read_sparse_type(struct cl_type *clt, struct symbol *type)
             clt->code       = CL_TYPE_FNC;
             clt->item_cnt   = 1;
             clt->items      = create_ptr_type_item(type);
-            dig_fn_arguments(clt, type->arguments);
+            add_fn_arguments(clt, type->arguments);
             break;
 
         case SYM_ENUM:
@@ -314,7 +325,7 @@ static void skip_sparse_accessors(struct symbol **ptype)
 static inline
 int bits_to_bytes_ceil(int bits)
 {
-	return bits >= 0 ? (bits + bits_in_char - 1) / bits_in_char : 0;    
+	return bits >= 0 ? (bits + bits_in_char - 1) / bits_in_char : 0;
 }
 
 static struct symbol *get_arg_at_pos(struct symbol *fn, int pos)
@@ -383,8 +394,8 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
     } else if (insn) {
         // FIXME: bool et. al. not properly handled (sparse does not offer this)
         if (insn->opcode == OP_CALL) {
-            struct symbol *fn = get_arg_at_pos(insn->func->sym, fargn+1);
-            clt->code = clt_code_from_type(fn);
+            struct symbol *arg = get_arg_at_pos(insn->func->sym, fargn+1);
+            clt->code = clt_code_from_type(arg);
         }
         else
             clt->code = CL_TYPE_INT;
@@ -461,6 +472,7 @@ static const char* strdup_sparse_string(const struct string *str)
         : NULL;
 }
 
+#if 0
 static /* const */ struct cl_type builtin_int_type = {
     .uid            = /* FIXME */ -1,
     .code           = CL_TYPE_INT,
@@ -472,6 +484,7 @@ static /* const */ struct cl_type builtin_int_type = {
     .name           = "<builtin_int>",
     .size           = /* FIXME */ sizeof(int)
 };
+#endif
 
 static void read_sym_initializer(struct cl_operand *op, struct expression *expr)
 {
@@ -522,6 +535,7 @@ static void read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
     } else {
         op->code                            = CL_OPERAND_VAR;
         op->type                            = clt_from_sym(sym);
+        op->data.var                        = SP_NEW(struct cl_var);
         op->data.var->uid                     = /* TODO */ (int)(long) sym;
         op->data.var->name                   = strdup(show_ident(sym->ident));
     }
@@ -548,7 +562,7 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
             long long value = pseudo->value;
 
             op->code                = CL_OPERAND_CST;
-            op->type                = /* TODO */ &builtin_int_type;
+            op->type                = add_type_if_needed(&int_ctype, NULL, 0);
             op->data.cst.code       = CL_TYPE_INT;
             op->data.cst.data.cst_int.value  = value;
             return;
@@ -562,7 +576,7 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
             op->code                = CL_OPERAND_VAR;
             op->scope               = CL_SCOPE_FUNCTION;
             if (!sym) {
-                op->type                = /* TODO */ &builtin_int_type;
+                op->type                = add_type_if_needed(&int_ctype, NULL, 0);
                 op->data.var            = SP_NEW(struct cl_var);
                 op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
                 op->data.var->name      = NULL;
@@ -594,7 +608,7 @@ static void read_insn_op_deref(struct cl_operand *op, struct instruction *insn)
             && insn->type->ident
             && 0 != strcmp("__ptr", show_ident(insn->type->ident)))
     {
-        WARN_UNHANDLED(insn->pos, "CL_ACCESSOR_ITEM");
+        //WARN_UNHANDLED(insn->pos, "CL_ACCESSOR_ITEM");
         return;
     }
 
@@ -627,6 +641,7 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
     if (deref)
         read_insn_op_deref(op, insn);
 
+    // correct type for function argument
     if (!op->type || insn->opcode == OP_CALL)
         op->type = add_type_if_needed(NULL, insn, fargn);
 }
@@ -810,8 +825,8 @@ static void handle_insn_switch(struct instruction *insn)
             val_hi.code = CL_OPERAND_CST;
 
             // TODO: read types
-            val_lo.type = &builtin_int_type;
-            val_hi.type = &builtin_int_type;
+            val_lo.type = add_type_if_needed(&int_ctype, NULL, 0);
+            val_hi.type = add_type_if_needed(&int_ctype, NULL, 0);
 
             val_lo.data.cst.code = CL_TYPE_INT;
             val_hi.data.cst.code = CL_TYPE_INT;
@@ -858,7 +873,16 @@ static void insn_assignment_base(struct instruction                 *insn,
     struct cl_operand op_rhs;
 
     pseudo_to_cl_operand(insn, lhs, &op_lhs, lhs_deref, 0);
-    pseudo_to_cl_operand(insn, rhs, &op_rhs, rhs_deref, 0);
+    if (rhs->type == PSEUDO_VAL /* && rhs->value == 0 */
+        && op_lhs.type->code == CL_TYPE_PTR) {
+        op_rhs.code = CL_OPERAND_CST;
+        op_rhs.type = op_lhs.type;
+        op_rhs.accessor = NULL;
+        op_rhs.data.cst.code = CL_TYPE_INT;
+        op_rhs.data.cst.data.cst_int.value = rhs->value;
+    } else {
+        pseudo_to_cl_operand(insn, rhs, &op_rhs, rhs_deref, 0);
+    }
 
 #if 0
     if (op_lhs.deref && op_lhs.name && op_lhs.offset
@@ -1383,10 +1407,12 @@ int worker_loop(int argc, char **argv)
 
     symlist = sparse_initialize(argc, argv, &filelist);
 
+#if DO_PROCEED_INTERNAL
     // proceed internal symbol
     cl->file_open(cl, "sparse-internal-symbols");
     clean_up_symbols(symlist, cl);
     cl->file_close(cl);
+#endif
     // proceed the rest
     FOR_EACH_PTR_NOTAG(filelist, file) {
         if (0 < verbose)
@@ -1440,13 +1466,13 @@ int master_loop(int read_fd, sigset_t *unblock_sigset)
           perror("wait");
       if (WIFEXITED(stat_loc)) {
           res = WEXITSTATUS(stat_loc);
-          fprintf(stderr, "sparse returned %i\n", res);
+          fprintf(real_stderr, "sparse returned %i\n", res);
           if (!res)
               cl->acknowledge(cl);
       }
 
       if (alloc_size-remain_size) {
-          fprintf(stderr, "sparse diagnostics:\n");
+          fprintf(real_stderr, "-------------------\nsparse diagnostics:\n");
           write(STDERR_FILENO, buffer, alloc_size-remain_size);
       }
       free(buffer);
@@ -1478,13 +1504,11 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     type_db = type_db_create();
 
-#if FORK
+#if DO_FORK
     // prepare signals configurarion
     sigset_t old_sigset, sigset, unblock_sigset;
-    struct sigaction saction = {
-        .sa_handler = get_worker_feedback,
-        .sa_flags = 0,
-    }, old_saction;
+    struct sigaction saction = { .sa_handler = get_worker_feedback,
+                                 .sa_flags = 0 }, old_saction;
     if (sigemptyset(&saction.sa_mask) == -1
         || sigaction(SIGCHLD, &saction, &old_saction) == -1
         /* block SIGCHLD (ensure it is unblocked and backup the mask first) */
@@ -1520,9 +1544,15 @@ int main(int argc, char **argv)
         // main processing loop
         retval = worker_loop(argc, argv);
 
-#if FORK
+#if DO_FORK
+        if (fclose(real_stderr) == EOF)
+            perror("fclose");
     } else { /* parent = master, use fildes[0] for reading */
         retval = master_loop(fildes[0], &unblock_sigset);
+        // restore signals configuration
+        if (sigprocmask(SIG_SETMASK, &old_sigset, NULL) == -1
+            || sigaction(SIGCHLD, &old_saction, NULL) == -1)
+            perror("Restoring signals configuration");
 #endif
 
         // cleanup
@@ -1530,7 +1560,7 @@ int main(int argc, char **argv)
         cl->destroy(cl);
         cl_global_cleanup();
 
-#if FORK
+#if DO_FORK
     }
 #endif
 
