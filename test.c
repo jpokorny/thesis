@@ -48,10 +48,10 @@
 
 
 #define DO_FORK                     1
-#define DO_PROCEED_INTERNAL         0
-#define DO_EXPAND_SYMBOL            1
-#define DO_PER_EP_UNSAA             1
-#define DO_PER_EP_SET_UP_STORAGE    1
+#define DO_PROCEED_INTERNAL         1
+#define DO_EXPAND_SYMBOL            0
+#define DO_PER_EP_UNSAA             0
+#define DO_PER_EP_SET_UP_STORAGE    0
 #define SHOW_PSEUDO_INSNS           0
 
 #define WARN_UNHANDLED(pos, what) do { \
@@ -90,8 +90,6 @@
 //
 
 
-static volatile sig_atomic_t worker_is_zombie = 0;
-
 typedef struct typen_data *type_db_t;
 
 static struct cl_code_listener *cl = NULL;
@@ -99,11 +97,6 @@ static type_db_t type_db = NULL;
 
 FILE *real_stderr = NULL;
 
-
-static void get_worker_feedback(int signum)
-{
-    worker_is_zombie = 1;
-}
 
 static void cb_free_clt(struct cl_type *clt)
 {
@@ -1431,7 +1424,7 @@ int worker_loop(int argc, char **argv)
 //
 #define BUFFSIZE          4096
 static
-int master_loop(int read_fd, sigset_t *unblock_sigset)
+int master_loop(int read_fd)
 {
       size_t alloc_size = 0, remain_size = 0;
       ssize_t read_size;
@@ -1440,26 +1433,27 @@ int master_loop(int read_fd, sigset_t *unblock_sigset)
       struct pollfd fds = { .fd = read_fd, .events = POLLIN };
 
       for (;;) {
-          if (ppoll(&fds, 1, NULL, unblock_sigset) == -1) {
+          if (poll(&fds, 1, -1) == -1) {
               if (errno == EINTR)
-                  break;
+                  continue;
               perror("ppol");
-          } else {
-                  if (!remain_size) {
-                      alloc_size += BUFFSIZE;
-                      remain_size = BUFFSIZE;
-                      buffer = realloc(buffer, sizeof(*buffer) * alloc_size);
-                      if (!buffer)
-                          perror("realloc");
-                  }
-                  read_size = read(read_fd, &buffer[alloc_size-remain_size],
-                                   remain_size);
-                  if (read_size == -1) {
-                      perror("read");
-                      break;
-                  }
-                  remain_size -= read_size;
+          } else if (fds.revents & POLLHUP)
+            break;
+
+          if (!remain_size) {
+              alloc_size += BUFFSIZE;
+              remain_size = BUFFSIZE;
+              buffer = realloc(buffer, sizeof(*buffer) * alloc_size);
+              if (!buffer)
+                  perror("realloc");
           }
+          read_size = read(read_fd, &buffer[alloc_size-remain_size],
+                           remain_size);
+          if (read_size == -1) {
+              perror("read");
+              break;
+          }
+          remain_size -= read_size;
       }
 
       if (wait(&stat_loc) == (pid_t)-1)
@@ -1481,10 +1475,64 @@ int master_loop(int read_fd, sigset_t *unblock_sigset)
 }
 
 
+static inline
+bool install_handler_and_block(int signum, void (*handler)(int),
+                               //struct sigaction *old_sa,
+                               //sigset_t *old_sigset
+                               sigset_t *unblock_sigset)
+{
+    sigset_t sigset;
+    struct sigaction sa = {
+        .sa_handler = handler,
+        .sa_flags = 0
+    };
+    if (sigemptyset(&sa.sa_mask) == -1
+        || sigaction(signum, &sa, /*old_sa*/ NULL) == -1
+        /* block "signum" (ensure it is unblocked and backup the mask first) */
+        || sigemptyset(&sigset) == -1
+        || sigaddset(&sigset, signum) == -1
+        || sigprocmask(SIG_UNBLOCK, &sigset, /*old_sigset*/ NULL) == -1
+        || sigprocmask(SIG_BLOCK, &sigset, unblock_sigset) == -1)
+        return false;
+    else
+        return true;
+}
+
+
+static inline
+bool redefine_stderr(int target_fd, FILE **backup_stderr)
+{
+    if (backup_stderr) {
+        *backup_stderr = fopen("/dev/stderr", "w");
+        if (!*backup_stderr)
+            return false;
+        else
+        setbuf(*backup_stderr, NULL);
+    }
+
+    if (close(STDERR_FILENO) == -1
+        || dup2(target_fd, STDERR_FILENO) == -1)
+        return false;
+    else
+        return true;
+}
+
 
 //
 // Main
 //
+
+#define CLEANUP  do {             \
+        type_db_destroy(type_db); \
+        cl->destroy(cl);          \
+        cl_global_cleanup();      \
+    } while (0)
+
+#define PERROR_CLEANUP_EXIT(str, code) \
+    do { perror(str); CLEANUP; exit(code); } while (0)
+
+#define PERROR_EXIT(str, code) \
+    do { perror(str); exit(code); } while (0)
 
 
 int main(int argc, char **argv)
@@ -1505,60 +1553,39 @@ int main(int argc, char **argv)
     type_db = type_db_create();
 
 #if DO_FORK
-    // prepare signals configurarion
-    sigset_t old_sigset, sigset, unblock_sigset;
-    struct sigaction saction = { .sa_handler = get_worker_feedback,
-                                 .sa_flags = 0 }, old_saction;
-    if (sigemptyset(&saction.sa_mask) == -1
-        || sigaction(SIGCHLD, &saction, &old_saction) == -1
-        /* block SIGCHLD (ensure it is unblocked and backup the mask first) */
-        || sigemptyset(&sigset) == -1
-        || sigaddset(&sigset, SIGCHLD) == -1
-        || sigprocmask(SIG_UNBLOCK, &sigset, &old_sigset) == -1
-        || sigprocmask(SIG_BLOCK, &sigset, &unblock_sigset) == -1)
-        perror("Blocked signals mangling");
+    // prepare signals configuration (block SIGCHLD throughout the program,
+    // the only exception is ppol in master loop)
+    sigset_t unblock_sigset;
+    if (!install_handler_and_block(SIGCHLD, worker_feedback, &unblock_sigset))
+        PERROR_CLEANUP_EXIT("Blocked signals mangling", 2);
     // set up pipe
     int fildes[2];
     if (pipe(fildes) == -1)
-        perror("Pipe error");
+        PERROR_CLEANUP_EXIT("Pipe error", 2);
     // master-worker fork
     pid_t pid = fork();
     if (pid == -1)
-        perror("Fork error");
+        PERROR_CLEANUP_EXIT("Fork error", 2);
     else if (pid == 0) { /* child = worker, use fildes[1] for writing */
-        // restore signals configuration
-        if (sigprocmask(SIG_SETMASK, &old_sigset, NULL) == -1
-            || sigaction(SIGCHLD, &old_saction, NULL) == -1)
-            perror("Restoring signals configuration");
-        // redefine stderr
-        real_stderr = fopen("/dev/stderr", "w");
-        if (!real_stderr)
-            perror("fopen");
-        setbuf(real_stderr, NULL);
-        if (close(STDERR_FILENO) == -1)
-            perror("Closing stderr in worker process");
-        if (dup2(fildes[1], STDERR_FILENO) == -1)
-            perror("Duplicating file descriptor to stderr in worker process");
+        close(fildes[0]);
+        if (!redefine_stderr(fildes[1], &real_stderr))
+            PERROR_EXIT("Redefining stderr", 2);
 #endif
 
         // main processing loop
         retval = worker_loop(argc, argv);
 
 #if DO_FORK
-        if (fclose(real_stderr) == EOF)
-            perror("fclose");
+        if (fclose(real_stderr) == EOF || close(fildes[1]))
+            PERROR_EXIT("fclose/close", 2);
     } else { /* parent = master, use fildes[0] for reading */
+        close(fildes[1]);
+        // master loop -- gather what sparse produce to stderr
         retval = master_loop(fildes[0], &unblock_sigset);
-        // restore signals configuration
-        if (sigprocmask(SIG_SETMASK, &old_sigset, NULL) == -1
-            || sigaction(SIGCHLD, &old_saction, NULL) == -1)
-            perror("Restoring signals configuration");
 #endif
 
         // cleanup
-        type_db_destroy(type_db);
-        cl->destroy(cl);
-        cl_global_cleanup();
+        CLEANUP;
 
 #if DO_FORK
     }
