@@ -28,7 +28,9 @@
 #include <unistd.h>
 #include <poll.h>
 #include <errno.h>
+#include <signal.h>
 #include <sys/wait.h>
+#include <assert.h>
 
 #include "trap.h"
 #include "code_listener.h"
@@ -70,20 +72,41 @@
 #   define STREQ(s1, s2) (0 == strcmp(s1, s2))
 #endif
 
+#define OPTPREFIX_SHORT  "-"
+#define OPTPREFIX_LONG   "--"
+#define OPTPREFIX_CL     "-cl-"
+
+#define _OPTPREFIXEQ(check, const_prefix, optprefix) \
+    strncmp(check, optprefix const_prefix, strlen(optprefix const_prefix)) \
+    ? NULL : &check[strlen(optprefix const_prefix)]
+
+#define OPTPREFIXEQ_SHORT(check, const_prefix) \
+    (_OPTPREFIXEQ(check, const_prefix, OPTPREFIX_SHORT))
+
+#define OPTPREFIXEQ_LONG(check, const_prefix) \
+    (_OPTPREFIXEQ(check, const_prefix, OPTPREFIX_LONG))
+
+#define OPTPREFIXEQ_CL(check, const_prefix) \
+    (_OPTPREFIXEQ(check, const_prefix, OPTPREFIX_CL))
+
+#define OPTVALUE(str) \
+    ((*str == '=' && *str++ != '\0') ? str : NULL)
 
 
 //
 // Globals
 //
 
- 
-const char *GIT_SHA1 = "blabla";
-typedef struct typen_data *type_db_t;
 
-static struct cl_code_listener *cl = NULL;
+const char *GIT_SHA1 = "someversion";
+typedef struct typen_data *type_db_t;
+struct cl_code_listener *cl;
 static type_db_t type_db = NULL;
 
 FILE *real_stderr = NULL; /**< used to access "unfaked" stderr */
+
+static int cl_verbose = 0;
+#define CL_VERBOSE_LOCATION         (1 << 1)
 
 
 
@@ -114,17 +137,25 @@ FILE *real_stderr = NULL; /**< used to access "unfaked" stderr */
 
 
 // Note: should be used only once these resources are initialized
-#define CLEANUP  do {             \
-        type_db_destroy(type_db); \
-        cl->destroy(cl);          \
-        cl_global_cleanup();      \
-    } while (0)
 
-#define PERROR_CLEANUP_EXIT(str, code) \
-    do { perror(str); CLEANUP; exit(code); } while (0)
+#define NOKILL  (pid_t) 0
+
+#define CLEANUP(pid, cl)  do {         \
+        if (pid != NOKILL) kill(pid, SIGKILL);   \
+        cl->destroy(cl);               \
+        cl_global_cleanup();           \
+    } while (0)
 
 #define PERROR_EXIT(str, code) \
     do { perror(str); exit(code); } while (0)
+
+#define PERROR_CLEANUP_EXIT(str, pid, cl, code) \
+    do { perror(str); CLEANUP(pid, cl); exit(code); } while (0)
+
+#define ERROR(...)  do {\
+        fprintf(real_stderr, __VA_ARGS__); \
+        fprintf(real_stderr, "\n"); \
+    } while (0)
 
 
 static void warn(struct position pos, const char *fmt, ...)
@@ -138,6 +169,40 @@ static void warn(struct position pos, const char *fmt, ...)
     va_end(ap);
 
     fprintf(real_stderr, "\n");
+}
+
+
+
+//
+// CL messaging
+//
+
+
+// FIXME: suboptimal interface of CL messaging
+static bool preserve_ec;
+static int cnt_errors;
+static int cnt_warnings;
+
+static void dummy_printer(const char *msg)
+{
+    (void) msg;
+}
+
+static void trivial_printer(const char *msg)
+{
+    fprintf(real_stderr, "%s\n", msg);
+}
+
+static void cl_warn(const char *msg)
+{
+    trivial_printer(msg);
+    ++cnt_warnings;
+}
+
+static void cl_error(const char *msg)
+{
+    trivial_printer(msg);
+    ++cnt_errors;
 }
 
 
@@ -1416,8 +1481,7 @@ static void handle_top_level_sym(struct symbol *sym)
         WARN_UNHANDLED(sym->pos, "sym->initializer");
 }
 
-static void clean_up_symbols(struct symbol_list *list,
-                             struct cl_code_listener *cl)
+static void clean_up_symbols(struct symbol_list *list)
 {
     struct symbol *sym;
 
@@ -1436,42 +1500,177 @@ static void clean_up_symbols(struct symbol_list *list,
 //
 
 
-static struct cl_code_listener* create_cl_chain(void)
+#define _(...) printf(__VA_ARGS__); printf("\n");
+#define __ _("");
+static void print_help(const char *cmd)
 {
-    struct cl_code_listener *listener;
+    _("sparse-based code listener frontend")
+    __
+    _("usage: %s (cl frontend args | sparse args)*", cmd)
+    __
+    _("For sparse args, see sparse documentataion; these args are generally")
+    _("compatible with those for gcc and sparse ignores unrecognized ones.")
+    __
+    _("This code listener fronted also defines few args/options on its own:")
+    __
+    _("-h, --help              Prints this help text")
+    _("-cl-verbose[=MASK]      Be verbose (selectively if MASK provided)")
+    _("-cl-dump-pp             Dump pretty-printed linearized code")
+    _("-cl-dump-type           Add type information to such pretty-printed code")
+    _("... TODO ...")
+}
+#undef __
+#undef _
+
+struct cl_plug_options {
+    bool                    dump_types;
+    bool                    use_dotgen;
+    bool                    use_pp;
+    bool                    use_typedot;
+    const char              *gl_dot_file;
+    const char              *pp_out_file;
+    const char              *type_dot_file;
+};
+
+static int handle_cl_args(int argc, char *argv[],
+                          struct cl_plug_options *opt)
+{
+    char *value;
+
+    // initialize opt data
+    memset(opt, 0, sizeof(*opt));
+
+    // handle plug-in args
+    int i = 0;
+    while (++i < argc) {
+        if ((value = OPTPREFIXEQ_CL(argv[i], "verbose"))) {
+            verbose = OPTVALUE(value)
+                ? atoi(value)
+                : ~0;
+
+        } else if (((value = OPTPREFIXEQ_SHORT(argv[i], "h"))
+                    || (value = OPTPREFIXEQ_LONG(argv[i], "help")))
+                   && *value == '\0') {
+            print_help(argv[0]);
+            return EXIT_FAILURE;
+
+        /*} else if ((value = OPTPREFIXEQ_CL(argv[i], "args"))) {
+            opt->peer_args = OPTVALUE(value)
+                ? value
+                : "";*/
+        /*} else if (OPTPREFIXEQ_CL(argv[i], "dry-run")) {
+            opt->use_peer       = false;
+            // TODO: warn about ignoring extra value? */
+
+        } else if ((value = OPTPREFIXEQ_CL(argv[i], "dump-pp"))) {
+            opt->use_pp         = true;
+            opt->pp_out_file    = OPTVALUE(value);
+
+        } else if (OPTPREFIXEQ_CL(argv[i], "dump-types")) {
+            opt->dump_types     = true;
+            // TODO: warn about ignoring extra value?
+
+        } else if ((value = OPTPREFIXEQ_CL(argv[i], "gen-dot"))) {
+            opt->use_dotgen     = true;
+            opt->gl_dot_file    = OPTVALUE(value);
+
+        /*} else if (OPTPREFIXEQ_CL(argv[i], "preserve-ec")) {
+            // FIXME: do not use gl variable, use the pointer user_data instead
+            preserve_ec = true;
+            // TODO: warn about ignoring extra value?*/
+
+        } else if ((value = OPTPREFIXEQ_CL(argv[i], "type-dot"))) {
+            if (OPTVALUE(value)) {
+                opt->use_typedot    = true;
+                opt->type_dot_file  = value;
+            } else {
+                ERROR("mandatory value omitted for type-dot");
+                return EXIT_FAILURE;
+            }
+        }
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static bool cl_append_listener(struct cl_code_listener *chain,
+                               const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+
+    char *config_string;
+    int rv = vasprintf(&config_string, fmt, ap);
+    assert(0 < rv);
+    va_end(ap);
+
+    struct cl_code_listener *cl = cl_code_listener_create(config_string);
+    free(config_string);
+
+    if (!cl) {
+        // FIXME: deserves a big comment (subtle)
+        chain->destroy(chain);
+        return false;
+    }
+
+    cl_chain_append(chain, cl);
+    return true;
+}
+
+static bool cl_append_def_listener(struct cl_code_listener *chain,
+                                   const char *listener, const char *args,
+                                   const struct cl_plug_options *opt)
+{
+    const char *clf = (/*opt->use_peer*/ true)
+        ? "unfold_switch,unify_labels_gl"
+        : "unify_labels_fnc";
+
+    return cl_append_listener(chain,
+            "listener=\"%s\" listener_args=\"%s\" clf=\"%s\"",
+            listener, args, clf);
+}
+
+static struct cl_code_listener*
+create_cl_chain(const struct cl_plug_options *opt)
+{
     struct cl_code_listener *chain = cl_chain_create();
     if (!chain)
         // error message already emitted
         return NULL;
 
-    if (1 < verbose) {
-        listener = cl_code_listener_create("listener=\"locator\"");
-        if (!listener) {
-            chain->destroy(chain);
+    if (CL_VERBOSE_LOCATION & verbose) {
+        if (!cl_append_listener(chain, "listener=\"locator\""))
             return NULL;
-        }
-        cl_chain_append(chain, listener);
     }
 
-    listener = cl_code_listener_create("listener=\"pp_with_types\" "
-//            "clf=\"unify_labels_fnc\""
-              "clf=\"unify_labels_gl\""
-            );
-    if (!listener) {
-        chain->destroy(chain);
-        return NULL;
-    }
-    cl_chain_append(chain, listener);
+    if (opt->use_pp) {
+        const char *use_listener = (opt->dump_types)
+            ? "pp_with_types"
+            : "pp";
 
-#if 0
-    listener = cl_code_listener_create("listener=\"dotgen\" "
-            "clf=\"arg_subst,unify_labels_fnc,unify_regs,unify_vars\"");
-    if (!listener) {
-        chain->destroy(chain);
-        return NULL;
+        const char *out = (opt->pp_out_file)
+            ? opt->pp_out_file
+            : "";
+
+        if (!cl_append_def_listener(chain, use_listener, out, opt))
+            return NULL;
     }
-    cl_chain_append(chain, listener);
-#endif
+
+    if (opt->use_dotgen) {
+        const char *gl_dot = (opt->gl_dot_file)
+            ? opt->gl_dot_file
+            : "";
+        if (!cl_append_def_listener(chain, "dotgen", gl_dot, opt))
+            return NULL;
+    }
+
+    if (opt->use_typedot
+            && !cl_append_def_listener(chain, "typedot", opt->type_dot_file, opt))
+        return NULL;
+
+    /*if (opt->use_peer
+            && !cl_append_def_listener(chain, "easy", opt->peer_args, opt))
+        return NULL;*/
 
     return chain;
 }
@@ -1484,37 +1683,48 @@ static struct cl_code_listener* create_cl_chain(void)
 
 
 // Worker loop (sparse -> linearized code -> processing -> code_listener)
+// Note: used in both fork and fork-free setups
 static
-int worker_loop(int argc, char **argv)
+int worker_loop(struct cl_code_listener *cl, int argc, char **argv)
 {
     char *file;
     struct string_list *filelist = NULL;
     struct symbol_list *symlist;
 
+    // initialize sparse
     symlist = sparse_initialize(argc, argv, &filelist);
 
+    // initialize type database
+    type_db = type_db_create();
+
 #if DO_PROCEED_INTERNAL
-    // proceed internal symbol
+    // proceed internal symbols
     cl->file_open(cl, "sparse-internal-symbols");
-    clean_up_symbols(symlist, cl);
+    clean_up_symbols(symlist);
     cl->file_close(cl);
 #endif
-    // proceed the rest
+    // proceed the rest, file by file
     FOR_EACH_PTR_NOTAG(filelist, file) {
         if (0 < verbose)
             fprintf(real_stderr, "about to process '%s'...\n", file);
         cl->file_open(cl, file);
-        clean_up_symbols(sparse(file), cl);
+        clean_up_symbols(sparse(file));
         cl->file_close(cl);
     } END_FOR_EACH_PTR_NOTAG(file);
+
+    // finalize and destroy
+    type_db_destroy(type_db);
+    cl->acknowledge(cl);
+    CLEANUP(NOKILL, cl);
 
     return EXIT_SUCCESS;
 }
 
 // Master loop (grab worker's stderr via read_fd, when work is over, print it)
+// Note: used in fork setup only
 #define BUFFSIZE          4096
 static
-int master_loop(int read_fd)
+int master_loop(struct cl_code_listener *cl, int read_fd, pid_t pid)
 {
       size_t alloc_size = 0, remain_size = 0;
       ssize_t read_size;
@@ -1526,7 +1736,7 @@ int master_loop(int read_fd)
           if (poll(&fds, 1, -1) == -1) {
               if (errno == EINTR)
                   continue;
-              PERROR_CLEANUP_EXIT("pol", 2);
+              PERROR_CLEANUP_EXIT("pol", pid, cl, 2);
           } else if (fds.revents & POLLHUP)
             // worker has finished
             break;
@@ -1535,23 +1745,21 @@ int master_loop(int read_fd)
               alloc_size += BUFFSIZE;
               remain_size = BUFFSIZE;
               buffer = realloc(buffer, sizeof(*buffer) * alloc_size);
-              if (!buffer)
-                  PERROR_CLEANUP_EXIT("realloc", 2);
+              if (!buffer) PERROR_CLEANUP_EXIT("realloc", pid, cl, 2);
           }
           read_size = read(read_fd, &buffer[alloc_size-remain_size],
                            remain_size);
-          if (read_size == -1)
-              PERROR_CLEANUP_EXIT("realloc", 2);
+          if (read_size == -1) PERROR_CLEANUP_EXIT("realloc", pid, cl, 2);
           remain_size -= read_size;
       }
 
-      if (wait(&stat_loc) == (pid_t)-1)
-        PERROR_CLEANUP_EXIT("wait", 2);
+      if (wait(&stat_loc) == (pid_t)-1) PERROR_CLEANUP_EXIT("wait", pid, cl, 2);
       if (WIFEXITED(stat_loc)) {
           res = WEXITSTATUS(stat_loc);
           fprintf(real_stderr, "sparse returned %i\n", res);
-          if (!res)
-              cl->acknowledge(cl);
+          if (res)
+              // sparse ended prematurely (caused probably by invalid syntax)
+              CLEANUP(NOKILL, cl);
       }
 
       if (alloc_size-remain_size) {
@@ -1570,54 +1778,57 @@ int master_loop(int read_fd)
 //
 
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
     int retval;
-#if 1
-    setbuf(stdout, NULL);
-    setbuf(stderr, NULL);
-#endif
-    real_stderr = stderr; // use this if you strictly need stderr behaviour
+    struct cl_plug_options opt;
 
-    // initialize code listener and type database
-    cl_global_init_defaults(NULL, verbose);
-    cl = create_cl_chain();
+    real_stderr = stderr; // use this if you need "unfaked" stderr
+
+    // initialize code listener
+    if (retval = handle_cl_args(argc, argv, &opt))
+        return retval;
+    static struct cl_init_data init = {
+        .debug = trivial_printer,
+        .warn  = cl_warn,
+        .error = cl_error,
+        .note  = trivial_printer,
+        .die   = trivial_printer
+    };
+
+    cl_global_init(&init);
+    cl = create_cl_chain(&opt);
     if (!cl)
         // error message already emitted
         return EXIT_FAILURE;
-    type_db = type_db_create();
 
 #if DO_FORK
     // set up pipe
     int fildes[2];
-    if (pipe(fildes) == -1)
-        PERROR_CLEANUP_EXIT("Pipe error", 2);
+    if (pipe(fildes) == -1) PERROR_CLEANUP_EXIT("pipe", NOKILL, cl, 2);
     // master-worker fork
     pid_t pid = fork();
-    if (pid == -1)
-        PERROR_CLEANUP_EXIT("Fork error", 2);
-    else if (pid == 0) { /* child = worker, use fildes[1] for writing */
-        close(fildes[0]);
+    if (pid == -1) PERROR_CLEANUP_EXIT("fork", NOKILL, cl, 2);
+    else if (pid == 0) {
+        // child = worker, use fildes[1] for writing
+
+        if (close(fildes[0]) == -1) PERROR_EXIT("close", 2);
         if (!redefine_stderr(fildes[1], &real_stderr))
             PERROR_EXIT("Redefining stderr", 2);
 #endif
 
         // main processing loop
-        retval = worker_loop(argc, argv);
+        retval = worker_loop(cl, argc, argv);
 
 #if DO_FORK
-        if (fclose(real_stderr) == EOF || close(fildes[1]))
+        if (fclose(real_stderr) == EOF || close(fildes[1]) == -1)
             PERROR_EXIT("fclose/close", 2);
-    } else { /* parent = master, use fildes[0] for reading */
-        close(fildes[1]);
+    } else {
+        // parent = master, use fildes[0] for reading
+
+        if (close(fildes[1]) == -1) PERROR_CLEANUP_EXIT("close", pid, cl, 2);
         // master loop -- gather what sparse produce to stderr
-        retval = master_loop(fildes[0]);
-#endif
-
-        // cleanup
-        CLEANUP;
-
-#if DO_FORK
+        retval = master_loop(cl, fildes[0], pid);
     }
 #endif
 

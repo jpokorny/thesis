@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS ?= -std=c99 -Wall -Wextra -pedantic 
+CFLAGS ?= #-std=c99 -Wall -Wextra -pedantic
 CFLAGS += -g -ggdb3 #-O2
 
 CL = cl
@@ -27,7 +27,7 @@ all: $(PROGRAM)
 
 
 $(PROGRAM): $(MAIN_SRC:.c=.o) $(SRCS:.c=.o)
-	g++ -I$(INC_DIR) -o $@ $(CFLAGS) $^ $(CL_LIBS) $(PROGRAM_LDFLAGS) 
+	g++ -I$(INC_DIR) -o $@ $(CFLAGS) $^ $(CL_LIBS) $(PROGRAM_LDFLAGS)
 
 $(MAIN_SRC:.c=.o) $(SRCS:.c=.o): %.o : %.c
 	$(CC) -I$(INC_DIR) -o $@ $(CFLAGS) -fPIC -c $<
