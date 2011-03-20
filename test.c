@@ -18,7 +18,7 @@
  */
 
 
-#define _GNU_SOURCE // asprintf, ppoll...
+#define _GNU_SOURCE // asprintf, ...
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -26,12 +26,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <signal.h>
 #include <poll.h>
 #include <errno.h>
 #include <sys/wait.h>
 
-//#include "config.h"
 #include "trap.h"
 #include "code_listener.h"
 #include "type_enumerator.h"
@@ -47,15 +45,55 @@
 #include "sparse/token.h"
 
 
-#define DO_FORK                     1
+// compile options
+#define DO_FORK                     1  // "1" recommended
 #define DO_PROCEED_INTERNAL         1
-#define DO_EXPAND_SYMBOL            0
-#define DO_PER_EP_UNSAA             0
-#define DO_PER_EP_SET_UP_STORAGE    0
+#define DO_EXPAND_SYMBOL            1
+#define DO_PER_EP_UNSAA             1
+#define DO_PER_EP_SET_UP_STORAGE    1
 #define SHOW_PSEUDO_INSNS           0
 
+
+
+//
+// Common macros
+//
+
+
+#define MEM_NEW(type) \
+    (type *) malloc(sizeof(type))
+
+#define MEM_RESIZE(ptr, newnum) \
+    realloc(ptr, sizeof(*ptr) * (newnum))
+
+#ifndef STREQ
+#   define STREQ(s1, s2) (0 == strcmp(s1, s2))
+#endif
+
+
+
+//
+// Globals
+//
+
+ 
+const char *GIT_SHA1 = "blabla";
+typedef struct typen_data *type_db_t;
+
+static struct cl_code_listener *cl = NULL;
+static type_db_t type_db = NULL;
+
+FILE *real_stderr = NULL; /**< used to access "unfaked" stderr */
+
+
+
+//
+// Warnings, failures handling
+//
+
+
 #define WARN_UNHANDLED(pos, what) do { \
-    sl_warn(pos, "warning: '%s' not handled", what); \
+    warn(pos, "warning: '%s' not handled", what); \
     fprintf(real_stderr, \
             "%s:%d: note: raised from function '%s' [internal location]\n", \
             __FILE__, __LINE__, __FUNCTION__); \
@@ -65,7 +103,7 @@
     WARN_UNHANDLED((sym)->pos, show_ident((sym)->ident))
 
 #define WARN_VA(pos, fmt, ...) do {\
-    sl_warn(pos, "warning: " fmt, __VA_ARGS__); \
+    warn(pos, "warning: " fmt, __VA_ARGS__); \
     fprintf(real_stderr, \
             "%s:%d: note: raised from function '%s' [internal location]\n", \
             __FILE__, __LINE__, __FUNCTION__); \
@@ -74,28 +112,39 @@
 #define WARN_CASE_UNHANDLED(pos, what) \
     case what: WARN_UNHANDLED(pos, #what); break;
 
-#define SP_NEW(type) \
-    (type *) malloc(sizeof(type))
 
-#define SP_RESIZE(ptr, newnum) \
-    realloc(ptr, sizeof(*ptr) * (newnum))
+// Note: should be used only once these resources are initialized
+#define CLEANUP  do {             \
+        type_db_destroy(type_db); \
+        cl->destroy(cl);          \
+        cl_global_cleanup();      \
+    } while (0)
 
-#ifndef STREQ
-#   define STREQ(s1, s2) (0 == strcmp(s1, s2))
-#endif
+#define PERROR_CLEANUP_EXIT(str, code) \
+    do { perror(str); CLEANUP; exit(code); } while (0)
+
+#define PERROR_EXIT(str, code) \
+    do { perror(str); exit(code); } while (0)
+
+
+static void warn(struct position pos, const char *fmt, ...)
+{
+    va_list ap;
+
+    fprintf(real_stderr, "%s:%d: ", stream_name(pos.stream), pos.line);
+
+    va_start(ap, fmt);
+    vfprintf(real_stderr, fmt, ap);
+    va_end(ap);
+
+    fprintf(real_stderr, "\n");
+}
+
 
 
 //
-// Globals
+// Freeing resources helper functions
 //
-
-
-typedef struct typen_data *type_db_t;
-
-static struct cl_code_listener *cl = NULL;
-static type_db_t type_db = NULL;
-
-FILE *real_stderr = NULL;
 
 
 static void cb_free_clt(struct cl_type *clt)
@@ -115,6 +164,51 @@ static void cb_free_clt(struct cl_type *clt)
     free((char *) clt->name);
     free(clt);
 }
+
+static void free_cl_cst_data(struct cl_operand *op)
+{
+    switch (op->data.cst.code) {
+        case CL_TYPE_FNC:
+            free((char *) op->data.cst.data.cst_fnc.name);
+            break;
+
+        case CL_TYPE_STRING:
+            free((char *) op->data.cst.data.cst_string.value);
+            break;
+
+        // TODO
+        default:
+            break;
+    }
+}
+
+static void free_cl_operand_data(struct cl_operand *op)
+{
+    switch (op->code) {
+        case CL_OPERAND_VAR:
+            free((char *) op->data.var->name);
+            free(op->data.var);
+            break;
+
+        case CL_OPERAND_CST:
+            free_cl_cst_data(op);
+            break;
+
+        // TODO
+        default:
+            break;
+    }
+
+    // TODO
+    free(op->accessor);
+}
+
+
+
+//
+// Auxiliary helper functions
+//
+
 
 static type_db_t type_db_create(void )
 {
@@ -142,112 +236,130 @@ static struct cl_type* type_db_insert(type_db_t db, struct cl_type *clt,
     return rv;
 }
 
-static void sl_warn(struct position pos, const char *fmt, ...)
+static bool redefine_stderr(int target_fd, FILE **backup_stderr)
 {
-    va_list ap;
+    if (backup_stderr) {
+        *backup_stderr = fopen("/dev/stderr", "w");
+        if (!*backup_stderr)
+            return false;
+        else
+        setbuf(*backup_stderr, NULL);
+    }
 
-    fprintf(real_stderr, "%s:%d: ", stream_name(pos.stream), pos.line);
-
-    va_start(ap, fmt);
-    vfprintf(real_stderr, fmt, ap);
-    va_end(ap);
-
-    fprintf(real_stderr, "\n");
+    if (close(STDERR_FILENO) == -1
+        || dup2(target_fd, STDERR_FILENO) == -1)
+        return false;
+    else
+        return true;
 }
 
-static void read_sparse_location(struct cl_loc *loc, struct position pos)
+
+
+//
+// Sparse generic helper functions
+//
+
+
+static void read_sparse_location(struct cl_loc *cl_loc, struct position pos)
 {
-    loc->file   = stream_name(pos.stream);
-    loc->line   = pos.line;
-    loc->column = pos.pos;
-    loc->sysp   = /* not used by SPARSE */ false;
+    cl_loc->file   = stream_name(pos.stream);
+    cl_loc->line   = pos.line;
+    cl_loc->column = pos.pos;
+    cl_loc->sysp   = /* not used by SPARSE */ false;
 }
 
-static void read_sparse_scope(enum cl_scope_e *p, struct scope *scope)
+static void read_sparse_scope(enum cl_scope_e *cl_scope, struct scope *scope)
 {
     if (!scope || scope == global_scope)
-        *p = CL_SCOPE_GLOBAL;
+        *cl_scope = CL_SCOPE_GLOBAL;
     else if (scope == file_scope)
-        *p = CL_SCOPE_STATIC;
+        *cl_scope = CL_SCOPE_STATIC;
     else if (scope == function_scope)
-        TRAP;
+        CL_TRAP;
     else if (scope == block_scope)
-        TRAP;
+        CL_TRAP;
     else
         // FIXME
-        *p = CL_SCOPE_FUNCTION;
+        *cl_scope = CL_SCOPE_FUNCTION;
 }
 
-static struct cl_type* add_type_if_needed(struct symbol *type,
-                                          struct instruction *insn,
-                                          int fargn);
-
-static struct cl_type_item* create_ptr_type_item(struct symbol *type)
+static const char *read_sparse_string(const struct string *str)
 {
-    struct cl_type_item *item = SP_NEW(struct cl_type_item);
-    if (!item)
-        die("SP_NEW failed");
-
-    item->type = /* FIXME: unguarded recursion */
-                 add_type_if_needed(type->ctype.base_type, NULL, 0);
-    item->name = NULL;
-
-    // guaranteed to NOT return NULL
-    return item;
+    return (str->length) ? strndup(str->data, str->length) : NULL;
 }
 
-static enum cl_type_e clt_code_from_type(struct symbol *type)
+static struct symbol *get_instruction_type(struct instruction *insn)
+{
+    if (insn->opcode >= OP_BINCMP && insn->opcode <= OP_BINCMP_END)
+        return &bool_ctype;
+    else
+        return insn->type;
+}
+
+static struct symbol *get_arg_at_pos(struct symbol *fn, int pos)
+{
+    struct symbol *sym, *retval = NULL;
+
+    if (pos <= 0)
+        return NULL;
+
+    // FIXME: lot of possible but missing checks
+    FOR_EACH_PTR(fn->ctype.base_type->arguments, sym) {
+        if (--pos == 0)
+            retval = sym;
+    } END_FOR_EACH_PTR(sym);
+    return retval;
+}
+
+static bool is_pseudo(pseudo_t pseudo)
+{
+    return pseudo && pseudo != VOID;
+}
+
+
+
+//
+// Sparse types
+//
+
+
+static void read_bytesize(int *bytes, int bits)
+{
+	*bytes = (bits >= 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
+}
+
+static void read_sparse_scalar_type(enum cl_type_e *cl_type,
+                                    struct symbol *type)
 {
     if (type == &void_ctype)
-        return CL_TYPE_VOID;
-
-    if (type == &int_ctype || type == &sint_ctype || type == &uint_ctype
-        || type == &short_ctype || type == &sshort_ctype || type == &ushort_ctype
-        || type == &long_ctype || type == &slong_ctype || type == &ulong_ctype
-        || type == &llong_ctype || type == &sllong_ctype || type == &ullong_ctype
+        // void
+        *cl_type = CL_TYPE_VOID;
+    else if (type == &int_ctype  || type == &sint_ctype    || type == &uint_ctype
+        || type == &short_ctype  || type == &sshort_ctype  || type == &ushort_ctype
+        || type == &long_ctype   || type == &slong_ctype   || type == &ulong_ctype
+        || type == &llong_ctype  || type == &sllong_ctype  || type == &ullong_ctype
         || type == &lllong_ctype || type == &slllong_ctype || type == &ulllong_ctype)
-        return CL_TYPE_INT;
-
-    if (type == &char_ctype ||
-        /* FIXME */ type == &schar_ctype || type == &uchar_ctype)
-        return CL_TYPE_CHAR;
-
-    if (type == &bool_ctype)
-        return CL_TYPE_BOOL;
-
-    // unknown base type
-    return CL_TYPE_UNKNOWN;
+        // int variants
+        *cl_type = CL_TYPE_INT;
+    else if (type == &char_ctype || type == &schar_ctype   || type == &uchar_ctype)
+        // char variants
+        *cl_type = CL_TYPE_CHAR;
+    else if (type == &bool_ctype)
+        // bool
+        *cl_type = CL_TYPE_BOOL;
+    else
+        // unknown base type
+        *cl_type = CL_TYPE_UNKNOWN;
 }
 
-static void add_fn_argument(struct cl_type *clt, struct symbol *type)
-{
-    clt->items = SP_RESIZE(clt->items, clt->item_cnt+1);
-    if (!clt->items)
-        die("SP_RESIZE failed");
-    struct cl_type_item *item = &clt->items[clt->item_cnt++];
-    item->type = /* recursion */ add_type_if_needed(type, NULL, 0);
-    item->name = NULL;
-}
-
-static void add_fn_arguments(struct cl_type *clt, struct symbol_list* args)
-{
-    struct symbol *sym;
-    if (ptr_list_size((struct ptr_list *)args) == 0) {
-        add_fn_argument(clt, &void_ctype);
-        return;
-    }
-    FOR_EACH_PTR(args, sym)
-        add_fn_argument(clt, sym->ctype.base_type);
-    END_FOR_EACH_PTR(sym);
-    // not sure why this necessary
-    clt->item_cnt++;
-}
+static struct cl_type_item* create_ptr_type_item(struct symbol *type);
+static void add_fn_arguments(struct cl_type *clt, struct symbol_list* args);
 
 static void read_sparse_type(struct cl_type *clt, struct symbol *type)
 {
     enum type code = type->type;
 
-    clt->code       = clt_code_from_type(type);
+    read_sparse_scalar_type(&clt->code, type);
     clt->size       = /* TODO */ 0;
     clt->item_cnt   = 0;
     clt->items      = NULL;
@@ -291,7 +403,7 @@ static void read_sparse_type(struct cl_type *clt, struct symbol *type)
             break;
 
         default:
-            // TRAP;
+            // CL_TRAP;
             clt->code       = CL_TYPE_UNKNOWN;
             clt->name       = strdup(show_typename(type));
     }
@@ -315,35 +427,6 @@ static void skip_sparse_accessors(struct symbol **ptype)
     }
 }
 
-static inline
-int bits_to_bytes_ceil(int bits)
-{
-	return bits >= 0 ? (bits + bits_in_char - 1) / bits_in_char : 0;
-}
-
-static struct symbol *get_arg_at_pos(struct symbol *fn, int pos)
-{
-    struct symbol *sym, *retval = NULL;
-
-    if (pos <= 0)
-        return NULL;
-
-    // FIXME: lot of possible but missing checks
-    FOR_EACH_PTR(fn->ctype.base_type->arguments, sym) {
-        if (--pos == 0)
-            retval = sym;
-    } END_FOR_EACH_PTR(sym);
-    return retval;
-}
-
-static struct symbol *get_instruction_type(struct instruction *insn)
-{
-    if (insn->opcode >= OP_BINCMP && insn->opcode <= OP_BINCMP_END)
-        return &bool_ctype;
-    else
-        return insn->type;
-}
-
 static struct cl_type* add_type_if_needed(struct symbol *type,
                                           struct instruction *insn,
                                           int fargn)
@@ -364,9 +447,9 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
         return clt;
 
     // allocate new clt
-    clt = SP_NEW(struct cl_type);
+    clt = MEM_NEW(struct cl_type);
     if (!clt)
-        die("SP_NEW failed");
+        die("MEM_NEW failed");
 
     // make sure all members will be initialized
     clt->code       = CL_TYPE_UNKNOWN;
@@ -383,17 +466,17 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
         read_sparse_type(clt, type);
         read_sparse_location(&clt->loc, type->pos);
         read_sparse_scope(&clt->scope, type->scope);
-        clt->size = bits_to_bytes_ceil(type->bit_size);
+        read_bytesize(&clt->size, type->bit_size);
     } else if (insn) {
         // FIXME: bool et. al. not properly handled (sparse does not offer this)
         if (insn->opcode == OP_CALL) {
             struct symbol *arg = get_arg_at_pos(insn->func->sym, fargn+1);
-            clt->code = clt_code_from_type(arg);
+            read_sparse_scalar_type(&clt->code, arg);
         }
         else
             clt->code = CL_TYPE_INT;
         read_sparse_location(&clt->loc, insn->pos);
-        clt->size = bits_to_bytes_ceil(insn->size);
+        read_bytesize(&clt->size, insn->size);
     }
     // FIXME: this is unwanted "override" behaviour
     if (insn && insn->opcode >= OP_BINCMP && insn->opcode <= OP_BINCMP_END)
@@ -406,78 +489,64 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
     return type_db_insert(type_db, clt, type);
 }
 
+static struct cl_type_item* create_ptr_type_item(struct symbol *type)
+{
+    struct cl_type_item *item = MEM_NEW(struct cl_type_item);
+    if (!item)
+        die("MEM_NEW failed");
+
+    item->type = /* FIXME: unguarded recursion */
+                 add_type_if_needed(type->ctype.base_type, NULL, 0);
+    item->name = NULL;
+
+    // guaranteed to NOT return NULL
+    return item;
+}
+
 static struct cl_type* clt_from_sym(struct symbol *sym)
 {
     if (!sym || !sym->ctype.base_type)
-        TRAP;
+        CL_TRAP;
 
     return add_type_if_needed(sym->ctype.base_type, NULL, 0);
 }
 
-static bool is_pseudo(pseudo_t pseudo)
+
+
+//
+// Function arguments handling
+//
+
+
+static void add_fn_argument(struct cl_type *clt, struct symbol *type)
 {
-    return pseudo
-        && pseudo != VOID;
+    clt->items = MEM_RESIZE(clt->items, clt->item_cnt+1);
+    if (!clt->items)
+        die("MEM_RESIZE failed");
+    struct cl_type_item *item = &clt->items[clt->item_cnt++];
+    item->type = /* recursion */ add_type_if_needed(type, NULL, 0);
+    item->name = NULL;
 }
 
-static void free_cl_cst_data(struct cl_operand *op)
+static void add_fn_arguments(struct cl_type *clt, struct symbol_list* args)
 {
-    switch (op->data.cst.code) {
-        case CL_TYPE_FNC:
-            free((char *) op->data.cst.data.cst_fnc.name);
-            break;
-
-        case CL_TYPE_STRING:
-            free((char *) op->data.cst.data.cst_string.value);
-            break;
-
-        // TODO
-        default:
-            break;
+    struct symbol *sym;
+    if (ptr_list_size((struct ptr_list *)args) == 0) {
+        add_fn_argument(clt, &void_ctype);
+        return;
     }
+    FOR_EACH_PTR(args, sym)
+        add_fn_argument(clt, sym->ctype.base_type);
+    END_FOR_EACH_PTR(sym);
+    // not sure why this necessary
+    clt->item_cnt++;
 }
 
-static void free_cl_operand_data(struct cl_operand *op)
-{
-    switch (op->code) {
-        case CL_OPERAND_VAR:
-            free((char *) op->data.var->name);
-            free(op->data.var);
-            break;
 
-        case CL_OPERAND_CST:
-            free_cl_cst_data(op);
-            break;
 
-        // TODO
-        default:
-            break;
-    }
-
-    // TODO
-    free(op->accessor);
-}
-
-static const char* strdup_sparse_string(const struct string *str)
-{
-    return (str->length)
-        ? strndup(str->data, str->length)
-        : NULL;
-}
-
-#if 0
-static /* const */ struct cl_type builtin_int_type = {
-    .uid            = /* FIXME */ -1,
-    .code           = CL_TYPE_INT,
-    .loc = {
-        .file       = NULL,
-        .line       = -1
-    },
-    .scope          = CL_SCOPE_GLOBAL,
-    .name           = "<builtin_int>",
-    .size           = /* FIXME */ sizeof(int)
-};
-#endif
+//
+// Symbols/pseudos/operands handling
+//
 
 static void read_sym_initializer(struct cl_operand *op, struct expression *expr)
 {
@@ -486,15 +555,15 @@ static void read_sym_initializer(struct cl_operand *op, struct expression *expr)
 
     switch (expr->type) {
         case EXPR_STRING:
-            op->code                    = CL_OPERAND_CST;
-            op->type                    = clt_from_sym(expr->ctype);
-            op->data.cst.code           = CL_TYPE_STRING;
-            op->data.cst.data.cst_string.value   =
-                strdup_sparse_string(expr->string);
+            op->code          = CL_OPERAND_CST;
+            op->type          = clt_from_sym(expr->ctype);
+            op->data.cst.code = CL_TYPE_STRING;
+            op->data.cst.data.cst_string.value
+                              = read_sparse_string(expr->string);
             return;
 
         default:
-            TRAP;
+            CL_TRAP;
     }
 }
 
@@ -528,12 +597,11 @@ static void read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
     } else {
         op->code                            = CL_OPERAND_VAR;
         op->type                            = clt_from_sym(sym);
-        op->data.var                        = SP_NEW(struct cl_var);
+        op->data.var                        = MEM_NEW(struct cl_var);
         op->data.var->uid                     = /* TODO */ (int)(long) sym;
         op->data.var->name                   = strdup(show_ident(sym->ident));
     }
 }
-
 
 static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
 {
@@ -545,7 +613,7 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
         case PSEUDO_REG: { /* union -> def */
             op->code                = CL_OPERAND_VAR;
             op->type                = add_type_if_needed(NULL, pseudo->def, 0);
-            op->data.var            = SP_NEW(struct cl_var);
+            op->data.var            = MEM_NEW(struct cl_var);
             op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
             op->data.var->name      = NULL;
             break;
@@ -570,12 +638,12 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
             op->scope               = CL_SCOPE_FUNCTION;
             if (!sym) {
                 op->type                = add_type_if_needed(&int_ctype, NULL, 0);
-                op->data.var            = SP_NEW(struct cl_var);
+                op->data.var            = MEM_NEW(struct cl_var);
                 op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
                 op->data.var->name      = NULL;
             } else {
                 op->type                = clt_from_sym(sym);
-                op->data.var            = SP_NEW(struct cl_var);
+                op->data.var            = MEM_NEW(struct cl_var);
                 op->data.var->uid       = (int)(long) sym;
                 op->data.var->name      = strdup(show_ident(sym->ident));
             }
@@ -590,7 +658,7 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
 #endif
 
         default:
-            TRAP;
+            CL_TRAP;
     }
 }
 
@@ -606,9 +674,9 @@ static void read_insn_op_deref(struct cl_operand *op, struct instruction *insn)
     }
 
     // simple deref?
-    ac = SP_NEW(struct cl_accessor);
+    ac = MEM_NEW(struct cl_accessor);
     if (!ac)
-        die("SP_NEW failed");
+        die("MEM_NEW failed");
 
     ac->code = CL_ACCESSOR_DEREF;
     ac->type = /* TODO */ op->type;
@@ -638,6 +706,13 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
     if (!op->type || insn->opcode == OP_CALL)
         op->type = add_type_if_needed(NULL, insn, fargn);
 }
+
+
+
+//
+// Instructions handling functions
+//
+
 
 static void handle_insn_sel(struct instruction *insn)
 {
@@ -880,11 +955,11 @@ static void insn_assignment_base(struct instruction                 *insn,
 #if 0
     if (op_lhs.deref && op_lhs.name && op_lhs.offset
             && 0 == strcmp(op_lhs.name, op_lhs.offset))
-        TRAP;
+        CL_TRAP;
 
     if (op_rhs.deref && op_rhs.name && op_rhs.offset
             && 0 == strcmp(op_rhs.name, op_rhs.offset))
-        TRAP;
+        CL_TRAP;
 #endif
 
     // TODO: move to function?
@@ -1155,6 +1230,13 @@ static bool handle_bb_insn(struct instruction *insn)
     return handle_insn(insn);
 }
 
+
+
+//
+// Functions for lower granularity/higher level handling
+//
+
+
 static void handle_bb(struct basic_block *bb)
 {
     struct instruction *insn;
@@ -1215,7 +1297,7 @@ static void handle_fnc_body(struct symbol *sym)
 {
     struct entrypoint *ep = linearize_symbol(sym);
     if (!ep)
-        TRAP;
+        CL_TRAP;
 
 #if DO_PER_EP_UNSAA
     unssa(ep);
@@ -1243,7 +1325,7 @@ static void handle_fnc_arg_list(struct symbol_list *arg_list)
         op.type                     = clt_from_sym(arg);
         op.accessor                 = NULL;
         // TODO: JP
-        op.data.var = SP_NEW(struct cl_var);
+        op.data.var = MEM_NEW(struct cl_var);
 #if 1
         op.data.var->uid             = /* TODO */ (int)(long) arg;
         op.data.var->name            = strdup(show_ident(arg->ident));
@@ -1347,6 +1429,13 @@ static void clean_up_symbols(struct symbol_list *list,
     } END_FOR_EACH_PTR(sym);
 }
 
+
+
+//
+// Code listener related setup
+//
+
+
 static struct cl_code_listener* create_cl_chain(void)
 {
     struct cl_code_listener *listener;
@@ -1388,9 +1477,13 @@ static struct cl_code_listener* create_cl_chain(void)
 }
 
 
+
 //
+// Worker/master loops
+//
+
+
 // Worker loop (sparse -> linearized code -> processing -> code_listener)
-//
 static
 int worker_loop(int argc, char **argv)
 {
@@ -1418,10 +1511,7 @@ int worker_loop(int argc, char **argv)
     return EXIT_SUCCESS;
 }
 
-
-//
 // Master loop (grab worker's stderr via read_fd, when work is over, print it)
-//
 #define BUFFSIZE          4096
 static
 int master_loop(int read_fd)
@@ -1436,8 +1526,9 @@ int master_loop(int read_fd)
           if (poll(&fds, 1, -1) == -1) {
               if (errno == EINTR)
                   continue;
-              perror("ppol");
+              PERROR_CLEANUP_EXIT("pol", 2);
           } else if (fds.revents & POLLHUP)
+            // worker has finished
             break;
 
           if (!remain_size) {
@@ -1445,19 +1536,17 @@ int master_loop(int read_fd)
               remain_size = BUFFSIZE;
               buffer = realloc(buffer, sizeof(*buffer) * alloc_size);
               if (!buffer)
-                  perror("realloc");
+                  PERROR_CLEANUP_EXIT("realloc", 2);
           }
           read_size = read(read_fd, &buffer[alloc_size-remain_size],
                            remain_size);
-          if (read_size == -1) {
-              perror("read");
-              break;
-          }
+          if (read_size == -1)
+              PERROR_CLEANUP_EXIT("realloc", 2);
           remain_size -= read_size;
       }
 
       if (wait(&stat_loc) == (pid_t)-1)
-          perror("wait");
+        PERROR_CLEANUP_EXIT("wait", 2);
       if (WIFEXITED(stat_loc)) {
           res = WEXITSTATUS(stat_loc);
           fprintf(real_stderr, "sparse returned %i\n", res);
@@ -1475,64 +1564,10 @@ int master_loop(int read_fd)
 }
 
 
-static inline
-bool install_handler_and_block(int signum, void (*handler)(int),
-                               //struct sigaction *old_sa,
-                               //sigset_t *old_sigset
-                               sigset_t *unblock_sigset)
-{
-    sigset_t sigset;
-    struct sigaction sa = {
-        .sa_handler = handler,
-        .sa_flags = 0
-    };
-    if (sigemptyset(&sa.sa_mask) == -1
-        || sigaction(signum, &sa, /*old_sa*/ NULL) == -1
-        /* block "signum" (ensure it is unblocked and backup the mask first) */
-        || sigemptyset(&sigset) == -1
-        || sigaddset(&sigset, signum) == -1
-        || sigprocmask(SIG_UNBLOCK, &sigset, /*old_sigset*/ NULL) == -1
-        || sigprocmask(SIG_BLOCK, &sigset, unblock_sigset) == -1)
-        return false;
-    else
-        return true;
-}
-
-
-static inline
-bool redefine_stderr(int target_fd, FILE **backup_stderr)
-{
-    if (backup_stderr) {
-        *backup_stderr = fopen("/dev/stderr", "w");
-        if (!*backup_stderr)
-            return false;
-        else
-        setbuf(*backup_stderr, NULL);
-    }
-
-    if (close(STDERR_FILENO) == -1
-        || dup2(target_fd, STDERR_FILENO) == -1)
-        return false;
-    else
-        return true;
-}
-
 
 //
 // Main
 //
-
-#define CLEANUP  do {             \
-        type_db_destroy(type_db); \
-        cl->destroy(cl);          \
-        cl_global_cleanup();      \
-    } while (0)
-
-#define PERROR_CLEANUP_EXIT(str, code) \
-    do { perror(str); CLEANUP; exit(code); } while (0)
-
-#define PERROR_EXIT(str, code) \
-    do { perror(str); exit(code); } while (0)
 
 
 int main(int argc, char **argv)
@@ -1553,11 +1588,6 @@ int main(int argc, char **argv)
     type_db = type_db_create();
 
 #if DO_FORK
-    // prepare signals configuration (block SIGCHLD throughout the program,
-    // the only exception is ppol in master loop)
-    sigset_t unblock_sigset;
-    if (!install_handler_and_block(SIGCHLD, worker_feedback, &unblock_sigset))
-        PERROR_CLEANUP_EXIT("Blocked signals mangling", 2);
     // set up pipe
     int fildes[2];
     if (pipe(fildes) == -1)
@@ -1581,7 +1611,7 @@ int main(int argc, char **argv)
     } else { /* parent = master, use fildes[0] for reading */
         close(fildes[1]);
         // master loop -- gather what sparse produce to stderr
-        retval = master_loop(fildes[0], &unblock_sigset);
+        retval = master_loop(fildes[0]);
 #endif
 
         // cleanup

@@ -1,12 +1,12 @@
 CC ?= gcc
-CFLAGS ?= -Wall -DTRAP="do { } while (0)" # -Wextra # -pedantic 
+CFLAGS ?= -std=c99 -Wall -Wextra -pedantic 
 CFLAGS += -g -ggdb3 #-O2
 
 CL = cl
 CL_LIB = lib$(CL).a
 CL_DIR = .
 
-CL_LIBS = -lboost_iostreams -lboost_system
+CL_LIBS = #-lboost_iostreams -lboost_system
 
 SPARSE = sparse
 SPARSE_LIB = lib$(SPARSE).a
