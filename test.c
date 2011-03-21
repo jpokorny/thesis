@@ -690,6 +690,7 @@ static void read_pseudo_sym(struct cl_operand *op, struct symbol *sym, struct sy
         op->data.cst.data.cst_fnc.uid       = /* TODO */ (int)(long) sym;
     } else {
         op->code                            = CL_OPERAND_VAR;
+        // FIXME: symbols are always to be referenced?
         if (subst_type)
             op->type                            = clt_from_sym(subst_type);
         else
@@ -818,8 +819,7 @@ static void read_insn_op_deref(struct cl_operand *op, struct instruction *insn)
     }
 }
 
-static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
-                                 struct cl_operand *op, bool deref, int fargn)
+static void empty_cl_operand(struct cl_operand *op)
 {
     op->code        = CL_OPERAND_VOID;
     op->scope       = CL_SCOPE_GLOBAL;
@@ -827,6 +827,12 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
     op->loc.line    = -1;
     op->type        = NULL;
     op->accessor    = NULL;
+}
+
+static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
+                                 struct cl_operand *op, bool deref, int fargn)
+{
+    empty_cl_operand(op);
 
     if (!is_pseudo(pseudo))
         return;
@@ -944,11 +950,17 @@ static bool handle_insn_call(struct instruction *insn)
 
     // go through arguments
     FOR_EACH_PTR(insn->arguments, arg) {
-        struct cl_operand src;
-        pseudo_to_cl_operand(insn, arg, &src, false, cnt);
+        struct cl_operand arg_operand;
+        if (arg->type == PSEUDO_SYM) {
 
-        cl->insn_call_arg(cl, ++cnt, &src);
-        free_cl_operand_data(&src);
+            empty_cl_operand(&arg_operand);
+            read_pseudo_sym(&arg_operand, arg->sym, /*TODO*/ arg->sym);
+        } else {
+            pseudo_to_cl_operand(insn, arg, &arg_operand, false, cnt);
+        }
+
+        cl->insn_call_arg(cl, ++cnt, &arg_operand);
+        free_cl_operand_data(&arg_operand);
     } END_FOR_EACH_PTR(arg);
 
     // close call
