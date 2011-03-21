@@ -32,6 +32,8 @@
 #include <sys/wait.h>
 #include <assert.h>
 
+
+#define USE_INT3_AS_BRK
 #include "trap.h"
 #include "code_listener.h"
 #include "type_enumerator.h"
@@ -49,10 +51,13 @@
 
 // compile options
 #define DO_FORK                     1  // "1" recommended
+
 #define DO_PROCEED_INTERNAL         1
 #define DO_EXPAND_SYMBOL            1
 #define DO_PER_EP_UNSAA             1
 #define DO_PER_EP_SET_UP_STORAGE    1
+
+#define SHOW_INSNS                  1
 #define SHOW_PSEUDO_INSNS           0
 
 
@@ -64,6 +69,9 @@
 
 #define MEM_NEW(type) \
     (type *) malloc(sizeof(type))
+
+#define MEM_NEW_VECTOR(type, num) \
+    (type *) malloc(sizeof(type) * num)
 
 #define MEM_RESIZE(ptr, newnum) \
     realloc(ptr, sizeof(*ptr) * (newnum))
@@ -155,6 +163,11 @@ static int cl_verbose = 0;
 #define ERROR(...)  do {\
         fprintf(real_stderr, __VA_ARGS__); \
         fprintf(real_stderr, "\n"); \
+    } while (0)
+
+#define NOTE(...)  do {\
+        fprintf(stdout, __VA_ARGS__); \
+        fprintf(stdout, "\n"); \
     } while (0)
 
 
@@ -417,8 +430,71 @@ static void read_sparse_scalar_type(enum cl_type_e *cl_type,
         *cl_type = CL_TYPE_UNKNOWN;
 }
 
-static struct cl_type_item* create_ptr_type_item(struct symbol *type);
-static void add_fn_arguments(struct cl_type *clt, struct symbol_list* args);
+static struct cl_type* add_type_if_needed(struct symbol *type,
+                                          struct instruction *insn,
+                                          int fargn);
+
+static struct cl_type_item* create_ptr_type_item(struct symbol *type)
+{
+    struct cl_type_item *item = MEM_NEW(struct cl_type_item);
+    if (!item)
+        die("MEM_NEW failed");
+
+    item->type = /* FIXME: unguarded recursion */
+                 add_type_if_needed(type->ctype.base_type, NULL, 0);
+    item->name = NULL;
+
+    // guaranteed to NOT return NULL
+    return item;
+}
+
+static void add_nested_type(struct cl_type *clt, struct symbol *sym)
+{
+    if (clt->items == NULL)
+        clt->item_cnt = 0;
+    clt->items = MEM_RESIZE(clt->items, clt->item_cnt+1);
+    if (!clt->items)
+        die("MEM_RESIZE failed");
+    struct cl_type_item *item = &clt->items[clt->item_cnt++];
+    if (sym->type == SYM_BASETYPE) {
+        // specially for "void" as function argument if no one present
+        item->type = add_type_if_needed(sym, NULL, 0);
+        item->name = NULL;
+        return;
+    }
+    item->type = /* recursion */ add_type_if_needed(sym->ctype.base_type, NULL, 0);
+    item->name = (sym->ident) ? strdup(show_ident(sym->ident)) : NULL;
+    item->offset = sym->offset;
+}
+
+static void add_struct_elem_types(struct cl_type *clt,
+                                  struct symbol_list *elems)
+{
+    struct symbol *sym;
+
+    FOR_EACH_PTR(elems, sym) {
+        add_nested_type(clt, sym);
+    } END_FOR_EACH_PTR(sym);
+
+    // TODO: not sure why this necessary
+    //clt->item_cnt++;
+}
+
+static void add_fn_arguments(struct cl_type *clt, struct symbol_list* args)
+{
+    struct symbol *sym;
+    if (ptr_list_size((struct ptr_list *)args) == 0) {
+        add_nested_type(clt, &void_ctype);
+        //return;
+    }
+
+    FOR_EACH_PTR(args, sym)
+        add_nested_type(clt, sym->ctype.base_type);
+    END_FOR_EACH_PTR(sym);
+
+    // TODO: not sure why this necessary
+    clt->item_cnt++;
+}
 
 static void read_sparse_type(struct cl_type *clt, struct symbol *type)
 {
@@ -434,7 +510,6 @@ static void read_sparse_type(struct cl_type *clt, struct symbol *type)
     switch (code) {
         case SYM_PTR:
             clt->code       = CL_TYPE_PTR;
-            clt->size       = /* TODO */ 0;
             clt->item_cnt   = 1;
             clt->items      = create_ptr_type_item(type);
             break;
@@ -442,15 +517,13 @@ static void read_sparse_type(struct cl_type *clt, struct symbol *type)
         case SYM_STRUCT:
             clt->code       = CL_TYPE_STRUCT;
             clt->name       = strdup(show_ident(type->ident));
-            clt->size       = /* TODO */ 0;
-            clt->item_cnt   = /* TODO */ 0;
-            clt->items      = /* TODO */ NULL;
+            clt->items      = NULL;
+            add_struct_elem_types(clt, type->symbol_list);
             break;
 
         case SYM_UNION:
             clt->code       = CL_TYPE_UNION;
             clt->name       = strdup(show_ident(type->ident));
-            clt->size       = /* TODO */ 0;
             clt->item_cnt   = /* TODO */ 0;
             clt->items      = /* TODO */ NULL;
             break;
@@ -468,7 +541,7 @@ static void read_sparse_type(struct cl_type *clt, struct symbol *type)
             break;
 
         default:
-            // CL_TRAP;
+            CL_TRAP;
             clt->code       = CL_TYPE_UNKNOWN;
             clt->name       = strdup(show_typename(type));
     }
@@ -554,19 +627,6 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
     return type_db_insert(type_db, clt, type);
 }
 
-static struct cl_type_item* create_ptr_type_item(struct symbol *type)
-{
-    struct cl_type_item *item = MEM_NEW(struct cl_type_item);
-    if (!item)
-        die("MEM_NEW failed");
-
-    item->type = /* FIXME: unguarded recursion */
-                 add_type_if_needed(type->ctype.base_type, NULL, 0);
-    item->name = NULL;
-
-    // guaranteed to NOT return NULL
-    return item;
-}
 
 static struct cl_type* clt_from_sym(struct symbol *sym)
 {
@@ -574,37 +634,6 @@ static struct cl_type* clt_from_sym(struct symbol *sym)
         CL_TRAP;
 
     return add_type_if_needed(sym->ctype.base_type, NULL, 0);
-}
-
-
-
-//
-// Function arguments handling
-//
-
-
-static void add_fn_argument(struct cl_type *clt, struct symbol *type)
-{
-    clt->items = MEM_RESIZE(clt->items, clt->item_cnt+1);
-    if (!clt->items)
-        die("MEM_RESIZE failed");
-    struct cl_type_item *item = &clt->items[clt->item_cnt++];
-    item->type = /* recursion */ add_type_if_needed(type, NULL, 0);
-    item->name = NULL;
-}
-
-static void add_fn_arguments(struct cl_type *clt, struct symbol_list* args)
-{
-    struct symbol *sym;
-    if (ptr_list_size((struct ptr_list *)args) == 0) {
-        add_fn_argument(clt, &void_ctype);
-        return;
-    }
-    FOR_EACH_PTR(args, sym)
-        add_fn_argument(clt, sym->ctype.base_type);
-    END_FOR_EACH_PTR(sym);
-    // not sure why this necessary
-    clt->item_cnt++;
 }
 
 
@@ -632,7 +661,7 @@ static void read_sym_initializer(struct cl_operand *op, struct expression *expr)
     }
 }
 
-static void read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
+static void read_pseudo_sym(struct cl_operand *op, struct symbol *sym, struct symbol *subst_type)
 {
     struct symbol *base;
 
@@ -661,10 +690,22 @@ static void read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
         op->data.cst.data.cst_fnc.uid       = /* TODO */ (int)(long) sym;
     } else {
         op->code                            = CL_OPERAND_VAR;
-        op->type                            = clt_from_sym(sym);
+        if (subst_type)
+            op->type                            = clt_from_sym(subst_type);
+        else
+            op->type                            = clt_from_sym(sym);
         op->data.var                        = MEM_NEW(struct cl_var);
         op->data.var->uid                     = /* TODO */ (int)(long) sym;
         op->data.var->name                   = strdup(show_ident(sym->ident));
+        if (subst_type) {
+            struct cl_accessor *ac = MEM_NEW(struct cl_accessor);
+            if (!ac)
+                die("NEW_MEM failed");
+            ac->code = CL_ACCESSOR_REF;
+            ac->type = clt_from_sym(sym);
+            ac->next = NULL;
+            op->accessor = ac;
+        }
     }
 }
 
@@ -672,12 +713,16 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
 {
     switch(pseudo->type) {
         case PSEUDO_SYM:  /* union -> sym */
-            read_pseudo_sym(op, pseudo->sym);
+            read_pseudo_sym(op, pseudo->sym, NULL);
             break;
 
         case PSEUDO_REG: { /* union -> def */
             op->code                = CL_OPERAND_VAR;
-            op->type                = add_type_if_needed(NULL, pseudo->def, 0);
+            // note: pseudo->def == NULL for copy.32
+            if (pseudo->def)
+                op->type                = add_type_if_needed(NULL, pseudo->def, 0);
+            else
+                op->type                = add_type_if_needed(&int_ctype, NULL, 0);
             op->data.var            = MEM_NEW(struct cl_var);
             op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
             op->data.var->name      = NULL;
@@ -730,9 +775,15 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
 static void read_insn_op_deref(struct cl_operand *op, struct instruction *insn)
 {
     struct cl_accessor *ac;
+#if 0
     if (insn->type
             && insn->type->ident
             && 0 != strcmp("__ptr", show_ident(insn->type->ident)))
+#endif
+#if 1
+    if (insn->opcode == OP_STORE || (insn->opcode == OP_LOAD &&
+        op->type->items[0].type->code != CL_TYPE_STRUCT))
+#endif
     {
         //WARN_UNHANDLED(insn->pos, "CL_ACCESSOR_ITEM");
         return;
@@ -748,6 +799,23 @@ static void read_insn_op_deref(struct cl_operand *op, struct instruction *insn)
     ac->next = NULL;
 
     op->accessor = ac;
+
+    if (insn->opcode == OP_LOAD &&
+        op->type->items[0].type->code == CL_TYPE_STRUCT) {
+        ac = MEM_NEW(struct cl_accessor);
+        if (!ac)
+            die("MEM_NEW failed");
+        ac->code = CL_ACCESSOR_ITEM;
+        ac->next = NULL;
+        int i;
+        for (i = 0; i < op->type->items[0].type->item_cnt; i++)
+            if (op->type->items[0].type->items[i].offset == insn->offset)
+                break;
+        ac->data.item.id = i;
+        ac->type = /*dangerous?*/ (struct cl_type *) op->type->items[0].type;
+        //ac->type = (struct cl_type *) op->type->items[0].type->items[i].type;
+        op->accessor->next = ac;
+    }
 }
 
 static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
@@ -763,9 +831,14 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
     if (!is_pseudo(pseudo))
         return;
 
-    read_pseudo(op, pseudo);
-    if (deref)
-        read_insn_op_deref(op, insn);
+    if (insn->opcode == OP_PTRCAST && pseudo == insn->src
+        /* && pseudo->type == PSEUDO_SYM*/ ) {
+        read_pseudo_sym(op, insn->src->sym, insn->orig_type);
+    } else {
+        read_pseudo(op, pseudo);
+        if (deref)
+            read_insn_op_deref(op, insn);
+    }
 
     // correct type for function argument
     if (!op->type || insn->opcode == OP_CALL)
@@ -1016,6 +1089,15 @@ static void insn_assignment_base(struct instruction                 *insn,
     } else {
         pseudo_to_cl_operand(insn, rhs, &op_rhs, rhs_deref, 0);
     }
+    if (lhs->type == PSEUDO_VAL /* && lhs->value == 0 */
+        && op_rhs.type->code == CL_TYPE_PTR) {
+        op_lhs.code = CL_OPERAND_CST;
+        op_lhs.type = op_lhs.type;
+        op_lhs.accessor = NULL;
+        op_lhs.data.cst.code = CL_TYPE_INT;
+        op_lhs.data.cst.data.cst_int.value = lhs->value;
+    }
+
 
 #if 0
     if (op_lhs.deref && op_lhs.name && op_lhs.offset
@@ -1049,17 +1131,27 @@ static void handle_insn_store(struct instruction *insn)
             insn->symbol, insn->target,
             true        , false);
 }
+
 static void handle_insn_load(struct instruction *insn)
 {
     insn_assignment_base(insn,
             insn->target, insn->symbol,
             false       , true);
 }
+
 static void handle_insn_copy(struct instruction *insn)
 {
     insn_assignment_base(insn,
             insn->target, insn->src,
             false       , false);
+}
+
+static void handle_insn_ptrcast(struct instruction *insn)
+{
+    //CL_TRAP;
+    insn_assignment_base(insn,
+            insn->target, insn->src,
+            false        , false);
 }
 
 static void handle_insn_binop(struct instruction *insn, enum cl_binop_e code)
@@ -1089,6 +1181,9 @@ static void handle_insn_binop(struct instruction *insn, enum cl_binop_e code)
 
 static bool handle_insn(struct instruction *insn)
 {
+#if SHOW_INSNS
+    NOTE("\t%d: instruction to be processed: %s", insn->pos.line, show_instruction(insn));
+#endif
     switch (insn->opcode) {
         WARN_CASE_UNHANDLED(insn->pos, OP_BADOP)
 
@@ -1219,9 +1314,11 @@ static bool handle_insn(struct instruction *insn)
         case OP_CAST:
         case OP_SCAST:
         case OP_FPCAST:
-        case OP_PTRCAST:
-            // TODO: separate handler?
             handle_insn_copy(insn);
+            break;
+
+        case OP_PTRCAST:
+            handle_insn_ptrcast(insn);
             break;
 
         WARN_CASE_UNHANDLED(insn->pos, OP_INLINED_CALL)
