@@ -1103,6 +1103,7 @@ static void insn_assignment_base(struct instruction *insn,
     struct cl_operand op_rhs;
 
     pseudo_to_cl_operand(insn, lhs, &op_lhs, lhs_access);
+
     if (rhs->type == PSEUDO_VAL /* && rhs->value == 0 */
         && op_lhs.type->code == CL_TYPE_PTR) {
         op_rhs.code = CL_OPERAND_CST;
@@ -1116,7 +1117,7 @@ static void insn_assignment_base(struct instruction *insn,
     if (lhs->type == PSEUDO_VAL /* && lhs->value == 0 */
         && op_rhs.type->code == CL_TYPE_PTR) {
         op_lhs.code = CL_OPERAND_CST;
-        op_lhs.type = op_lhs.type;
+        op_lhs.type = op_rhs.type;
         op_lhs.accessor = NULL;
         op_lhs.data.cst.code = CL_TYPE_INT;
         op_lhs.data.cst.data.cst_int.value = lhs->value;
@@ -1134,7 +1135,10 @@ static void insn_assignment_base(struct instruction *insn,
 #endif
 
     // TODO: move to function?
-    {
+    // FIXME SPARSE?: hack because sparse generates extra instruction
+    //         e.g. store %arg1 -> 0[in] if "in" == "%arg1"
+    if (lhs->type != PSEUDO_SYM || rhs->type != PSEUDO_ARG
+         || op_lhs.data.var->uid != op_rhs.data.var->uid) {
         struct cl_insn cli;
         cli.code                    = CL_INSN_UNOP;
         cli.data.insn_unop.code     = CL_UNOP_ASSIGN;
@@ -1142,6 +1146,8 @@ static void insn_assignment_base(struct instruction *insn,
         cli.data.insn_unop.src      = &op_rhs;
         read_sparse_location(&cli.loc, insn->pos);
         cl->insn(cl, &cli);
+    } else {
+        WARN_VA(insn->pos, "instruction omitted: %s", show_instruction(insn));
     }
 
     free_cl_operand_data(&op_lhs);
