@@ -489,7 +489,7 @@ static void add_fn_arguments(struct cl_type *clt, struct symbol_list* args)
     }
 
     FOR_EACH_PTR(args, sym)
-        add_nested_type(clt, sym->ctype.base_type);
+        add_nested_type(clt, sym);
     END_FOR_EACH_PTR(sym);
 
     // TODO: not sure why this necessary
