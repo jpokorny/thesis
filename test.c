@@ -775,7 +775,7 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
     }
 }
 
-static void read_insn_op_deref(struct cl_operand *op, struct instruction *insn)
+static void read_insn_op_access(struct cl_operand *op, struct instruction *insn)
 {
     struct cl_accessor *ac;
 #if 0
@@ -807,23 +807,18 @@ static void read_insn_op_deref(struct cl_operand *op, struct instruction *insn)
         ac->type = /*dangerous?*/ (struct cl_type *) op->type;
         op->accessor = ac;
         op->type = (struct cl_type *)op->type->items[i].type;
-        //CL_TRAP;
-        return;
-    }
+    } else if (op->type->code == CL_TYPE_PTR
+               && op->type->items[0].type->code == CL_TYPE_STRUCT) {
+        ac = MEM_NEW(struct cl_accessor);
+        if (!ac)
+            die("MEM_NEW failed");
 
-    // simple deref?
-    ac = MEM_NEW(struct cl_accessor);
-    if (!ac)
-        die("MEM_NEW failed");
+        ac->code = CL_ACCESSOR_DEREF;
+        ac->type = /* TODO */ op->type;
+        ac->next = NULL;
 
-    ac->code = CL_ACCESSOR_DEREF;
-    ac->type = /* TODO */ op->type;
-    ac->next = NULL;
+        op->accessor = ac;
 
-    op->accessor = ac;
-
-    if (insn->opcode == OP_LOAD &&
-        op->type->items[0].type->code == CL_TYPE_STRUCT) {
         ac = MEM_NEW(struct cl_accessor);
         if (!ac)
             die("MEM_NEW failed");
@@ -838,6 +833,7 @@ static void read_insn_op_deref(struct cl_operand *op, struct instruction *insn)
         //ac->type = (struct cl_type *) op->type->items[0].type->items[i].type;
         op->accessor->next = ac;
     }
+    return;
 }
 
 static void empty_cl_operand(struct cl_operand *op)
@@ -851,7 +847,7 @@ static void empty_cl_operand(struct cl_operand *op)
 }
 
 static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
-                                 struct cl_operand *op, bool deref)
+                                 struct cl_operand *op, bool access)
 {
     empty_cl_operand(op);
 
@@ -863,8 +859,8 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
         read_pseudo_sym(op, insn->src->sym, insn->orig_type);
     } else {
         read_pseudo(op, pseudo);
-        if (deref)
-            read_insn_op_deref(op, insn);
+        if (access)
+            read_insn_op_access(op, insn);
     }
 }
 
@@ -1099,14 +1095,14 @@ static void handle_insn_ret(struct instruction *insn)
     free_cl_operand_data(&op);
 }
 
-static void insn_assignment_base(struct instruction                 *insn,
-                                 pseudo_t     lhs,        pseudo_t  rhs,
-                                 bool         lhs_deref,  bool      rhs_deref)
+static void insn_assignment_base(struct instruction *insn,
+                                 pseudo_t lhs       ,  pseudo_t rhs       ,
+                                 bool     lhs_access,  bool     rhs_access)
 {
     struct cl_operand op_lhs;
     struct cl_operand op_rhs;
 
-    pseudo_to_cl_operand(insn, lhs, &op_lhs, lhs_deref);
+    pseudo_to_cl_operand(insn, lhs, &op_lhs, lhs_access);
     if (rhs->type == PSEUDO_VAL /* && rhs->value == 0 */
         && op_lhs.type->code == CL_TYPE_PTR) {
         op_rhs.code = CL_OPERAND_CST;
@@ -1115,7 +1111,7 @@ static void insn_assignment_base(struct instruction                 *insn,
         op_rhs.data.cst.code = CL_TYPE_INT;
         op_rhs.data.cst.data.cst_int.value = rhs->value;
     } else {
-        pseudo_to_cl_operand(insn, rhs, &op_rhs, rhs_deref);
+        pseudo_to_cl_operand(insn, rhs, &op_rhs, rhs_access);
     }
     if (lhs->type == PSEUDO_VAL /* && lhs->value == 0 */
         && op_rhs.type->code == CL_TYPE_PTR) {
@@ -1128,11 +1124,11 @@ static void insn_assignment_base(struct instruction                 *insn,
 
 
 #if 0
-    if (op_lhs.deref && op_lhs.name && op_lhs.offset
+    if (op_lhs.access && op_lhs.name && op_lhs.offset
             && 0 == strcmp(op_lhs.name, op_lhs.offset))
         CL_TRAP;
 
-    if (op_rhs.deref && op_rhs.name && op_rhs.offset
+    if (op_rhs.access && op_rhs.name && op_rhs.offset
             && 0 == strcmp(op_rhs.name, op_rhs.offset))
         CL_TRAP;
 #endif
