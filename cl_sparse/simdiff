@@ -1,0 +1,21 @@
+#!/usr/bin/env python
+
+from sys import argv, exit
+from os.path import exists
+from difflib import SequenceMatcher
+
+def simdiff(file1, file2):
+    m = SequenceMatcher(None, open(file1).read(), open(file2).read())
+    return m.ratio() # m.quick_ratio()
+
+if __name__ == "__main__":
+    if len(argv) == 3:
+        if exists(argv[1]) and exists(argv[2]):
+            ret = simdiff(argv[1], argv[2])
+            print (ret)
+            exit(0)
+        else:
+            exit(1)
+    else:
+        print ("Usage: %(script)s file1 file2" % {"script": argv[0]})
+        exit(2)
