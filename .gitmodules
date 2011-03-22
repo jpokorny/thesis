@@ -1,0 +1,3 @@
+[submodule "predator_cl"]
+	path = predator_cl
+	url = https://github.com/kdudka/predator.git
