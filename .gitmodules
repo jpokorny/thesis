@@ -1,0 +1,3 @@
+[submodule "sparse"]
+	path = sparse
+	url = ./sparse
