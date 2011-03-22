@@ -1,3 +1,6 @@
 [submodule "predator_cl"]
 	path = predator_cl
 	url = https://github.com/kdudka/predator.git
+[submodule "sparse_devel"]
+	path = sparse_devel
+	url = git://git.kernel.org/pub/scm/devel/sparse/chrisl/sparse
