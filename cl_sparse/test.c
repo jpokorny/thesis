@@ -57,7 +57,6 @@
 #define DO_PER_EP_UNSAA             1
 #define DO_PER_EP_SET_UP_STORAGE    1
 
-#define SHOW_INSNS                  1
 #define SHOW_PSEUDO_INSNS           0
 
 
@@ -115,6 +114,7 @@ FILE *real_stderr = NULL; /**< used to access "unfaked" stderr */
 
 static int cl_verbose = 0;
 #define CL_VERBOSE_LOCATION         (1 << 1)
+#define CL_VERBOSE_INSTRUCTION      (1 << 2)
 
 
 
@@ -1087,7 +1087,7 @@ static void handle_insn_ret(struct instruction *insn)
     struct cl_operand op;
     struct cl_insn cli;
 
-    pseudo_to_cl_operand(insn, insn->src, &op, false);
+    pseudo_to_cl_operand(insn, insn->src, &op, true);
     cli.code                = CL_INSN_RET;
     cli.data.insn_ret.src   = &op;
     read_sparse_location(&cli.loc, insn->pos);
@@ -1212,9 +1212,9 @@ static void handle_insn_binop(struct instruction *insn, enum cl_binop_e code)
 
 static bool handle_insn(struct instruction *insn)
 {
-#if SHOW_INSNS
-    NOTE("\t%d: instruction to be processed: %s", insn->pos.line, show_instruction(insn));
-#endif
+    if (verbose & CL_VERBOSE_INSTRUCTION)
+        NOTE("\t%d: instruction to be processed: %s", insn->pos.line, show_instruction(insn));
+
     switch (insn->opcode) {
         WARN_CASE_UNHANDLED(insn->pos, OP_BADOP)
 
