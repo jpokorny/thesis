@@ -59,14 +59,17 @@ function proceed_gcc() {
 }
 
 function prelude() {
-    PATH="`readlink -f ../../gcc-install/bin`:$PATH"
-    LD_LIBRARY_PATH="`readlink -f ../../cl_build`:LD_LIBRARY_PATH"
+    PATH="`readlink -f ../predator_cl/gcc-install/bin`:$PATH"
+    LD_LIBRARY_PATH="`readlink -f ../predator_cl/cl_build`:$LD_LIBRARY_PATH"
     export PATH LD_LIBRARY_PATH
+    echo $LD_LIBRARY_PATH
 }
 
 
 function do_tests() {
-    #prelude
+    prelude
+    clean >/dev/null
+
     pushd $TESTSUITE_DIR >/dev/null
     mkdir -p $TESTSUITE_OUTPUTS/sparse $TESTSUITE_OUTPUTS/gcc
     for SRC in $(find . -name "*.c" | sed "s/\.\//|/1" | cut -d"|" -f2); do
@@ -109,6 +112,10 @@ function do_tests() {
 }
 
 
-case $1 in "clean") echo "cleaning"; rm -r $TESTSUITE_DIR/$TESTSUITE_OUTPUTS || :;;
+function clean() {
+    echo "cleaning"; rm -r $TESTSUITE_DIR/$TESTSUITE_OUTPUTS || :
+}
+
+case $1 in "clean") $1;;
                  *) do_tests;;
 esac
