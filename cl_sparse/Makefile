@@ -6,8 +6,6 @@ CL = cl
 CL_LIB = lib$(CL).a
 CL_DIR = .
 
-CL_LIBS = #-lboost_iostreams -lboost_system
-
 SPARSE = sparse
 SPARSE_LIB = lib$(SPARSE).a
 SPARSE_DIR = .
@@ -36,5 +34,5 @@ check: $(PROGRAM)
 	./tests.sh
 
 clean:
-	$(RM) -fr $(PROGRAM)
+	$(RM) -f $(MAIN_SRC:.c=.o) $(SRCS:.c=.o)
 	./tests.sh clean
