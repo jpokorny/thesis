@@ -69,7 +69,7 @@ function do_tests() {
     #prelude
     pushd $TESTSUITE_DIR >/dev/null
     mkdir -p $TESTSUITE_OUTPUTS/sparse $TESTSUITE_OUTPUTS/gcc
-    for SRC in $(find . -name "*.c"); do
+    for SRC in $(find . -name "*.c" | sed "s/\.\//|/1" | cut -d"|" -f2); do
         echo $DLINE
         proceed_sparse $SRC $SRC.flow.dot $SRC.type.dot 2>&1 >/dev/null
             tar cf - $SRC*.dot | ( cd $TESTSUITE_OUTPUTS/sparse; tar xfp -)
@@ -78,10 +78,11 @@ function do_tests() {
             tar cf - $SRC*.dot | ( cd $TESTSUITE_OUTPUTS/gcc; tar xfp -)
             rm -f -- $SRC*.dot
         GCC_DOTS=$(find $TESTSUITE_OUTPUTS/gcc/. -path "*$SRC*.dot")       
-        echo "$SRC ($(echo $GCC_DOTS | wc -w) dot files for gcc variant)"
-        echo $SLINE
+        printf "%-61s %2i\n" $(echo -n $SRC | tr [:lower:] [:upper:]) \
+                             $(echo $GCC_DOTS | wc -w)
+        #echo $SLINE
         for DOT in $GCC_DOTS; do
-            PATTERN=$(echo $DOT | sed "s/\/\.\//|/1" | cut -d"|" -f2)
+            PATTERN=$(echo $DOT | sed "s/\.\//|/1" | cut -d"|" -f2)
             IGNORE=$(grep -F "$PATTERN" $TESTSUITE_IGNORE) \
                 && test "$(echo $IGNORE | cut -c1)" != "#"
             if [ $? -eq 0 ]; then
