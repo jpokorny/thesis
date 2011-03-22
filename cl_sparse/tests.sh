@@ -108,6 +108,6 @@ function do_tests() {
 }
 
 
-case $1 in "clean") echo "cleaning"; rm -r $TESTSUITE_DIR/$TESTSUITE_OUTPUTS;;
+case $1 in "clean") echo "cleaning"; rm -r $TESTSUITE_DIR/$TESTSUITE_OUTPUTS || :;;
                  *) do_tests;;
 esac
