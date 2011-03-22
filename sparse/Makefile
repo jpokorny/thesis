@@ -20,7 +20,7 @@ PROGRAM_LDFLAGS = -L$(SPARSE_DIR) -l$(SPARSE) -L$(CL_DIR) -l$(CL)
 INC_DIR = include
 
 
-.PHONY: all clean
+.PHONY: all clean check
 
 
 all: $(PROGRAM)
@@ -32,5 +32,9 @@ $(PROGRAM): $(MAIN_SRC:.c=.o) $(SRCS:.c=.o)
 $(MAIN_SRC:.c=.o) $(SRCS:.c=.o): %.o : %.c
 	$(CC) -I$(INC_DIR) -o $@ $(CFLAGS) -fPIC -c $<
 
+check: $(PROGRAM)
+	./tests.sh
+
 clean:
 	$(RM) -fr $(PROGRAM)
+	./tests.sh clean

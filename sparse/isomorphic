@@ -1,0 +1,20 @@
+#!/usr/bin/env python
+
+from sys import argv, exit
+import networkx as nx
+
+def is_isomorphic(file1, file2):
+    dm = nx.DiGraphMatcher(nx.read_dot(file1), nx.read_dot(file2))
+    return dm.is_isomorphic()
+
+if __name__ == "__main__":
+    if len(argv) == 3:
+        ret = is_isomorphic(argv[1], argv[2])
+        print (ret and "TRUE" or "FALSE")
+        if ret:
+            exit(0)
+        else:
+            exit(1)
+    else:
+        print ("Usage: %(script)s file1 file2" % {"script": argv[0]})
+        exit(2)
