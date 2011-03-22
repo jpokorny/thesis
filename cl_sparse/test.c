@@ -52,7 +52,7 @@
 // compile options
 #define DO_FORK                     1  // "1" recommended
 
-#define DO_PROCEED_INTERNAL         1
+#define DO_PROCEED_INTERNAL         0
 #define DO_EXPAND_SYMBOL            1
 #define DO_PER_EP_UNSAA             1
 #define DO_PER_EP_SET_UP_STORAGE    1
