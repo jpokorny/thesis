@@ -1,11 +1,15 @@
 #!/bin/bash
 
 TESTSUITE_DIR=tests
+
 TESTSUITE_OUTPUTS=.dots
 TESTSUITE_LOGS=.logs
+TESTSUITE_SPARSE_PP=.sparse_pp
+
 TESTSUITE_IGNORE=.testignore
 
 ISOMORPHISM_TESTER="$PWD"/isomorphic
+SIMILARITY_TESTER="$PWD"/simdiff
 DIFF=colordiff
 
 CL_SPARSE="$PWD"/test
@@ -40,7 +44,7 @@ function bad() {
     printf "%-61s" "$(basename $1)"
     echo -e "\033[31mBAD\033[0m"
     if [ $# -gt 3 ]; then
-        echo $2
+        echo $4
     elif [ $GENERATE_BAD -ne 0 ]; then
         dot -Tpdf $1 > $1.pdf
         dot -Tpdf $2 > $2.pdf
@@ -49,8 +53,16 @@ function bad() {
 
 
 function proceed_sparse() {
-    echo $1 $2 $3
-    $CL_SPARSE $1 -cl-verbose=0 -cl-gen-dot=$2 -cl-type-dot=$3 2>&1 >/dev/null
+    if [ $# -gt 3 ]; then
+        SINK=$4
+        mkdir -p $(dirname $SINK)
+    else
+        SINK=/dev/null
+    fi
+    $CL_SPARSE $1 -cl-verbose=0        \
+        -cl-gen-dot=$2 -cl-type-dot=$3 \
+        -cl-dump-pp -cl-dump-types     \
+        2>/dev/null >$SINK
 }
 
 function proceed_gcc() {
@@ -65,7 +77,6 @@ function prelude() {
     PATH="`readlink -f ../predator_cl/gcc-install/bin`:$PATH"
     LD_LIBRARY_PATH="`readlink -f ../predator_cl/cl_build`:$LD_LIBRARY_PATH"
     export PATH LD_LIBRARY_PATH
-    echo $LD_LIBRARY_PATH
 }
 
 
@@ -76,22 +87,31 @@ function do_tests() {
     ###
     pushd $TESTSUITE_DIR >/dev/null
 
-    mkdir -p $TESTSUITE_OUTPUTS/sparse $TESTSUITE_OUTPUTS/gcc $TESTSUITE_LOGS
-    PREV_SUMMARY_LOG=$TESTSUITE_LOGS/$(ls -1 -r $TESTSUITE_LOGS | head -n1)
-    SUMMARY_LOG=$TESTSUITE_LOGS/$(date +%y%m%d_%H%M%S).log.unsorted
-    echo $PREV_SUMMARY_LOG
+    DATE=$(date +%y%m%d_%H%M%S)
+
+    mkdir -p $TESTSUITE_OUTPUTS/sparse $TESTSUITE_OUTPUTS/gcc
+
+    mkdir -p $TESTSUITE_SPARSE_PP
+    PREV_SPARSE_PP=$TESTSUITE_SPARSE_PP/$(ls -1 -r $TESTSUITE_SPARSE_PP | head -n1)
+    SPARSE_PP=$TESTSUITE_SPARSE_PP/$DATE
+    mkdir $SPARSE_PP
+
+    mkdir -p $TESTSUITE_LOGS
+    PREV_SUMMARY_LOG=$(ls -1 -r $TESTSUITE_LOGS/*.log | head -n1)
+    SUMMARY_LOG=$TESTSUITE_LOGS/$DATE.log.unsorted
 
     for SRC in $(find . -name "*.c" | sed "s/\.\//|/1" | cut -d"|" -f2); do
         echo $DLINE
-        proceed_sparse $SRC $SRC.flow.dot $SRC.type.dot 2>&1 >/dev/null
+        proceed_sparse $SRC $SRC.flow.dot $SRC.type.dot $SPARSE_PP/$SRC.log #2>&1 >/dev/null
             tar cf - $SRC*.dot | ( cd $TESTSUITE_OUTPUTS/sparse; tar xfp -)
             rm -f -- $SRC*.dot
-        proceed_gcc    $SRC $SRC.flow.dot $SRC.type.dot 2>&1 >/dev/null
+        proceed_gcc    $SRC $SRC.flow.dot $SRC.type.dot # 2>&1 >/dev/null
             tar cf - $SRC*.dot | ( cd $TESTSUITE_OUTPUTS/gcc; tar xfp -)
             rm -f -- $SRC*.dot
         GCC_DOTS=$(find $TESTSUITE_OUTPUTS/gcc/. -path "*$SRC*.dot")
-        printf "%-61s %2i\n" $(echo -n $SRC | tr [:lower:] [:upper:]) \
-                             $(echo $GCC_DOTS | wc -w)
+        printf "%-38s similarity to prev.: %1.2f\n" \
+            "$(echo -n $SRC | tr [:lower:] [:upper:])  [$(echo $GCC_DOTS | wc -w) gcc dot f.]" \
+            "$($SIMILARITY_TESTER $SPARSE_PP/$SRC.log  $PREV_SPARSE_PP/$SRC.log)"
         #echo $SLINE
         for DOT in $GCC_DOTS; do
             PATTERN=$(echo $DOT | sed "s/\.\//|/1" | cut -d"|" -f2)
@@ -134,7 +154,8 @@ function do_tests() {
 
 
 function clean() {
-    echo "cleaning"; rm -r $TESTSUITE_DIR/$TESTSUITE_OUTPUTS || :
+    echo "cleaning"
+    rm -r $TESTSUITE_DIR/$TESTSUITE_OUTPUTS || :
 }
 
 case $1 in "clean") $1;;
