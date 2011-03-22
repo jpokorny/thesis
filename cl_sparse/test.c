@@ -40,13 +40,13 @@
 
 // sparse headers
 #include "sparse/expression.h"
-#include "sparse/flow.h"
 #include "sparse/linearize.h"
-#include "sparse/parse.h"
 #include "sparse/scope.h"
-#include "sparse/storage.h"
-#include "sparse/symbol.h"
-#include "sparse/token.h"
+//#include "sparse/flow.h"
+//#include "sparse/parse.h"
+//#include "sparse/storage.h"
+//#include "sparse/symbol.h"
+//#include "sparse/token.h"
 
 
 // compile options
