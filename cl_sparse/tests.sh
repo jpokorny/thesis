@@ -73,7 +73,7 @@ function proceed_gcc() {
             -fplugin-arg-$CL_GCC_PLUGIN-type-dot=$3 2>&1 >/dev/null
 }
 
-function prelude() {
+function gcc_prelude() {
     PATH="`readlink -f ../predator_cl/gcc-install/bin`:$PATH"
     LD_LIBRARY_PATH="`readlink -f ../predator_cl/cl_build`:$LD_LIBRARY_PATH"
     export PATH LD_LIBRARY_PATH
@@ -81,7 +81,7 @@ function prelude() {
 
 
 function do_tests() {
-    prelude
+    gcc_prelude
     clean >/dev/null
 
     ###
@@ -159,5 +159,7 @@ function clean() {
 }
 
 case $1 in "clean") $1;;
-                 *) do_tests;;
+           "gcc_prelude") $1;;
+           "") do_tests;;
+           *) echo "$0 [clean|gcc_prelude (note: use \"source $0\" for this)]"
 esac
