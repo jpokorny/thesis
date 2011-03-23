@@ -532,10 +532,6 @@ static void read_sparse_type(struct cl_type *clt, struct symbol *type)
 {
     enum type code = type->type;
 
-    clt->size       = /* TODO */ 0;
-    clt->item_cnt   = 0;
-    clt->items      = NULL;
-
     switch (code) {
         case SYM_PTR:
             clt->code       = CL_TYPE_PTR;
