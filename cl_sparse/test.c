@@ -115,6 +115,7 @@ FILE *real_stderr = NULL; /**< used to access "unfaked" stderr */
 static int cl_verbose = 0;
 #define CL_VERBOSE_LOCATION         (1 << 1)
 #define CL_VERBOSE_INSTRUCTION      (1 << 2)
+#define CL_VERBOSE_INSERT_TYPE      (1 << 3)
 
 
 
@@ -306,6 +307,11 @@ static void type_db_destroy(type_db_t db)
 static struct cl_type* type_db_insert(type_db_t db, struct cl_type *clt,
                                       void *key)
 {
+    if (verbose & CL_VERBOSE_INSERT_TYPE) {
+        NOTE("\tadd type: %p", key);
+        show_symbol((struct symbol *)key);
+    }
+
     struct cl_type *rv = typen_insert_as_new(db, clt, key);
     if (!rv)
         die("typen_insert_as_new() failed");
@@ -564,6 +570,18 @@ static void skip_sparse_accessors(struct symbol **ptype)
     }
 }
 
+static void empty_cl_type(struct cl_type *clt)
+{
+    clt->code       = CL_TYPE_UNKNOWN;
+    clt->name       = NULL;
+    clt->size       = 0;
+    clt->item_cnt   = 0;
+    clt->items      = NULL;
+    clt->scope      = CL_SCOPE_GLOBAL;
+    clt->loc.file   = NULL;
+    clt->loc.line   = -1;
+}
+
 static struct cl_type* add_type_if_needed(struct symbol *type,
                                           struct instruction *insn)
 {
@@ -588,14 +606,7 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
         die("MEM_NEW failed");
 
     // make sure all members will be initialized
-    clt->code       = CL_TYPE_UNKNOWN;
-    clt->name       = NULL;
-    clt->size       = 0;
-    clt->item_cnt   = 0;
-    clt->items      = NULL;
-    clt->scope      = CL_SCOPE_GLOBAL;
-    clt->loc.file   = NULL;
-    clt->loc.line   = -1;
+    empty_cl_type(clt);
 
     // read type info if available
     if (type) {
@@ -1102,18 +1113,8 @@ static void insn_assignment_base(struct instruction *insn,
     struct cl_operand op_lhs;
     struct cl_operand op_rhs;
 
-    pseudo_to_cl_operand(insn, lhs, &op_lhs, lhs_access);
+    pseudo_to_cl_operand(insn, rhs, &op_rhs, rhs_access);
 
-    if (rhs->type == PSEUDO_VAL /* && rhs->value == 0 */
-        && op_lhs.type->code == CL_TYPE_PTR) {
-        op_rhs.code = CL_OPERAND_CST;
-        op_rhs.type = op_lhs.type;
-        op_rhs.accessor = NULL;
-        op_rhs.data.cst.code = CL_TYPE_INT;
-        op_rhs.data.cst.data.cst_int.value = rhs->value;
-    } else {
-        pseudo_to_cl_operand(insn, rhs, &op_rhs, rhs_access);
-    }
     if (lhs->type == PSEUDO_VAL /* && lhs->value == 0 */
         && op_rhs.type->code == CL_TYPE_PTR) {
         op_lhs.code = CL_OPERAND_CST;
@@ -1121,6 +1122,16 @@ static void insn_assignment_base(struct instruction *insn,
         op_lhs.accessor = NULL;
         op_lhs.data.cst.code = CL_TYPE_INT;
         op_lhs.data.cst.data.cst_int.value = lhs->value;
+    } else {
+        pseudo_to_cl_operand(insn, lhs, &op_lhs, lhs_access);
+    }
+    if (rhs->type == PSEUDO_VAL /* && rhs->value == 0 */
+        && op_lhs.type->code == CL_TYPE_PTR) {
+        op_rhs.code = CL_OPERAND_CST;
+        op_rhs.type = op_lhs.type;
+        op_rhs.accessor = NULL;
+        op_rhs.data.cst.code = CL_TYPE_INT;
+        op_rhs.data.cst.data.cst_int.value = rhs->value;
     }
 
 
@@ -1137,8 +1148,10 @@ static void insn_assignment_base(struct instruction *insn,
     // TODO: move to function?
     // FIXME SPARSE?: hack because sparse generates extra instruction
     //         e.g. store %arg1 -> 0[in] if "in" == "%arg1"
+#if 1
     if (lhs->type != PSEUDO_SYM || rhs->type != PSEUDO_ARG
          || op_lhs.data.var->uid != op_rhs.data.var->uid) {
+#endif
         struct cl_insn cli;
         cli.code                    = CL_INSN_UNOP;
         cli.data.insn_unop.code     = CL_UNOP_ASSIGN;
@@ -1146,9 +1159,11 @@ static void insn_assignment_base(struct instruction *insn,
         cli.data.insn_unop.src      = &op_rhs;
         read_sparse_location(&cli.loc, insn->pos);
         cl->insn(cl, &cli);
+#if 1
     } else {
         WARN_VA(insn->pos, "instruction omitted: %s", show_instruction(insn));
     }
+#endif
 
     free_cl_operand_data(&op_lhs);
     free_cl_operand_data(&op_rhs);
