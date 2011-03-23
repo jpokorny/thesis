@@ -406,6 +406,17 @@ static bool is_pseudo(pseudo_t pseudo)
 // Sparse types
 //
 
+static void empty_cl_type(struct cl_type *clt)
+{
+    clt->code       = CL_TYPE_UNKNOWN;
+    clt->name       = NULL;
+    clt->size       = 0;
+    clt->item_cnt   = 0;
+    clt->items      = NULL;
+    clt->scope      = CL_SCOPE_GLOBAL;
+    clt->loc.file   = NULL;
+    clt->loc.line   = -1;
+}
 
 static void read_bytesize(int *bytes, int bits)
 {
@@ -437,6 +448,7 @@ static void populate_with_scalar_types(type_db_t tdb)
         clt = MEM_NEW(struct cl_type);
         if (!clt)
             die("MEM_NEW failed");
+        empty_cl_type(clt);
 
         ctype = scalar_types[i].ctype;
 
@@ -444,7 +456,7 @@ static void populate_with_scalar_types(type_db_t tdb)
         read_bytesize(&clt->size, ctype->bit_size);
         clt->item_cnt = 0;
         clt->items = NULL;
-        
+
         type_db_insert(tdb, clt, ctype);
     }
 
@@ -580,18 +592,6 @@ static void skip_sparse_accessors(struct symbol **ptype)
         }
         *ptype = type->ctype.base_type;
     }
-}
-
-static void empty_cl_type(struct cl_type *clt)
-{
-    clt->code       = CL_TYPE_UNKNOWN;
-    clt->name       = NULL;
-    clt->size       = 0;
-    clt->item_cnt   = 0;
-    clt->items      = NULL;
-    clt->scope      = CL_SCOPE_GLOBAL;
-    clt->loc.file   = NULL;
-    clt->loc.line   = -1;
 }
 
 static struct cl_type* add_type_if_needed(struct symbol *type,
