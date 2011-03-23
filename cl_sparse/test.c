@@ -608,6 +608,8 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
         // type already hashed
         return clt;
 
+    // Slow path below...
+
     // allocate new clt
     clt = MEM_NEW(struct cl_type);
     if (!clt)
@@ -633,7 +635,7 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
         }
         else
 #endif
-            clt->code = CL_TYPE_INT;
+        clt->code = CL_TYPE_INT;
         read_sparse_location(&clt->loc, insn->pos);
         read_bytesize(&clt->size, insn->size);
     }
