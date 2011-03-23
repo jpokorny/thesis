@@ -412,29 +412,44 @@ static void read_bytesize(int *bytes, int bits)
 	*bytes = (bits >= 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
 }
 
-static void read_sparse_scalar_type(enum cl_type_e *cl_type,
-                                    struct symbol *type)
+#define TYPE(c, cl)  { &c##_ctype, CL_TYPE_##cl }
+static void populate_with_scalar_types(type_db_t tdb)
 {
-    if (type == &void_ctype)
-        // void
-        *cl_type = CL_TYPE_VOID;
-    else if (type == &int_ctype  || type == &sint_ctype    || type == &uint_ctype
-        || type == &short_ctype  || type == &sshort_ctype  || type == &ushort_ctype
-        || type == &long_ctype   || type == &slong_ctype   || type == &ulong_ctype
-        || type == &llong_ctype  || type == &sllong_ctype  || type == &ullong_ctype
-        || type == &lllong_ctype || type == &slllong_ctype || type == &ulllong_ctype)
-        // int variants
-        *cl_type = CL_TYPE_INT;
-    else if (type == &char_ctype || type == &schar_ctype   || type == &uchar_ctype)
-        // char variants
-        *cl_type = CL_TYPE_CHAR;
-    else if (type == &bool_ctype)
-        // bool
-        *cl_type = CL_TYPE_BOOL;
-    else
-        // unknown base type
-        *cl_type = CL_TYPE_UNKNOWN;
+    struct {
+        struct symbol *ctype;
+        enum cl_type_e cl_type;
+    } scalar_types[] = {
+        TYPE(void, VOID), TYPE(bool, BOOL),
+        // CL_TYPE_INT
+        TYPE(int, INT),    TYPE(sint, INT),    TYPE(uint, INT),
+        TYPE(short, INT),  TYPE(sshort, INT),  TYPE(ushort, INT),
+        TYPE(long, INT),   TYPE(slong, INT),   TYPE(ulong, INT),
+        TYPE(llong, INT),  TYPE(sllong, INT),  TYPE(ullong, INT),
+        TYPE(lllong, INT), TYPE(slllong, INT), TYPE(ulllong, INT),
+        // CL_TYPE_CHAR
+        TYPE(char, CHAR),  TYPE(schar, CHAR),  TYPE(uchar, CHAR),
+    };
+
+    struct cl_type *clt;
+    struct symbol *ctype;
+    int i;
+    for (i = 0; i < ARRAY_SIZE(scalar_types); i++) {
+        clt = MEM_NEW(struct cl_type);
+        if (!clt)
+            die("MEM_NEW failed");
+
+        ctype = scalar_types[i].ctype;
+
+        clt->code = scalar_types[i].cl_type;
+        read_bytesize(&clt->size, ctype->bit_size);
+        clt->item_cnt = 0;
+        clt->items = NULL;
+        
+        type_db_insert(tdb, clt, ctype);
+    }
+
 }
+#undef TYPE
 
 static struct cl_type* add_type_if_needed(struct symbol *type,
                                           struct instruction *insn);
@@ -505,12 +520,9 @@ static void read_sparse_type(struct cl_type *clt, struct symbol *type)
 {
     enum type code = type->type;
 
-    read_sparse_scalar_type(&clt->code, type);
     clt->size       = /* TODO */ 0;
     clt->item_cnt   = 0;
     clt->items      = NULL;
-    if (clt->code != CL_TYPE_UNKNOWN)
-        return;
 
     switch (code) {
         case SYM_PTR:
@@ -1839,6 +1851,7 @@ int worker_loop(struct cl_code_listener *cl, int argc, char **argv)
 
     // initialize type database
     type_db = type_db_create();
+    populate_with_scalar_types(type_db);
 
 #if DO_PROCEED_INTERNAL
     // proceed internal symbols
