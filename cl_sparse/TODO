@@ -1,12 +1,18 @@
 failing tests:
 ==============
 
+stdprgs/fact.c-main.dot
+- why r0? why it is not used by L14 branch properly?
+- and more: zero size types, ...
+
+
+
+others:
+=======
+
 priority
 --------
-tests/struct/s-01.c
 
 
-not to to forget
-----------------
-types should generate compact structure when plotted with type-dot
-    = do not duplicate types
+not to forget
+-------------
