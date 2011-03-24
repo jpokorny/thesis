@@ -870,7 +870,7 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
             else
                 op->type                = add_type_if_needed(&int_ctype, NULL, NULL);
             op->data.var            = MEM_NEW(struct cl_var);
-            op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
+            op->data.var->uid       = (int)(long) pseudo;
             op->data.var->name      = NULL;
             break;
         }
@@ -895,7 +895,7 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
             if (!sym) {
                 op->type                = add_type_if_needed(&int_ctype, NULL, NULL);
                 op->data.var            = MEM_NEW(struct cl_var);
-                op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
+                op->data.var->uid       = (int)(long) pseudo;
                 op->data.var->name      = NULL;
             } else {
                 op->type                = clt_from_sym(sym);
