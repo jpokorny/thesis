@@ -806,7 +806,8 @@ static void read_sym_initializer(struct cl_operand *op, struct expression *expr)
     }
 }
 
-static void read_pseudo_sym(struct cl_operand *op, struct symbol *sym, struct symbol *subst_type)
+static void read_pseudo_sym(struct cl_operand *op, struct symbol *sym,
+                            struct symbol *subst_type)
 {
     struct symbol *base;
 
@@ -855,6 +856,22 @@ static void read_pseudo_sym(struct cl_operand *op, struct symbol *sym, struct sy
     }
 }
 
+static void read_pseudo_arg(struct cl_operand *op, pseudo_t pseudo)
+{
+    assert(pseudo->def);
+    struct symbol *sym = get_arg_at_pos(pseudo->def->bb->ep->name, pseudo->nr);
+    if (!sym)
+        CL_TRAP;
+
+    op->code                 = CL_OPERAND_VAR;
+    op->scope                = CL_SCOPE_FUNCTION;
+    op->type                 = clt_from_sym(sym);
+    op->data.var             = MEM_NEW(struct cl_var);
+    op->data.var->uid        = (int)(long) sym;
+    op->data.var->name       = strdup(show_ident(sym->ident));
+    op->data.var->artificial = false;
+}
+
 static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
 {
     switch(pseudo->type) {
@@ -885,27 +902,9 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
             return;
         }
 
-        case PSEUDO_ARG: { /* union -> def */
-            struct symbol *sym = get_arg_at_pos(pseudo->def->bb->ep->name, pseudo->nr);
-            if (!sym)
-                CL_TRAP;
-
-            op->code                = CL_OPERAND_VAR;
-            op->scope               = CL_SCOPE_FUNCTION;
-            if (!sym) {
-                op->type                = add_type_if_needed(&int_ctype, NULL, NULL);
-                op->data.var            = MEM_NEW(struct cl_var);
-                op->data.var->uid       = (int)(long) pseudo;
-                op->data.var->name      = NULL;
-            } else {
-                op->type                = clt_from_sym(sym);
-                op->data.var            = MEM_NEW(struct cl_var);
-                op->data.var->uid       = (int)(long) sym;
-                op->data.var->name      = strdup(show_ident(sym->ident));
-            }
-            //op->data.var->artificial = true;
+        case PSEUDO_ARG:
+            read_pseudo_arg(op, pseudo);
             break;
-        }
 
 #if 0
         case PSEUDO_PHI:
@@ -1015,7 +1014,10 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
 
 
 static void handle_insn_sel(struct instruction *insn)
-{
+{/* Synopsis:
+  *
+  * Problems:
+  */
     // at first, create and emit CL_INSN_COND, then
     // create and emit respective basic blocks
     //
@@ -1089,7 +1091,10 @@ static void handle_insn_sel(struct instruction *insn)
 }
 
 static bool handle_insn_call(struct instruction *insn)
-{
+{/* Synopsis:
+  *
+  * Problems:
+  */
     struct cl_operand dst, fnc;
     struct pseudo *arg;
     int cnt = 0;
@@ -1135,7 +1140,10 @@ static bool handle_insn_call(struct instruction *insn)
 }
 
 static void handle_insn_br(struct instruction *insn)
-{
+{/* Synopsis:
+  *
+  * Problems:
+  */
     char *bb_name_true = NULL;
     char *bb_name_false = NULL;
     struct cl_operand op;
@@ -1175,7 +1183,10 @@ static void handle_insn_br(struct instruction *insn)
 }
 
 static void handle_insn_switch(struct instruction *insn)
-{
+{/* Synopsis:
+  *
+  * Problems:
+  */
     struct cl_operand op;
     struct cl_loc loc;
     struct multijmp *jmp;
@@ -1226,11 +1237,18 @@ static void handle_insn_switch(struct instruction *insn)
 }
 
 static void handle_insn_ret(struct instruction *insn)
-{
+{/* Synopsis:
+  * insn->src  ... value to be used as a return value
+  * insn->type ... type of return value
+  *
+  * Problems:
+  * 1. One-element struct -- how to represent return value correctly?
+  * S. Use insn->type to deduce the right one.
+  */
     struct cl_operand op;
     struct cl_insn cli;
 
-    pseudo_to_cl_operand(insn, insn->src, &op, true);
+    pseudo_to_cl_operand(insn, insn->src, &op, false);
     cli.code                = CL_INSN_RET;
     cli.data.insn_ret.src   = &op;
     read_sparse_location(&cli.loc, insn->pos);
@@ -1241,7 +1259,10 @@ static void handle_insn_ret(struct instruction *insn)
 static void insn_assignment_base(struct instruction *insn,
                                  pseudo_t lhs       ,  pseudo_t rhs       ,
                                  bool     lhs_access,  bool     rhs_access)
-{
+{/* Synopsis:
+  *
+  * Problems:
+  */
     struct cl_operand op_lhs;
     struct cl_operand op_rhs;
 
@@ -1333,7 +1354,10 @@ static void handle_insn_ptrcast(struct instruction *insn)
 }
 
 static void handle_insn_binop(struct instruction *insn, enum cl_binop_e code)
-{
+{/* Synopsis:
+  *
+  * Problems:
+  */
     struct cl_operand dst, src1, src2;
 
     pseudo_to_cl_operand(insn, insn->target , &dst  , false);
