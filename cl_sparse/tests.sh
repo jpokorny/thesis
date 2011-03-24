@@ -137,8 +137,9 @@ function do_tests() {
             && echo "Warning: #GCC dot files != #sparse dot files"
 
         # pretty-print similarity with previous stored
-        printf "%-38s pp similarity: %1.2f\n"         \
-            "$(echo -n $SRC | tr [:lower:] [:upper:]) [$(echo $SPARSE_DOT_FILES | wc -w) sparse dot f.]" \
+        TITLE="$(echo -n $SRC | tr [:lower:] [:upper:])"
+        printf "%-44s pp similarity: %1.2f\n"                          \
+            "$TITLE [$(echo $SPARSE_DOT_FILES | wc -w) sparse dot f.]" \
             "$($SIMILARITY_TESTER $SPARSE_PP/$SRC.log  $PREV_SPARSE_PP/$SRC.log)"
 
         # test isomorphism between graphs
