@@ -44,6 +44,7 @@ enum {
 struct te_item {
     void                    *key;
     struct cl_type          *type;
+    struct te_item          *next;
 };
 
 struct typen_data {
@@ -112,10 +113,16 @@ struct typen_data* typen_create(typen_free_fnc free_fnc)
 
 void typen_destroy(struct typen_data *te)
 {
+    struct te_item *item, *item_next;
     int i;
     for(i = 0; i < te->last_uid - 1; ++i) {
         te->free_fnc(te->items[i]->type);
-        free(te->items[i]);
+        item = te->items[i];
+        while (item) {
+            item_next = item->next;
+            free(item);
+            item = item_next;
+        }
     }
     free(te->items);
 
@@ -152,10 +159,9 @@ static void* te_realloc_if_needed(struct typen_data *te)
     return te->items;
 }
 
-struct cl_type* typen_insert_as_new(struct typen_data *te, struct cl_type *type,
-                                    void *key)
+struct cl_type* typen_insert_with_uid(struct typen_data *te, struct cl_type *type,
+                                      void *key, int uid)
 {
-    int uid = te->last_uid;
     struct te_item *item;
     struct te_item *item_new;
     if (!te_realloc_if_needed(te))
@@ -167,8 +173,17 @@ struct cl_type* typen_insert_as_new(struct typen_data *te, struct cl_type *type,
         // OOM
         return NULL;
 
-    type->uid = uid + 1;
-    te->last_uid = type->uid;
+    if (uid <= NEW_UID) {
+        uid = te->last_uid;
+        type->uid = uid + 1;
+        te->last_uid = type->uid;
+        item->next = NULL;
+    } else {
+        type->uid = uid;
+        // -1 difference between uid and index (see also typen_get_by_uid)
+        uid--;
+        item->next = te->items[uid];
+    }
 
     item->key = key;
     item->type = type;

@@ -26,14 +26,18 @@
 extern "C" {
 #endif
 
+
+// denotes that new uid should be assigned (contrary to reusing provided one)
+#define NEW_UID  0
+
 typedef void (*typen_free_fnc)(struct cl_type *);
 
 struct typen_data;
 struct typen_data* typen_create(typen_free_fnc);
 void typen_destroy(struct typen_data *);
 
-struct cl_type* typen_insert_as_new(struct typen_data *, struct cl_type *type,
-                                    void *key);
+struct cl_type* typen_insert_with_uid(struct typen_data *, struct cl_type *type,
+                                      void *key, int uid);
 
 struct cl_type* typen_get_by_key(struct typen_data *, void *key);
 struct cl_type* typen_get_by_uid(struct typen_data *, int uid);

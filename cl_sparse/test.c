@@ -101,14 +101,38 @@
 
 
 //
+// ptr_slist, for building pointer* hierarchy in order to prevent
+// having two semantically same pointers as two different types
+//
+
+#define PTRSLISTARR_SIZE          128
+
+struct ptr_slist_item {
+    struct cl_type *clt;
+    struct ptr_slist_item *next;
+};
+
+struct ptr_slist_arr {
+    size_t alloc_size;
+    size_t remain_size;
+    size_t pos;
+    struct ptr_slist_item *heads;
+};
+
+
+
+//
 // Globals
 //
 
 
 const char *GIT_SHA1 = "someversion";
 typedef struct typen_data *type_db_t;
-struct cl_code_listener *cl;
+
+static struct cl_code_listener *cl;
 static type_db_t type_db = NULL;
+static struct ptr_slist_arr ptr_slist = { .alloc_size = 0, .remain_size = 0,
+                                          .pos = 0, .heads = NULL };
 
 FILE *real_stderr = NULL; /**< used to access "unfaked" stderr */
 
@@ -305,14 +329,15 @@ static void type_db_destroy(type_db_t db)
 }
 
 static struct cl_type* type_db_insert(type_db_t db, struct cl_type *clt,
-                                      void *key)
+                                      void *key, int uid)
 {
     if (verbose & CL_VERBOSE_INSERT_TYPE) {
-        NOTE("\tadd type: %p", key);
+        NOTE("add type (uid = %d, clt = %p): %p", uid, clt, key);
         show_symbol((struct symbol *)key);
+        NOTE("---");
     }
 
-    struct cl_type *rv = typen_insert_as_new(db, clt, key);
+    struct cl_type *rv = typen_insert_with_uid(db, clt, key, uid);
     if (!rv)
         die("typen_insert_as_new() failed");
 
@@ -424,7 +449,8 @@ static void read_bytesize(int *bytes, int bits)
 }
 
 #define TYPE(c, cl)  { &c##_ctype, CL_TYPE_##cl }
-static void populate_with_scalar_types(type_db_t tdb)
+static void populate_with_scalar_types(type_db_t tdb,
+                                       struct ptr_slist_arr *ptr_arr)
 {
     struct {
         struct symbol *ctype;
@@ -457,15 +483,30 @@ static void populate_with_scalar_types(type_db_t tdb)
         clt->item_cnt = 0;
         clt->items = NULL;
 
-        type_db_insert(tdb, clt, ctype);
+        type_db_insert(tdb, clt, ctype, NEW_UID);
+
+        // no duplicity checks
+        if (ptr_arr->remain_size == 0) {
+            ptr_arr->alloc_size += PTRSLISTARR_SIZE;
+            ptr_arr->remain_size += PTRSLISTARR_SIZE;
+            ptr_arr->heads = MEM_RESIZE(ptr_arr->heads, ptr_arr->alloc_size);
+            if (!ptr_arr->heads)
+                die("MEM_RESIZE");
+        }
+        ptr_arr->remain_size--;
+        ptr_arr->heads[ptr_arr->pos].clt = clt;
+        ptr_arr->heads[ptr_arr->pos].next = NULL;
+        ptr_arr->pos++;
     }
 
 }
 #undef TYPE
 
 static struct cl_type* add_type_if_needed(struct symbol *type,
-                                          struct instruction *insn);
+                                          struct instruction *insn,
+                                          struct ptr_slist_item **ptr);
 
+#if 1
 static struct cl_type_item* create_ptr_type_item(struct symbol *type)
 {
     struct cl_type_item *item = MEM_NEW(struct cl_type_item);
@@ -473,12 +514,13 @@ static struct cl_type_item* create_ptr_type_item(struct symbol *type)
         die("MEM_NEW failed");
 
     item->type = /* FIXME: unguarded recursion */
-                 add_type_if_needed(type->ctype.base_type, NULL);
+                 add_type_if_needed(type->ctype.base_type, NULL, NULL);
     item->name = NULL;
 
     // guaranteed to NOT return NULL
     return item;
 }
+#endif
 
 static void add_nested_type(struct cl_type *clt, struct symbol *sym)
 {
@@ -490,11 +532,11 @@ static void add_nested_type(struct cl_type *clt, struct symbol *sym)
     struct cl_type_item *item = &clt->items[clt->item_cnt++];
     if (sym->type == SYM_BASETYPE) {
         // specially for "void" as function argument if no one present
-        item->type = add_type_if_needed(sym, NULL);
+        item->type = add_type_if_needed(sym, NULL, NULL);
         item->name = NULL;
         return;
     }
-    item->type = /* recursion */ add_type_if_needed(sym->ctype.base_type, NULL);
+    item->type = /* recursion */ add_type_if_needed(sym->ctype.base_type, NULL, NULL);
     item->name = (sym->ident) ? strdup(show_ident(sym->ident)) : NULL;
     item->offset = sym->offset;
 }
@@ -533,12 +575,6 @@ static void read_sparse_type(struct cl_type *clt, struct symbol *type)
     enum type code = type->type;
 
     switch (code) {
-        case SYM_PTR:
-            clt->code       = CL_TYPE_PTR;
-            clt->item_cnt   = 1;
-            clt->items      = create_ptr_type_item(type);
-            break;
-
         case SYM_STRUCT:
             clt->code       = CL_TYPE_STRUCT;
             clt->name       = strdup(show_ident(type->ident));
@@ -566,6 +602,7 @@ static void read_sparse_type(struct cl_type *clt, struct symbol *type)
             break;
 
         default:
+            // e.g., SYM_PTR should be already handled
             CL_TRAP;
             clt->code       = CL_TYPE_UNKNOWN;
             clt->name       = strdup(show_typename(type));
@@ -590,8 +627,34 @@ static void skip_sparse_accessors(struct symbol **ptype)
     }
 }
 
+// for given type "clt", return respective item from pointer hieararchy;
+// it is called only when we know such item will be there (already added)
+static void get_ptr_slist(const struct cl_type *clt, struct ptr_slist_item **ptr)
+{
+    if (clt->code == CL_TYPE_PTR) {
+        struct ptr_slist_item *prev = NULL;
+        get_ptr_slist(clt->items->type, &prev);
+        assert(prev->next);
+        *ptr = prev->next;
+    } else {
+        int i;
+        for (i = ptr_slist.alloc_size - ptr_slist.remain_size - 1;
+             i >= 0; i--) {
+            if (ptr_slist.heads[i].clt == clt)
+                break;
+        }
+        if (i >= 0)
+            *ptr = &ptr_slist.heads[i];
+        else {
+            // should not happen
+            CL_TRAP;
+        }
+    }
+}
+
 static struct cl_type* add_type_if_needed(struct symbol *type,
-                                          struct instruction *insn)
+                                          struct instruction *insn,
+                                          struct ptr_slist_item **ptr)
 {
     struct cl_type *clt;
 
@@ -603,19 +666,56 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
     // accessor
     skip_sparse_accessors(&type);
 
+    // Fastest path, we have the type already in hash table
     clt = typen_get_by_key(type_db, type);
-    if (clt)
+    if (clt) {
         // type already hashed
+        if (ptr)
+            get_ptr_slist(clt, ptr);
         return clt;
+    }
 
-    // Slow path below...
+    // Extra handling of pointer symbols, potentially fast circuit for pointer
+    // type alias (i.e. no allocation)
+    if (/*ptr &&*/ type && type->type == SYM_PTR) {
+        struct ptr_slist_item *prev = NULL;
+        struct cl_type *ptr_type, **clt_ptr;
+        int uid = NEW_UID;
 
-    // allocate new clt
+        ptr_type = add_type_if_needed(type->ctype.base_type, NULL, &prev);
+        if (!prev->next) {
+            prev->next = MEM_NEW(struct ptr_slist_item);
+            if (!prev->next)
+                die("MEM_NEW");
+            prev->next->next = NULL;
+            clt_ptr = &prev->next->clt;
+            *clt_ptr = MEM_NEW(struct cl_type);
+            if (!*clt_ptr)
+                die("MEM_NEW failed");
+            empty_cl_type(*clt_ptr);
+
+            // setup ctl
+            (*clt_ptr)->code = CL_TYPE_PTR;
+            (*clt_ptr)->item_cnt = 1;
+            (*clt_ptr)->items = MEM_NEW(struct cl_type_item);
+            if (!(*clt_ptr)->items)
+                die("MEM_NEW");
+            (*clt_ptr)->items->type = ptr_type;
+            (*clt_ptr)->items->name = NULL;
+        } else
+            uid = prev->next->clt->uid;
+
+        if (ptr)
+            *ptr = prev->next;
+        return type_db_insert(type_db, prev->next->clt, type, uid);
+    }
+
+    // Slow path for anything (except for pointers) which is being
+    // proceeded for the first time (next time, hashed ctl is used instead)
+
     clt = MEM_NEW(struct cl_type);
     if (!clt)
         die("MEM_NEW failed");
-
-    // make sure all members will be initialized
     empty_cl_type(clt);
 
     // read type info if available
@@ -626,7 +726,8 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
         read_bytesize(&clt->size, type->bit_size);
     } else if (insn) {
         // TODO...
-#if 1
+        CL_TRAP;
+#if 0
         // FIXME: bool et al. not properly handled (sparse does not offer this)
         if (insn->opcode == OP_CALL) {
             CL_TRAP;  // should not get there
@@ -646,8 +747,24 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
     if (clt->code == CL_TYPE_UNKNOWN && !clt->name)
         clt->name = strdup("<sparse type not available>");
 
-    // hash the just read type for next wheel
-    return type_db_insert(type_db, clt, type);
+    // FIXME: no duplicity checks, really not necessary?
+    if (ptr_slist.remain_size == 0) {
+        ptr_slist.alloc_size += PTRSLISTARR_SIZE;
+        ptr_slist.remain_size += PTRSLISTARR_SIZE;
+        ptr_slist.heads = MEM_RESIZE(ptr_slist.heads, ptr_slist.alloc_size);
+        if (!ptr_slist.heads)
+            die("MEM_RESIZE");
+    }
+    ptr_slist.remain_size--;
+    ptr_slist.heads[ptr_slist.pos].clt = clt;
+    ptr_slist.heads[ptr_slist.pos].next = NULL;
+    ptr_slist.pos++;
+
+    if (ptr)
+        *ptr = &ptr_slist.heads[ptr_slist.pos];
+
+    // hash the just read type for next round
+    return type_db_insert(type_db, clt, type, NEW_UID);
 }
 
 
@@ -656,7 +773,7 @@ static struct cl_type* clt_from_sym(struct symbol *sym)
     if (!sym || !sym->ctype.base_type)
         CL_TRAP;
 
-    return add_type_if_needed(sym->ctype.base_type, NULL);
+    return add_type_if_needed(sym->ctype.base_type, NULL, NULL);
 }
 
 
@@ -744,9 +861,9 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
             op->code                = CL_OPERAND_VAR;
             // note: pseudo->def == NULL for copy.32
             if (pseudo->def)
-                op->type                = add_type_if_needed(NULL, pseudo->def);
+                op->type                = add_type_if_needed(NULL, pseudo->def, NULL);
             else
-                op->type                = add_type_if_needed(&int_ctype, NULL);
+                op->type                = add_type_if_needed(&int_ctype, NULL, NULL);
             op->data.var            = MEM_NEW(struct cl_var);
             op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
             op->data.var->name      = NULL;
@@ -757,7 +874,7 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
             long long value = pseudo->value;
 
             op->code                = CL_OPERAND_CST;
-            op->type                = add_type_if_needed(&int_ctype, NULL);
+            op->type                = add_type_if_needed(&int_ctype, NULL, NULL);
             op->data.cst.code       = CL_TYPE_INT;
             op->data.cst.data.cst_int.value  = value;
             return;
@@ -766,12 +883,12 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
         case PSEUDO_ARG: { /* union -> def */
             struct symbol *sym = get_arg_at_pos(pseudo->def->bb->ep->name, pseudo->nr);
             if (!sym)
-                printf("not sym\n");
+                CL_TRAP;
 
             op->code                = CL_OPERAND_VAR;
             op->scope               = CL_SCOPE_FUNCTION;
             if (!sym) {
-                op->type                = add_type_if_needed(&int_ctype, NULL);
+                op->type                = add_type_if_needed(&int_ctype, NULL, NULL);
                 op->data.var            = MEM_NEW(struct cl_var);
                 op->data.var->uid       = /* TODO */ (int)(long) pseudo->def;
                 op->data.var->name      = NULL;
@@ -1076,8 +1193,8 @@ static void handle_insn_switch(struct instruction *insn)
             val_hi.code = CL_OPERAND_CST;
 
             // TODO: read types
-            val_lo.type = add_type_if_needed(&int_ctype, NULL);
-            val_hi.type = add_type_if_needed(&int_ctype, NULL);
+            val_lo.type = add_type_if_needed(&int_ctype, NULL, NULL);
+            val_hi.type = add_type_if_needed(&int_ctype, NULL, NULL);
 
             val_lo.data.cst.code = CL_TYPE_INT;
             val_hi.data.cst.code = CL_TYPE_INT;
@@ -1849,7 +1966,7 @@ int worker_loop(struct cl_code_listener *cl, int argc, char **argv)
 
     // initialize type database
     type_db = type_db_create();
-    populate_with_scalar_types(type_db);
+    populate_with_scalar_types(type_db, &ptr_slist);
 
 #if DO_PROCEED_INTERNAL
     // proceed internal symbols
@@ -1898,12 +2015,12 @@ int master_loop(struct cl_code_listener *cl, int read_fd, pid_t pid)
           if (!remain_size) {
               alloc_size += BUFFSIZE;
               remain_size = BUFFSIZE;
-              buffer = realloc(buffer, sizeof(*buffer) * alloc_size);
-              if (!buffer) PERROR_CLEANUP_EXIT("realloc", pid, cl, 2);
+              buffer = MEM_RESIZE(buffer, alloc_size);
+              if (!buffer) PERROR_CLEANUP_EXIT("MEM_RESIZE", pid, cl, 2);
           }
           read_size = read(read_fd, &buffer[alloc_size-remain_size],
                            remain_size);
-          if (read_size == -1) PERROR_CLEANUP_EXIT("realloc", pid, cl, 2);
+          if (read_size == -1) PERROR_CLEANUP_EXIT("read", pid, cl, 2);
           remain_size -= read_size;
       }
 
@@ -1912,7 +2029,7 @@ int master_loop(struct cl_code_listener *cl, int read_fd, pid_t pid)
           res = WEXITSTATUS(stat_loc);
           fprintf(real_stderr, "sparse returned %i\n", res);
           if (res)
-              // sparse ended prematurely (caused probably by invalid syntax)
+              // sparse ended prematurely (probably caused by invalid syntax)
               CLEANUP(NOKILL, cl);
       }
 
