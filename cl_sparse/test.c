@@ -677,7 +677,7 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
 
     // Extra handling of pointer symbols, potentially fast circuit for pointer
     // type alias (i.e. no allocation)
-    if (/*ptr &&*/ type && type->type == SYM_PTR) {
+    if (type && type->type == SYM_PTR) {
         struct ptr_slist_item *prev = NULL;
         struct cl_type *ptr_type, **clt_ptr;
         int uid = NEW_UID;
@@ -695,13 +695,18 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
             empty_cl_type(*clt_ptr);
 
             // setup ctl
+            // (*clt_ptr)->uid .. handled by type_db_insert()
             (*clt_ptr)->code = CL_TYPE_PTR;
+            read_sparse_location(&(*clt_ptr)->loc, type->pos);
+            read_sparse_scope(&(*clt_ptr)->scope, type->scope);
+            (*clt_ptr)->name = NULL; // XXX always NULL?
+            read_bytesize(&(*clt_ptr)->size, type->bit_size);
             (*clt_ptr)->item_cnt = 1;
             (*clt_ptr)->items = MEM_NEW(struct cl_type_item);
             if (!(*clt_ptr)->items)
                 die("MEM_NEW");
             (*clt_ptr)->items->type = ptr_type;
-            (*clt_ptr)->items->name = NULL;
+            (*clt_ptr)->items->name = NULL; // XXX ptr_type->name always NULL?
         } else
             uid = prev->next->clt->uid;
 
