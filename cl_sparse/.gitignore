@@ -1,2 +1,9 @@
+#binaries
+*.o
+test
+
+#tests
 tests/.dots
+tests/.logs
+tests/.sparse_pp
 tests/sparse-internal-symbols.dot
