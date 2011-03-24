@@ -1,5 +1,6 @@
 #binaries
 *.o
+*.swp
 test
 
 #tests
