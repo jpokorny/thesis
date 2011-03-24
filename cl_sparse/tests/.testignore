@@ -1,2 +1,29 @@
+#array
+array/a-01.c.type.dot        ;sparse treats with arrays as with pointers (-> extra pointer type)
+
+#bool
+bool/b-01.c.type.dot         ;gcc generates (second) extra bool
+bool/b-01.c.dot              ;gcc splits bool expression into bbs (high CFG granularity)
+bool/b-01.c-f01.dot          ;gcc splits bool expression into bbs (high CFG granularity)
+
 #fwnull
-fwnull/fwn-04.c-test3.dot ;sparse has optimized bbs compared to gcc
+fwnull/fwn-02.c.type.dot     ;gcc generates extra bool
+fwnull/fwn-02.c-test1.dot    ;gcc splits non-bool test into bool generation and test itself (extra instruction)
+
+fwnull/fwn-03.c.type.dot     ;gcc generates extra bool
+
+fwnull/fwn-04.c.type.dot     ;gcc generates extra bool
+fwnull/fwn-04.c.dot          ;gcc has much more local jumps (merges two branches *only* to jump further)
+fwnull/fwn-04.c-test3.dot    ;gcc has much more local jumps (merges two branches *only* to jump further)
+
+fwnull/fwn-05.c.type.dot     ;gcc generates extra bool
+fwnull/fwn-05.c-test4.dot    ;gcc splits non-bool test into bool generation and test itself (extra instruction), extra ending instruction with sparse is bug(?)
+
+#stdprgs
+stdprgs/fact.c.type.dot      ;gcc treats with chars as with ints
+stdprgs/fact.c-factorial.dot ;gcc splits non-bool test into bool generation and test itself (extra instruction), extra ending instruction with sparse is bug(?)
+stdprgs/fact.c-factorial_from_string.dot ;gcc splits non-bool test into bool generation and test itself (extra instruction), extra ending instruction with sparse is bug(?)
+#stdprgs/fact.c-main.dot      ;extra ending instruction with sparse is bug(?)
+
+#struct
+struct/s-01.c-f01.dot        ;sparse is more direct wrt accessing structures
