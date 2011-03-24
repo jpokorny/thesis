@@ -119,7 +119,7 @@ function do_tests() {
                 && test "$(echo $IGNORE | cut -c1)" != "#"
             if [ $? -eq 0 ]; then
                 if [ $SHOW_IGNORE -ne 0 ]; then
-                    echo "ignore: $PATTERN: $(echo $IGNORE | cut -d";" -f2)"
+                    echo "!ignore! $PATTERN: $(echo $IGNORE | cut -d";" -f2)"
                 fi
                 continue
             fi
