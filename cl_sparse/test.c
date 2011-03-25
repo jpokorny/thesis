@@ -778,18 +778,6 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
     } else if (insn) {
         // TODO...
         CL_TRAP;
-#if 0
-        // FIXME: bool et al. not properly handled (sparse does not offer this)
-        if (insn->opcode == OP_CALL) {
-            CL_TRAP;  // should not get there
-            //struct symbol *arg = get_arg_at_pos(insn->func->sym, fargn+1);
-            //read_sparse_base_type(&clt->code, arg);
-        }
-        else
-#endif
-        clt->code = CL_TYPE_INT;
-        read_sparse_location(&clt->loc, insn->pos);
-        clt->size = sizeof_from_bits(insn->size);
     }
     // FIXME: this is unwanted "override" behaviour
     if (insn && insn->opcode >= OP_BINCMP && insn->opcode <= OP_BINCMP_END)
