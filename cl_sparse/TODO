@@ -12,3 +12,9 @@ priority
 not to forget
 -------------
 type recursion for (typedef'd) functions?
+
+
+
+sparse:
+=======
+* does not complain about nonsensical recursive type (see tests/struct/rs1-01.c.bad)
