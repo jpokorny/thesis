@@ -966,63 +966,56 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
 static void read_insn_op_access(struct cl_operand *op, struct instruction *insn)
 {
     struct cl_accessor *ac;
-#if 0
-    if (insn->type
-            && insn->type->ident
-            && 0 != strcmp("__ptr", show_ident(insn->type->ident)))
-#endif
-#if 0
-    if (insn->opcode == OP_LOAD &&
-        op->type->items[0].type->code != CL_TYPE_STRUCT)
-    {
-        //WARN_UNHANDLED(insn->pos, "CL_ACCESSOR_ITEM");
-        CL_TRAP;
-        return;
-    }
-#endif
-    if (op->type->code == CL_TYPE_STRUCT) {
-        // struct.elem
-        ac = MEM_NEW(struct cl_accessor);
-        if (!ac)
-            die("MEM_NEW failed");
-        ac->code = CL_ACCESSOR_ITEM;
-        ac->next = NULL;
-        int i;
-        for (i = 0; i < op->type->item_cnt; i++)
-            if (op->type->items[i].offset == insn->offset)
-                break;
-        ac->data.item.id = i;
-        ac->type = /*dangerous?*/ (struct cl_type *) op->type;
-        if (op->accessor)
-            ac->next = op->accessor;
-        else
-            op->accessor = ac;
-        op->type = (struct cl_type *)op->type->items[i].type;
-    } else if (op->type->code == CL_TYPE_PTR
-               && op->type->items[0].type->code == CL_TYPE_STRUCT) {
-        ac = MEM_NEW(struct cl_accessor);
-        if (!ac)
-            die("MEM_NEW failed");
 
+    if (op->type->code == CL_TYPE_PTR) {
+        int i = 0;
+        struct cl_accessor *ac_chain;
+        ac = MEM_NEW(struct cl_accessor);
+        if (!ac)
+            die("MEM_NEW failed");
         ac->code = CL_ACCESSOR_DEREF;
-        ac->type = /* TODO */ op->type;
+        ac->type = (struct cl_type *) op->type;
         ac->next = NULL;
 
-        op->accessor = ac;
+        if (!op->accessor)
+            op->accessor = ac;
+        else {
+            ac_chain = op->accessor;
+            if (ac_chain->next)
+                ac_chain = ac_chain->next;
+            ac_chain->next = ac;
+        }
 
+        op->type = (struct cl_type *)op->type->items[i].type;
+    } else if (op->type->code == CL_TYPE_STRUCT) {
+        // struct.elem
+        int i = 0;
+        struct cl_accessor *ac_chain;
         ac = MEM_NEW(struct cl_accessor);
         if (!ac)
             die("MEM_NEW failed");
         ac->code = CL_ACCESSOR_ITEM;
+        ac->type = (struct cl_type *) op->type;
         ac->next = NULL;
-        int i;
-        for (i = 0; i < op->type->items[0].type->item_cnt; i++)
-            if (op->type->items[0].type->items[i].offset == insn->offset)
-                break;
+        if (!op->accessor) {
+            for (i = 0; i < op->type->item_cnt; i++)
+                if (op->type->items[i].offset == insn->offset)
+                    break;
+        }
         ac->data.item.id = i;
-        ac->type = /*dangerous?*/ (struct cl_type *) op->type->items[0].type;
-        //ac->type = (struct cl_type *) op->type->items[0].type->items[i].type;
-        op->accessor->next = ac;
+        
+        if (!op->accessor)
+            op->accessor = ac;
+        else {
+            ac_chain = op->accessor;
+            if (ac_chain->next)
+                ac_chain = ac_chain->next;
+            ac_chain->next = ac;
+        }
+
+        op->type = (struct cl_type *)op->type->items[i].type;
+    } else {
+        CL_TRAP;
     }
     return;
 }
@@ -1040,8 +1033,22 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
         read_pseudo_sym(op, insn->src->sym, insn->orig_type);
     } else {
         read_pseudo(op, pseudo);
+#if 0        
         if (access)
             read_insn_op_access(op, insn);
+#else
+        // XXX: op.code != CL_OPERAND_VOID
+        if (access && insn->type) {
+            struct cl_type *resulting_type;
+            resulting_type = add_type_if_needed(insn->type, NULL, NULL);
+            assert(resulting_type);
+            while (op->type != resulting_type) {
+                //CL_TRAP;
+                //printf("access\n");
+                read_insn_op_access(op, insn);
+            }
+        }
+#endif
     }
 }
 
@@ -1295,16 +1302,19 @@ static void handle_insn_ret(struct instruction *insn)
     struct cl_insn cli;
     struct cl_type *resulting_type;
 
-    pseudo_to_cl_operand(insn, insn->src, &op, false);
+    cli.code = CL_INSN_RET;
+    read_sparse_location(&cli.loc, insn->pos);
+
+    // src operand
+    pseudo_to_cl_operand(insn, insn->src, &op, true);
+#if 0    
     if (op.code != CL_OPERAND_VOID && op.type->code == CL_TYPE_STRUCT) {
         resulting_type = typen_get_by_key(type_db, insn->type);
         assert(resulting_type);
         while (op.type != resulting_type)
             read_insn_op_access(&op, insn);
     }
-
-    cli.code = CL_INSN_RET;
-    read_sparse_location(&cli.loc, insn->pos);
+#endif    
     cli.data.insn_ret.src = &op;
 
     cl->insn(cl, &cli);
@@ -1314,7 +1324,8 @@ static void handle_insn_ret(struct instruction *insn)
 static void insn_assignment_base(struct instruction *insn,
                                  pseudo_t lhs       ,  pseudo_t rhs       ,
                                  bool     lhs_access,  bool     rhs_access)
-{/* Synopsis:
+{/* Synopsis -- input:
+  * insn->type ... type of value to assign
   *
   * Problems:
   */
@@ -1388,6 +1399,7 @@ static void handle_insn_store(struct instruction *insn)
 
 static void handle_insn_load(struct instruction *insn)
 {
+    //CL_TRAP;
     insn_assignment_base(insn,
             insn->target, insn->symbol,
             false       , true);
