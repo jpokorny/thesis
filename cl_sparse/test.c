@@ -698,6 +698,55 @@ static void get_ptr_slist(const struct cl_type *clt, struct ptr_slist_item **ptr
     }
 }
 
+
+static struct cl_type* add_type_if_needed_slow(struct symbol *type,
+                                               struct instruction *insn,
+                                               struct ptr_slist_item **ptr)
+{
+    struct cl_type *clt;
+
+    clt = MEM_NEW(struct cl_type);
+    if (!clt)
+        die("MEM_NEW failed");
+    EMPTY_CL_TYPE(clt);
+
+    // read type info if available
+    if (type) {
+        read_sparse_type(clt, type);
+        read_sparse_location(&clt->loc, type->pos);
+        read_sparse_scope(&clt->scope, type->scope);
+        clt->size = sizeof_from_bits(type->bit_size);
+    } else if (insn) {
+        // TODO...
+        CL_TRAP;
+    }
+    // FIXME: this is unwanted "override" behaviour
+    if (insn && insn->opcode >= OP_BINCMP && insn->opcode <= OP_BINCMP_END)
+        clt->code = CL_TYPE_BOOL;
+
+    if (clt->code == CL_TYPE_UNKNOWN && !clt->name)
+        clt->name = strdup("<sparse type not available>");
+
+    // FIXME: no duplicity checks, really not necessary?
+    if (ptr_slist.remain_size == 0) {
+        ptr_slist.alloc_size += PTRSLISTARR_SIZE;
+        ptr_slist.remain_size += PTRSLISTARR_SIZE;
+        ptr_slist.heads = MEM_RESIZE(ptr_slist.heads, ptr_slist.alloc_size);
+        if (!ptr_slist.heads)
+            die("MEM_RESIZE");
+    }
+    ptr_slist.remain_size--;
+    ptr_slist.heads[ptr_slist.pos].clt = clt;
+    ptr_slist.heads[ptr_slist.pos].next = NULL;
+    ptr_slist.pos++;
+
+    if (ptr)
+        *ptr = &ptr_slist.heads[ptr_slist.pos];
+
+    // hash the just read type for next round
+    return type_db_insert(type_db, clt, type, NEW_UID);
+}
+
 static struct cl_type* add_type_if_needed(struct symbol *type,
                                           struct instruction *insn,
                                           struct ptr_slist_item **ptr)
@@ -763,47 +812,7 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
 
     // Slow path for anything (except for pointers) which is being
     // proceeded for the first time (next time, hashed ctl is used instead)
-
-    clt = MEM_NEW(struct cl_type);
-    if (!clt)
-        die("MEM_NEW failed");
-    EMPTY_CL_TYPE(clt);
-
-    // read type info if available
-    if (type) {
-        read_sparse_type(clt, type);
-        read_sparse_location(&clt->loc, type->pos);
-        read_sparse_scope(&clt->scope, type->scope);
-        clt->size = sizeof_from_bits(type->bit_size);
-    } else if (insn) {
-        // TODO...
-        CL_TRAP;
-    }
-    // FIXME: this is unwanted "override" behaviour
-    if (insn && insn->opcode >= OP_BINCMP && insn->opcode <= OP_BINCMP_END)
-        clt->code = CL_TYPE_BOOL;
-
-    if (clt->code == CL_TYPE_UNKNOWN && !clt->name)
-        clt->name = strdup("<sparse type not available>");
-
-    // FIXME: no duplicity checks, really not necessary?
-    if (ptr_slist.remain_size == 0) {
-        ptr_slist.alloc_size += PTRSLISTARR_SIZE;
-        ptr_slist.remain_size += PTRSLISTARR_SIZE;
-        ptr_slist.heads = MEM_RESIZE(ptr_slist.heads, ptr_slist.alloc_size);
-        if (!ptr_slist.heads)
-            die("MEM_RESIZE");
-    }
-    ptr_slist.remain_size--;
-    ptr_slist.heads[ptr_slist.pos].clt = clt;
-    ptr_slist.heads[ptr_slist.pos].next = NULL;
-    ptr_slist.pos++;
-
-    if (ptr)
-        *ptr = &ptr_slist.heads[ptr_slist.pos];
-
-    // hash the just read type for next round
-    return type_db_insert(type_db, clt, type, NEW_UID);
+    return add_type_if_needed_slow(type, insn, ptr);
 }
 
 
