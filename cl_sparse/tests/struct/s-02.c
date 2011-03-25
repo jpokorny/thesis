@@ -1,9 +1,8 @@
-struct s02 {
-    char c1;
-    int  n1;
+struct s03 {
+    int n1;
 };
 
-static int f02(struct s02 arg)
+static struct s03 f03(struct s03 arg)
 {
-    return arg.n1;
+    return arg;
 }
