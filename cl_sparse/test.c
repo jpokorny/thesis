@@ -136,6 +136,32 @@ static struct ptr_slist_arr ptr_slist = { .alloc_size = 0, .remain_size = 0,
 
 FILE *real_stderr = NULL; /**< used to access "unfaked" stderr */
 
+
+#define EMPTY_LOC  { .file = NULL, .line = -1, .column = -1, .sysp = false }
+
+static const struct cl_operand empty_cl_operand = {
+    .code     = CL_OPERAND_VOID,
+    .loc      = EMPTY_LOC,
+    .scope    = CL_SCOPE_GLOBAL,
+    .type     = NULL,
+    .accessor = NULL,
+};
+#define EMPTY_CL_OPERAND(clop)  do { *(clop) = empty_cl_operand; } while (0)
+
+static const struct cl_type empty_cl_type = {
+    .uid        = -1,  /**< normally set during the insertion into hash table */
+    .code       = CL_TYPE_UNKNOWN,
+    .loc        = EMPTY_LOC,
+    .scope      = CL_SCOPE_GLOBAL,
+    .name       = NULL,
+    .size       = 0,
+    .item_cnt   = 0,
+    .items      = NULL,
+    //.array_size = 0,
+};
+#define EMPTY_CL_TYPE(clt)  do { *(clt) = empty_cl_type; } while (0)
+
+
 static int cl_verbose = 0;
 #define CL_VERBOSE_LOCATION         (1 << 1)
 #define CL_VERBOSE_INSTRUCTION      (1 << 2)
@@ -420,7 +446,7 @@ static struct symbol *get_arg_at_pos(struct symbol *fn, int pos)
     return retval;
 }
 
-static bool is_pseudo(pseudo_t pseudo)
+static inline bool is_pseudo(pseudo_t pseudo)
 {
     return pseudo && pseudo != VOID;
 }
@@ -431,62 +457,83 @@ static bool is_pseudo(pseudo_t pseudo)
 // Sparse types
 //
 
-static void empty_cl_type(struct cl_type *clt)
+
+static inline int sizeof_from_bits(int bits)
 {
-    clt->code       = CL_TYPE_UNKNOWN;
-    clt->name       = NULL;
-    clt->size       = 0;
-    clt->item_cnt   = 0;
-    clt->items      = NULL;
-    clt->scope      = CL_SCOPE_GLOBAL;
-    clt->loc.file   = NULL;
-    clt->loc.line   = -1;
+	return (bits >= 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
 }
 
-static void read_bytesize(int *bytes, int bits)
+static inline bool is_base_type(const struct symbol *type)
 {
-	*bytes = (bits >= 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
+    return (type->type == SYM_BASETYPE);
 }
 
-#define TYPE(c, cl)  { &c##_ctype, CL_TYPE_##cl }
-static void populate_with_scalar_types(type_db_t tdb,
-                                       struct ptr_slist_arr *ptr_arr)
+#define TYPE(c, cl)  { &c##_ctype, CL_TYPE_##cl, #c }
+static void populate_with_base_types(type_db_t tdb,
+                                     struct ptr_slist_arr *ptr_arr)
 {
-    struct {
+    const struct {
         struct symbol *ctype;
         enum cl_type_e cl_type;
-    } scalar_types[] = {
-        TYPE(void, VOID), TYPE(bool, BOOL),
-        // CL_TYPE_INT
-        TYPE(int, INT),    TYPE(sint, INT),    TYPE(uint, INT),
-        TYPE(short, INT),  TYPE(sshort, INT),  TYPE(ushort, INT),
-        TYPE(long, INT),   TYPE(slong, INT),   TYPE(ulong, INT),
-        TYPE(llong, INT),  TYPE(sllong, INT),  TYPE(ullong, INT),
-        TYPE(lllong, INT), TYPE(slllong, INT), TYPE(ulllong, INT),
-        // CL_TYPE_CHAR
-        TYPE(char, CHAR),  TYPE(schar, CHAR),  TYPE(uchar, CHAR),
+        const char *name;
+    } base_types[] = {
+    /* Synopsis:
+     * sparse/symbol.c (ctype_declaration)
+     *
+     * Omitted:
+     * - type_ctype
+     * - string_ctype..lazy_ptr_type (should not be present at all [?])
+     *
+     * Note:
+     * `lllong' represents non-standard "extra long" at specific platforms [?]
+     */
+        /* CL_TYPE_VOID */
+        TYPE(void, VOID),
+
+        /* CL_TYPE_UNKNOWN */
+        TYPE(incomplete, UNKNOWN),
+        TYPE(bad,        UNKNOWN),
+
+        /* CL_TYPE_INT */
+        TYPE(int,    INT),   TYPE(sint,    INT),   TYPE(uint,    INT),
+        TYPE(short,  INT),   TYPE(sshort,  INT),   TYPE(ushort,  INT),
+        TYPE(long,   INT),   TYPE(slong,   INT),   TYPE(ulong,   INT),
+        TYPE(llong,  INT),   TYPE(sllong,  INT),   TYPE(ullong,  INT),
+        //TYPE(lllong, INT),   TYPE(slllong, INT),   TYPE(ulllong, INT),
+
+        /* CL_TYPE_CHAR */
+        TYPE(char,   CHAR),  TYPE(schar,   CHAR),  TYPE(uchar,  CHAR),
+
+        /* CL_TYPE_BOOL */
+        TYPE(bool, BOOL),
+
+        /* CL_TYPE_REAL */
+        TYPE(float,   REAL),
+        TYPE(double,  REAL),
+        TYPE(ldouble, REAL),
     };
 
-    struct cl_type *clt;
     struct symbol *ctype;
+    struct cl_type *clt;
     int i;
-    for (i = 0; i < ARRAY_SIZE(scalar_types); i++) {
+    for (i = 0; i < ARRAY_SIZE(base_types); i++) {
         clt = MEM_NEW(struct cl_type);
         if (!clt)
             die("MEM_NEW failed");
-        empty_cl_type(clt);
+        EMPTY_CL_TYPE(clt);
 
-        ctype = scalar_types[i].ctype;
+        ctype = base_types[i].ctype;
 
-        clt->code = scalar_types[i].cl_type;
-        read_bytesize(&clt->size, ctype->bit_size);
-        clt->item_cnt = 0;
-        clt->items = NULL;
+        clt->code  = base_types[i].cl_type;
+        clt->scope = CL_SCOPE_GLOBAL;
+        clt->name  = strdup(base_types[i].name);
+        clt->size  = sizeof_from_bits(ctype->bit_size);
 
+        // insert into hash table...
         type_db_insert(tdb, clt, ctype, NEW_UID);
-
-        // no duplicity checks
-        if (ptr_arr->remain_size == 0) {
+        // ... as well as into pointer hierarchy (at the base level)
+        // TODO: function
+        if (!ptr_arr->remain_size) {
             ptr_arr->alloc_size += PTRSLISTARR_SIZE;
             ptr_arr->remain_size += PTRSLISTARR_SIZE;
             ptr_arr->heads = MEM_RESIZE(ptr_arr->heads, ptr_arr->alloc_size);
@@ -498,7 +545,6 @@ static void populate_with_scalar_types(type_db_t tdb,
         ptr_arr->heads[ptr_arr->pos].next = NULL;
         ptr_arr->pos++;
     }
-
 }
 #undef TYPE
 
@@ -602,7 +648,7 @@ static void read_sparse_type(struct cl_type *clt, struct symbol *type)
             break;
 
         default:
-            // e.g., SYM_PTR should be already handled
+            // e.g., SYM_PTR as well as base types should be already handled
             CL_TRAP;
             clt->code       = CL_TYPE_UNKNOWN;
             clt->name       = strdup(show_typename(type));
@@ -692,17 +738,17 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
             *clt_ptr = MEM_NEW(struct cl_type);
             if (!*clt_ptr)
                 die("MEM_NEW failed");
-            empty_cl_type(*clt_ptr);
+            EMPTY_CL_TYPE(*clt_ptr);
 
             // setup ctl
             // (*clt_ptr)->uid .. handled by type_db_insert()
-            (*clt_ptr)->code = CL_TYPE_PTR;
+            (*clt_ptr)->code     = CL_TYPE_PTR;
             read_sparse_location(&(*clt_ptr)->loc, type->pos);
             read_sparse_scope(&(*clt_ptr)->scope, type->scope);
-            (*clt_ptr)->name = NULL; // XXX always NULL?
-            read_bytesize(&(*clt_ptr)->size, type->bit_size);
+            (*clt_ptr)->name     = NULL; // XXX always NULL?
+            (*clt_ptr)->size     = sizeof_from_bits(type->bit_size);
             (*clt_ptr)->item_cnt = 1;
-            (*clt_ptr)->items = MEM_NEW(struct cl_type_item);
+            (*clt_ptr)->items    = MEM_NEW(struct cl_type_item);
             if (!(*clt_ptr)->items)
                 die("MEM_NEW");
             (*clt_ptr)->items->type = ptr_type;
@@ -721,14 +767,14 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
     clt = MEM_NEW(struct cl_type);
     if (!clt)
         die("MEM_NEW failed");
-    empty_cl_type(clt);
+    EMPTY_CL_TYPE(clt);
 
     // read type info if available
     if (type) {
         read_sparse_type(clt, type);
         read_sparse_location(&clt->loc, type->pos);
         read_sparse_scope(&clt->scope, type->scope);
-        read_bytesize(&clt->size, type->bit_size);
+        clt->size = sizeof_from_bits(type->bit_size);
     } else if (insn) {
         // TODO...
         CL_TRAP;
@@ -737,13 +783,13 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
         if (insn->opcode == OP_CALL) {
             CL_TRAP;  // should not get there
             //struct symbol *arg = get_arg_at_pos(insn->func->sym, fargn+1);
-            //read_sparse_scalar_type(&clt->code, arg);
+            //read_sparse_base_type(&clt->code, arg);
         }
         else
 #endif
         clt->code = CL_TYPE_INT;
         read_sparse_location(&clt->loc, insn->pos);
-        read_bytesize(&clt->size, insn->size);
+        clt->size = sizeof_from_bits(insn->size);
     }
     // FIXME: this is unwanted "override" behaviour
     if (insn && insn->opcode >= OP_BINCMP && insn->opcode <= OP_BINCMP_END)
@@ -978,20 +1024,10 @@ static void read_insn_op_access(struct cl_operand *op, struct instruction *insn)
     return;
 }
 
-static void empty_cl_operand(struct cl_operand *op)
-{
-    op->code        = CL_OPERAND_VOID;
-    op->scope       = CL_SCOPE_GLOBAL;
-    op->loc.file    = NULL;
-    op->loc.line    = -1;
-    op->type        = NULL;
-    op->accessor    = NULL;
-}
-
 static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
                                  struct cl_operand *op, bool access)
 {
-    empty_cl_operand(op);
+    EMPTY_CL_OPERAND(op);
 
     if (!is_pseudo(pseudo))
         return;
@@ -1113,7 +1149,7 @@ static bool handle_insn_call(struct instruction *insn)
     FOR_EACH_PTR(insn->arguments, arg) {
         struct cl_operand arg_operand;
         if (arg->type == PSEUDO_SYM) {
-            empty_cl_operand(&arg_operand);
+            EMPTY_CL_OPERAND(&arg_operand);
             read_pseudo_sym(&arg_operand, arg->sym, /*TODO*/ arg->sym);
         } else {
             pseudo_to_cl_operand(insn, arg, &arg_operand, false);
@@ -1248,7 +1284,7 @@ static void handle_insn_ret(struct instruction *insn)
     struct cl_operand op;
     struct cl_insn cli;
 
-    pseudo_to_cl_operand(insn, insn->src, &op, false);
+    pseudo_to_cl_operand(insn, insn->src, &op, true);
     cli.code                = CL_INSN_RET;
     cli.data.insn_ret.src   = &op;
     read_sparse_location(&cli.loc, insn->pos);
@@ -1995,7 +2031,7 @@ int worker_loop(struct cl_code_listener *cl, int argc, char **argv)
 
     // initialize type database
     type_db = type_db_create();
-    populate_with_scalar_types(type_db, &ptr_slist);
+    populate_with_base_types(type_db, &ptr_slist);
 
 #if DO_PROCEED_INTERNAL
     // proceed internal symbols
