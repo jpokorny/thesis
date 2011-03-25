@@ -1292,14 +1292,6 @@ static void handle_insn_ret(struct instruction *insn)
 
     // src operand
     pseudo_to_cl_operand(insn, insn->src, &op, true);
-#if 0    
-    if (op.code != CL_OPERAND_VOID && op.type->code == CL_TYPE_STRUCT) {
-        resulting_type = typen_get_by_key(type_db, insn->type);
-        assert(resulting_type);
-        while (op.type != resulting_type)
-            read_insn_op_access(&op, insn);
-    }
-#endif    
     cli.data.insn_ret.src = &op;
 
     cl->insn(cl, &cli);
