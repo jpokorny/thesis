@@ -633,7 +633,7 @@ static void add_fn_arguments(struct cl_type *clt, struct symbol_list* args)
     clt->item_cnt++;
 }
 
-static void read_sparse_type(struct cl_type *clt, struct symbol *type)
+static void read_composite_type(struct cl_type *clt, struct symbol *type)
 {
     assert(clt);
 
@@ -802,7 +802,7 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
 
     // Slow path for anything (except for pointers) which is being
     // proceeded for the first time (next time, hashed ctl is used instead)
-    read_sparse_type(clt, type);
+    read_composite_type(clt, type);
     if (type && type->type == SYM_PTR) {
         // use obtained dereferenced type
         clt->item_cnt = 1;
