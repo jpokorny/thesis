@@ -1839,20 +1839,21 @@ static void clean_up_symbols(struct symbol_list *list)
 #define __ _("");
 static void print_help(const char *cmd)
 {
-    _("sparse-based code listener frontend")
-    __
-    _("usage: %s (cl frontend args | sparse args)*", cmd)
-    __
-    _("For sparse args, see sparse documentataion; these args are generally")
-    _("compatible with those for gcc and sparse ignores unrecognized ones.")
-    __
-    _("This code listener fronted also defines few args/options on its own:")
-    __
-    _("-h, --help              Prints this help text")
-    _("-cl-verbose[=MASK]      Be verbose (selectively if MASK provided)")
-    _("-cl-dump-pp             Dump pretty-printed linearized code")
-    _("-cl-dump-type           Add type information to such pretty-printed code")
-    _("... TODO ...")
+_("sparse-based code listener frontend"                                      )
+__
+_("usage: %s (cl frontend args | sparse args)*"                          ,cmd)
+__
+_("For `sparse args', see sparse documentation; these args are generally"    )
+_("compatible with those for gcc and unrecognized ones are ignored anyway."  )
+__
+_("This code listener fronted also defines few args/options on its own:"     )
+__
+_("-h, --help               Prints this help text"                           )
+_("-cl-verbose[=MASK]       Be verbose (selectively if MASK provided)"       )
+_("-cl-dump-pp              Dump pretty-printed linearized code"             )
+_("-cl-dump-types           Add type information to such pretty-printed code")
+_("-cl-gen-dot[=MAIN_FILE]  Generate control flow graphs"                    )
+_("-cl-type-dot[=OUT_FILE]  Generate type graphs"                            )
 }
 #undef __
 #undef _
@@ -1878,43 +1879,31 @@ static int handle_cl_args(int argc, char *argv[],
     // handle plug-in args
     int i = 0;
     while (++i < argc) {
-        if ((value = OPTPREFIXEQ_CL(argv[i], "verbose"))) {
+
+        /* help and other merely local args */
+
+        if (((value = OPTPREFIXEQ_SHORT(argv[i],     "h"))
+              || (value = OPTPREFIXEQ_LONG(argv[i],  "help")))
+            && *value == '\0') {
+            print_help(argv[0]);
+            return EXIT_FAILURE;
+        } else if ((value = OPTPREFIXEQ_CL(argv[i],  "verbose"))) {
             verbose = OPTVALUE(value)
                 ? atoi(value)
                 : ~0;
 
-        } else if (((value = OPTPREFIXEQ_SHORT(argv[i], "h"))
-                    || (value = OPTPREFIXEQ_LONG(argv[i], "help")))
-                   && *value == '\0') {
-            print_help(argv[0]);
-            return EXIT_FAILURE;
+        /* args affecting code listener behaviour */
 
-        /*} else if ((value = OPTPREFIXEQ_CL(argv[i], "args"))) {
-            opt->peer_args = OPTVALUE(value)
-                ? value
-                : "";*/
-        /*} else if (OPTPREFIXEQ_CL(argv[i], "dry-run")) {
-            opt->use_peer       = false;
-            // TODO: warn about ignoring extra value? */
-
-        } else if ((value = OPTPREFIXEQ_CL(argv[i], "dump-pp"))) {
+        } else if ((value = OPTPREFIXEQ_CL(argv[i],  "dump-pp"))) {
             opt->use_pp         = true;
             opt->pp_out_file    = OPTVALUE(value);
-
-        } else if (OPTPREFIXEQ_CL(argv[i], "dump-types")) {
+        } else if (OPTPREFIXEQ_CL(argv[i],           "dump-types")) {
             opt->dump_types     = true;
             // TODO: warn about ignoring extra value?
-
-        } else if ((value = OPTPREFIXEQ_CL(argv[i], "gen-dot"))) {
+        } else if ((value = OPTPREFIXEQ_CL(argv[i],  "gen-dot"))) {
             opt->use_dotgen     = true;
             opt->gl_dot_file    = OPTVALUE(value);
-
-        /*} else if (OPTPREFIXEQ_CL(argv[i], "preserve-ec")) {
-            // FIXME: do not use gl variable, use the pointer user_data instead
-            preserve_ec = true;
-            // TODO: warn about ignoring extra value?*/
-
-        } else if ((value = OPTPREFIXEQ_CL(argv[i], "type-dot"))) {
+        } else if ((value = OPTPREFIXEQ_CL(argv[i],  "type-dot"))) {
             if (OPTVALUE(value)) {
                 opt->use_typedot    = true;
                 opt->type_dot_file  = value;
@@ -1923,6 +1912,12 @@ static int handle_cl_args(int argc, char *argv[],
                 return EXIT_FAILURE;
             }
         }
+
+        // TODO: remove?
+        /*} else if ((value = OPTPREFIXEQ_CL(argv[i], "args"))) {
+            opt->peer_args = OPTVALUE(value)
+                ? value
+                : "";*/
     }
 
     return EXIT_SUCCESS;
