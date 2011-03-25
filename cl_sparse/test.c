@@ -1276,21 +1276,37 @@ static void handle_insn_switch(struct instruction *insn)
 }
 
 static void handle_insn_ret(struct instruction *insn)
-{/* Synopsis:
+{/* Synopsis -- input:
   * insn->src  ... value to be used as a return value
   * insn->type ... type of return value
   *
+  * Synopsis -- output:
+  * CL_INSN_RET
+  *     cl_insn.insn_ret.src ... cl_operand representing return value
+  *
   * Problems:
   * 1. One-element struct -- how to represent return value correctly?
-  * S. Use insn->type to deduce the right one.
+  * S. Use insn->type to deduce the right one.  Because the resulting type
+  *    should have been already inserted into hash table, we can compare
+  *    struct cl_type pointers directly and keep accessing the original type
+  *    until we get the same as a resulting one.
   */
     struct cl_operand op;
     struct cl_insn cli;
+    struct cl_type *resulting_type;
 
-    pseudo_to_cl_operand(insn, insn->src, &op, is_base_type(insn->type));
-    cli.code                = CL_INSN_RET;
-    cli.data.insn_ret.src   = &op;
+    pseudo_to_cl_operand(insn, insn->src, &op, false);
+    if (op.code != CL_OPERAND_VOID && op.type->code == CL_TYPE_STRUCT) {
+        resulting_type = typen_get_by_key(type_db, insn->type);
+        assert(resulting_type);
+        while (op.type != resulting_type)
+            read_insn_op_access(&op, insn);
+    }
+
+    cli.code = CL_INSN_RET;
     read_sparse_location(&cli.loc, insn->pos);
+    cli.data.insn_ret.src = &op;
+
     cl->insn(cl, &cli);
     free_cl_operand_data(&op);
 }
