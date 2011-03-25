@@ -965,58 +965,48 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
 
 static void read_insn_op_access(struct cl_operand *op, struct instruction *insn)
 {
-    struct cl_accessor *ac;
+    int i = 0;
+    struct cl_accessor *ac, *ac_chain;
 
-    if (op->type->code == CL_TYPE_PTR) {
-        int i = 0;
-        struct cl_accessor *ac_chain;
-        ac = MEM_NEW(struct cl_accessor);
-        if (!ac)
-            die("MEM_NEW failed");
-        ac->code = CL_ACCESSOR_DEREF;
-        ac->type = (struct cl_type *) op->type;
-        ac->next = NULL;
+    ac = MEM_NEW(struct cl_accessor);
+    if (!ac)
+        die("MEM_NEW failed");
 
-        if (!op->accessor)
-            op->accessor = ac;
-        else {
-            ac_chain = op->accessor;
-            if (ac_chain->next)
-                ac_chain = ac_chain->next;
-            ac_chain->next = ac;
-        }
+    #define MAP_ACCESSOR(var, type, acc) case CL_##type: var = CL_##acc; break;
+    switch (op->type->code) {
+        MAP_ACCESSOR(ac->code, TYPE_PTR,    ACCESSOR_DEREF)
+        MAP_ACCESSOR(ac->code, TYPE_STRUCT, ACCESSOR_ITEM)
+        default: CL_TRAP;
+    }
 
-        op->type = (struct cl_type *)op->type->items[i].type;
-    } else if (op->type->code == CL_TYPE_STRUCT) {
-        // struct.elem
-        int i = 0;
-        struct cl_accessor *ac_chain;
-        ac = MEM_NEW(struct cl_accessor);
-        if (!ac)
-            die("MEM_NEW failed");
-        ac->code = CL_ACCESSOR_ITEM;
-        ac->type = (struct cl_type *) op->type;
-        ac->next = NULL;
+    // accessor's type is the operand's type (will be peeled off immediately)
+    ac->type = (struct cl_type *) op->type;
+    ac->next = NULL;
+
+    if (op->type->code == CL_TYPE_STRUCT) {
+        // accessing struct element is different with the first level access
+        // (use insn->offset) and with other accesses (always zero offset)
         if (!op->accessor) {
             for (i = 0; i < op->type->item_cnt; i++)
                 if (op->type->items[i].offset == insn->offset)
                     break;
         }
         ac->data.item.id = i;
-        
-        if (!op->accessor)
-            op->accessor = ac;
-        else {
-            ac_chain = op->accessor;
-            if (ac_chain->next)
-                ac_chain = ac_chain->next;
-            ac_chain->next = ac;
-        }
-
-        op->type = (struct cl_type *)op->type->items[i].type;
-    } else {
-        CL_TRAP;
     }
+
+    // add accessor to the chain of operand's accessors
+    if (!op->accessor)
+        op->accessor = ac;
+    else {
+        ac_chain = op->accessor;
+        if (ac_chain->next)
+            ac_chain = ac_chain->next;
+        ac_chain->next = ac;
+    }
+
+    // peel off on level of type/access decoration from the operand
+    op->type = (struct cl_type *)op->type->items[i].type;
+
     return;
 }
 
