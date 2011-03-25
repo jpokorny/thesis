@@ -67,13 +67,13 @@
 
 
 #define MEM_NEW(type) \
-    (type *) malloc(sizeof(type))
+    malloc(sizeof(type))
 
-#define MEM_NEW_VECTOR(type, num) \
-    (type *) malloc(sizeof(type) * num)
+#define MEM_NEW_ARR(arr, num) \
+    malloc(sizeof(*arr) * num)
 
-#define MEM_RESIZE(ptr, newnum) \
-    realloc(ptr, sizeof(*ptr) * (newnum))
+#define MEM_RESIZE_ARR(arr, newnum) \
+    realloc(arr, sizeof(*arr) * (newnum))
 
 #ifndef STREQ
 #   define STREQ(s1, s2) (0 == strcmp(s1, s2))
@@ -101,22 +101,22 @@
 
 
 //
-// ptr_slist, for building pointer* hierarchy in order to prevent
+// ptr_db, for building pointer* hierarchy in order to prevent
 // having two semantically same pointers as two different types
 //
 
-#define PTRSLISTARR_SIZE          128
+#define PTRDBARR_SIZE          128
 
-struct ptr_slist_item {
+struct ptr_db_item {
     struct cl_type *clt;
-    struct ptr_slist_item *next;
+    struct ptr_db_item *next;
 };
 
-struct ptr_slist_arr {
+struct ptr_db_arr {
     size_t alloc_size;
     size_t remain_size;
     size_t pos;
-    struct ptr_slist_item *heads;
+    struct ptr_db_item *heads;
 };
 
 
@@ -127,13 +127,21 @@ struct ptr_slist_arr {
 
 
 const char *GIT_SHA1 = "someversion";
-typedef struct typen_data *type_db_t;
+//typedef struct typen_data *type_db_t;
 
 static struct cl_code_listener *cl;
-static type_db_t type_db = NULL;
-static struct ptr_slist_arr ptr_slist = { .alloc_size = 0, .remain_size = 0,
-                                          .pos = 0, .heads = NULL };
 
+static struct type_ptr_db {
+    struct typen_data  *type_db;
+    struct ptr_db_arr  ptr_db;
+} type_ptr_db = {
+    .type_db = NULL,
+    .ptr_db  = { .alloc_size = 0, .remain_size = 0, .pos = 0, .heads = NULL },
+};
+typedef struct type_ptr_db *type_ptr_db_t;
+
+//static type_db_t type_db = NULL;
+//static struct ptr_db_arr
 FILE *real_stderr = NULL; /**< used to access "unfaked" stderr */
 
 
@@ -339,23 +347,28 @@ static void free_cl_operand_data(struct cl_operand *op)
 //
 
 
-static type_db_t type_db_create(void )
+static void type_ptr_db_init(type_ptr_db_t db)
 {
-    type_db_t db = typen_create(cb_free_clt);
-    if (!db)
+    db->type_db = typen_create(cb_free_clt);
+    if (!db->type_db)
         die("ht_create() failed");
 
-    // guaranteed to NOT return NULL
-    return db;
+    db->ptr_db.alloc_size = PTRDBARR_SIZE;
+    db->ptr_db.remain_size = PTRDBARR_SIZE;
+    db->ptr_db.heads = MEM_NEW_ARR(db->ptr_db.heads, db->ptr_db.alloc_size);
+    if (!db->ptr_db.heads)
+        die("MEM_NEW_ARR");
 }
 
-static void type_db_destroy(type_db_t db)
+static void type_ptr_db_destroy(type_ptr_db_t db)
 {
-    typen_destroy(db);
+    typen_destroy(db->type_db);
+    free(db->ptr_db.heads);
 }
 
-static struct cl_type* type_db_insert(type_db_t db, struct cl_type *clt,
-                                      void *key, int uid)
+static struct cl_type* type_ptr_db_insert(type_ptr_db_t db,
+                                          struct cl_type *clt,
+                                          void *key, int uid)
 {
     if (verbose & CL_VERBOSE_INSERT_TYPE) {
         NOTE("add type (uid = %d, clt = %p): %p", uid, clt, key);
@@ -363,9 +376,27 @@ static struct cl_type* type_db_insert(type_db_t db, struct cl_type *clt,
         NOTE("---");
     }
 
-    struct cl_type *rv = typen_insert_with_uid(db, clt, key, uid);
+    struct cl_type *rv = typen_insert_with_uid(db->type_db, clt, key, uid);
     if (!rv)
         die("typen_insert_with_uid() failed");
+
+    if (uid <= NEW_UID) {
+        // track this really new type also in the pointer hierarchy
+        // (at the base level, i.e. no pointer, and respective pointers
+        // will be captured in connected singly-linked list)
+        struct ptr_db_arr *ptr_db = &db->ptr_db;
+        if (!ptr_db->remain_size) {
+            ptr_db->alloc_size  += PTRDBARR_SIZE;
+            ptr_db->remain_size += PTRDBARR_SIZE;
+            ptr_db->heads = MEM_RESIZE_ARR(ptr_db->heads, ptr_db->alloc_size);
+            if (!ptr_db->heads)
+                die("MEM_RESIZE_ARR");
+        }
+        ptr_db->remain_size--;
+        ptr_db->heads[ptr_db->pos].clt = clt;
+        ptr_db->heads[ptr_db->pos].next = NULL;
+        ptr_db->pos++;
+    }
 
     // guaranteed to NOT return NULL
     return rv;
@@ -469,8 +500,7 @@ static inline bool is_base_type(const struct symbol *type)
 }
 
 #define TYPE(c, cl)  { &c##_ctype, CL_TYPE_##cl, #c }
-static void populate_with_base_types(type_db_t tdb,
-                                     struct ptr_slist_arr *ptr_arr)
+static void populate_with_base_types(type_ptr_db_t db)
 {
     const struct {
         struct symbol *ctype;
@@ -529,28 +559,15 @@ static void populate_with_base_types(type_db_t tdb,
         clt->name  = strdup(base_types[i].name);
         clt->size  = sizeof_from_bits(ctype->bit_size);
 
-        // insert into hash table...
-        type_db_insert(tdb, clt, ctype, NEW_UID);
-        // ... as well as into pointer hierarchy (at the base level)
-        // TODO: function
-        if (!ptr_arr->remain_size) {
-            ptr_arr->alloc_size += PTRSLISTARR_SIZE;
-            ptr_arr->remain_size += PTRSLISTARR_SIZE;
-            ptr_arr->heads = MEM_RESIZE(ptr_arr->heads, ptr_arr->alloc_size);
-            if (!ptr_arr->heads)
-                die("MEM_RESIZE");
-        }
-        ptr_arr->remain_size--;
-        ptr_arr->heads[ptr_arr->pos].clt = clt;
-        ptr_arr->heads[ptr_arr->pos].next = NULL;
-        ptr_arr->pos++;
+        // insert into hash table + pointer hierarchy (at base level)
+        type_ptr_db_insert(db, clt, ctype, NEW_UID);
     }
 }
 #undef TYPE
 
 static struct cl_type* add_type_if_needed(struct symbol *type,
                                           struct instruction *insn,
-                                          struct ptr_slist_item **ptr);
+                                          struct ptr_db_item **ptr);
 
 #if 1
 static struct cl_type_item* create_ptr_type_item(struct symbol *type)
@@ -572,9 +589,9 @@ static void add_nested_type(struct cl_type *clt, struct symbol *sym)
 {
     if (clt->items == NULL)
         clt->item_cnt = 0;
-    clt->items = MEM_RESIZE(clt->items, clt->item_cnt+1);
+    clt->items = MEM_RESIZE_ARR(clt->items, clt->item_cnt+1);
     if (!clt->items)
-        die("MEM_RESIZE failed");
+        die("MEM_RESIZE_ARR failed");
     struct cl_type_item *item = &clt->items[clt->item_cnt++];
     if (sym->type == SYM_BASETYPE) {
         // specially for "void" as function argument if no one present
@@ -675,22 +692,23 @@ static void skip_sparse_accessors(struct symbol **ptype)
 
 // for given type "clt", return respective item from pointer hieararchy;
 // it is called only when we know such item will be there (already added)
-static void get_ptr_slist(const struct cl_type *clt, struct ptr_slist_item **ptr)
+static void get_ptr_db_item(type_ptr_db_t db, const struct cl_type *clt,
+                            struct ptr_db_item **ptr)
 {
     if (clt->code == CL_TYPE_PTR) {
-        struct ptr_slist_item *prev = NULL;
-        get_ptr_slist(clt->items->type, &prev);
+        struct ptr_db_item *prev = NULL;
+        get_ptr_db_item(db, clt->items->type, &prev);
         assert(prev->next);
         *ptr = prev->next;
     } else {
         int i;
-        for (i = ptr_slist.alloc_size - ptr_slist.remain_size - 1;
-             i >= 0; i--) {
-            if (ptr_slist.heads[i].clt == clt)
+        struct ptr_db_arr *ptr_db = &db->ptr_db;
+        for (i = ptr_db->alloc_size - ptr_db->remain_size - 1; i >= 0; i--) {
+            if (ptr_db->heads[i].clt == clt)
                 break;
         }
         if (i >= 0)
-            *ptr = &ptr_slist.heads[i];
+            *ptr = &ptr_db->heads[i];
         else {
             // should not happen
             CL_TRAP;
@@ -698,10 +716,10 @@ static void get_ptr_slist(const struct cl_type *clt, struct ptr_slist_item **ptr
     }
 }
 
-
-static struct cl_type* add_type_if_needed_slow(struct symbol *type,
+static struct cl_type* add_type_if_needed_slow(type_ptr_db_t db,
+                                               struct symbol *type,
                                                struct instruction *insn,
-                                               struct ptr_slist_item **ptr)
+                                               struct ptr_db_item **ptr)
 {
     struct cl_type *clt;
 
@@ -727,29 +745,17 @@ static struct cl_type* add_type_if_needed_slow(struct symbol *type,
     if (clt->code == CL_TYPE_UNKNOWN && !clt->name)
         clt->name = strdup("<sparse type not available>");
 
-    // FIXME: no duplicity checks, really not necessary?
-    if (ptr_slist.remain_size == 0) {
-        ptr_slist.alloc_size += PTRSLISTARR_SIZE;
-        ptr_slist.remain_size += PTRSLISTARR_SIZE;
-        ptr_slist.heads = MEM_RESIZE(ptr_slist.heads, ptr_slist.alloc_size);
-        if (!ptr_slist.heads)
-            die("MEM_RESIZE");
-    }
-    ptr_slist.remain_size--;
-    ptr_slist.heads[ptr_slist.pos].clt = clt;
-    ptr_slist.heads[ptr_slist.pos].next = NULL;
-    ptr_slist.pos++;
-
     if (ptr)
-        *ptr = &ptr_slist.heads[ptr_slist.pos];
+        *ptr = &db->ptr_db.heads[db->ptr_db.pos];
 
-    // hash the just read type for next round
-    return type_db_insert(type_db, clt, type, NEW_UID);
+    // insert into hash table + pointer hierarchy (at base level)
+    return type_ptr_db_insert(db, clt, type, NEW_UID);
 }
 
+// note: the only function that uses type_ptr_db global variable directly
 static struct cl_type* add_type_if_needed(struct symbol *type,
                                           struct instruction *insn,
-                                          struct ptr_slist_item **ptr)
+                                          struct ptr_db_item **ptr)
 {
     struct cl_type *clt;
 
@@ -762,24 +768,24 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
     skip_sparse_accessors(&type);
 
     // Fastest path, we have the type already in hash table
-    clt = typen_get_by_key(type_db, type);
+    clt = typen_get_by_key(type_ptr_db.type_db, type);
     if (clt) {
         // type already hashed
         if (ptr)
-            get_ptr_slist(clt, ptr);
+            get_ptr_db_item(&type_ptr_db, clt, ptr);
         return clt;
     }
 
     // Extra handling of pointer symbols, potentially fast circuit for pointer
     // type alias (i.e. no allocation)
     if (type && type->type == SYM_PTR) {
-        struct ptr_slist_item *prev = NULL;
+        struct ptr_db_item *prev = NULL;
         struct cl_type *ptr_type, **clt_ptr;
         int uid = NEW_UID;
 
         ptr_type = add_type_if_needed(type->ctype.base_type, NULL, &prev);
         if (!prev->next) {
-            prev->next = MEM_NEW(struct ptr_slist_item);
+            prev->next = MEM_NEW(struct ptr_db_item);
             if (!prev->next)
                 die("MEM_NEW");
             prev->next->next = NULL;
@@ -790,7 +796,7 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
             EMPTY_CL_TYPE(*clt_ptr);
 
             // setup ctl
-            // (*clt_ptr)->uid .. handled by type_db_insert()
+            // (*clt_ptr)->uid .. handled by type_ptr_db_insert()
             (*clt_ptr)->code     = CL_TYPE_PTR;
             read_sparse_location(&(*clt_ptr)->loc, type->pos);
             read_sparse_scope(&(*clt_ptr)->scope, type->scope);
@@ -807,12 +813,12 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
 
         if (ptr)
             *ptr = prev->next;
-        return type_db_insert(type_db, prev->next->clt, type, uid);
+        return type_ptr_db_insert(&type_ptr_db, prev->next->clt, type, uid);
     }
 
     // Slow path for anything (except for pointers) which is being
     // proceeded for the first time (next time, hashed ctl is used instead)
-    return add_type_if_needed_slow(type, insn, ptr);
+    return add_type_if_needed_slow(&type_ptr_db, type, insn, ptr);
 }
 
 
@@ -2030,8 +2036,8 @@ int worker_loop(struct cl_code_listener *cl, int argc, char **argv)
     symlist = sparse_initialize(argc, argv, &filelist);
 
     // initialize type database
-    type_db = type_db_create();
-    populate_with_base_types(type_db, &ptr_slist);
+    type_ptr_db_init(&type_ptr_db);
+    populate_with_base_types(&type_ptr_db);
 
 #if DO_PROCEED_INTERNAL
     // proceed internal symbols
@@ -2049,7 +2055,7 @@ int worker_loop(struct cl_code_listener *cl, int argc, char **argv)
     } END_FOR_EACH_PTR_NOTAG(file);
 
     // finalize and destroy
-    type_db_destroy(type_db);
+    type_ptr_db_destroy(&type_ptr_db);
     cl->acknowledge(cl);
     CLEANUP(NOKILL, cl);
 
@@ -2080,8 +2086,8 @@ int master_loop(struct cl_code_listener *cl, int read_fd, pid_t pid)
           if (!remain_size) {
               alloc_size += BUFFSIZE;
               remain_size = BUFFSIZE;
-              buffer = MEM_RESIZE(buffer, alloc_size);
-              if (!buffer) PERROR_CLEANUP_EXIT("MEM_RESIZE", pid, cl, 2);
+              buffer = MEM_RESIZE_ARR(buffer, alloc_size);
+              if (!buffer) PERROR_CLEANUP_EXIT("MEM_RESIZE_ARR", pid, cl, 2);
           }
           read_size = read(read_fd, &buffer[alloc_size-remain_size],
                            remain_size);
