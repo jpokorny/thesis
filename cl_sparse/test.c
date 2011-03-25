@@ -635,9 +635,31 @@ static void add_fn_arguments(struct cl_type *clt, struct symbol_list* args)
 
 static void read_sparse_type(struct cl_type *clt, struct symbol *type)
 {
+    assert(clt);
+
+    // common with ptr
+    read_sparse_location(&clt->loc, type->pos);
+    read_sparse_scope(&clt->scope, type->scope);
+    clt->size = sizeof_from_bits(type->bit_size);
+
+#if 0
+    // FIXME: this is unwanted "override" behaviour
+    if (insn && insn->opcode >= OP_BINCMP && insn->opcode <= OP_BINCMP_END)
+        clt->code = CL_TYPE_BOOL;
+
+    if (clt->code == CL_TYPE_UNKNOWN && !clt->name)
+        clt->name = strdup("<sparse type not available>");
+
+#endif
+
     enum type code = type->type;
 
     switch (code) {
+        case SYM_PTR:
+            clt->code       = CL_TYPE_PTR;
+            // item added back in add_type_if_needed
+            break;
+
         case SYM_STRUCT:
             clt->code       = CL_TYPE_STRUCT;
             clt->name       = strdup(show_ident(type->ident));
@@ -716,42 +738,6 @@ static void get_ptr_db_item(type_ptr_db_t db, const struct cl_type *clt,
     }
 }
 
-static struct cl_type* add_type_if_needed_slow(type_ptr_db_t db,
-                                               struct symbol *type,
-                                               struct instruction *insn,
-                                               struct ptr_db_item **ptr)
-{
-    struct cl_type *clt;
-
-    clt = MEM_NEW(struct cl_type);
-    if (!clt)
-        die("MEM_NEW failed");
-    EMPTY_CL_TYPE(clt);
-
-    // read type info if available
-    if (type) {
-        read_sparse_type(clt, type);
-        read_sparse_location(&clt->loc, type->pos);
-        read_sparse_scope(&clt->scope, type->scope);
-        clt->size = sizeof_from_bits(type->bit_size);
-    } else if (insn) {
-        // TODO...
-        CL_TRAP;
-    }
-    // FIXME: this is unwanted "override" behaviour
-    if (insn && insn->opcode >= OP_BINCMP && insn->opcode <= OP_BINCMP_END)
-        clt->code = CL_TYPE_BOOL;
-
-    if (clt->code == CL_TYPE_UNKNOWN && !clt->name)
-        clt->name = strdup("<sparse type not available>");
-
-    if (ptr)
-        *ptr = &db->ptr_db.heads[db->ptr_db.pos];
-
-    // insert into hash table + pointer hierarchy (at base level)
-    return type_ptr_db_insert(db, clt, type, NEW_UID);
-}
-
 // note: the only function that uses type_ptr_db global variable directly
 static struct cl_type* add_type_if_needed(struct symbol *type,
                                           struct instruction *insn,
@@ -761,6 +747,8 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
 
     if (!type && insn)
         type = get_instruction_type(insn);
+    if (!type)
+        CL_TRAP;
 
     // FIXME: this approach is completely wrong since we get type info for the
     // operand's base however we need to get type info in regards to the given
@@ -776,49 +764,57 @@ static struct cl_type* add_type_if_needed(struct symbol *type,
         return clt;
     }
 
+    int uid = NEW_UID;
+    struct cl_type **clt_ptr;
+    struct cl_type *ptr_type = NULL;
     // Extra handling of pointer symbols, potentially fast circuit for pointer
     // type alias (i.e. no allocation)
     if (type && type->type == SYM_PTR) {
         struct ptr_db_item *prev = NULL;
-        struct cl_type *ptr_type, **clt_ptr;
-        int uid = NEW_UID;
 
         ptr_type = add_type_if_needed(type->ctype.base_type, NULL, &prev);
         if (!prev->next) {
             prev->next = MEM_NEW(struct ptr_db_item);
             if (!prev->next)
                 die("MEM_NEW");
+            prev->next->clt = NULL;
             prev->next->next = NULL;
-            clt_ptr = &prev->next->clt;
-            *clt_ptr = MEM_NEW(struct cl_type);
-            if (!*clt_ptr)
-                die("MEM_NEW failed");
-            EMPTY_CL_TYPE(*clt_ptr);
-
-            // setup ctl
-            // (*clt_ptr)->uid .. handled by type_ptr_db_insert()
-            (*clt_ptr)->code     = CL_TYPE_PTR;
-            read_sparse_location(&(*clt_ptr)->loc, type->pos);
-            read_sparse_scope(&(*clt_ptr)->scope, type->scope);
-            (*clt_ptr)->name     = NULL; // XXX always NULL?
-            (*clt_ptr)->size     = sizeof_from_bits(type->bit_size);
-            (*clt_ptr)->item_cnt = 1;
-            (*clt_ptr)->items    = MEM_NEW(struct cl_type_item);
-            if (!(*clt_ptr)->items)
-                die("MEM_NEW");
-            (*clt_ptr)->items->type = ptr_type;
-            (*clt_ptr)->items->name = NULL; // XXX ptr_type->name always NULL?
-        } else
+        } else {
+            assert(prev->next->clt);
             uid = prev->next->clt->uid;
-
+        }
+        clt_ptr = &prev->next->clt;
         if (ptr)
             *ptr = prev->next;
-        return type_ptr_db_insert(&type_ptr_db, prev->next->clt, type, uid);
+    } else
+        clt_ptr = &clt;
+
+    if (uid == NEW_UID) {
+        *clt_ptr = MEM_NEW(struct cl_type);
+        if (!*clt_ptr)
+            die("MEM_NEW failed");
+        EMPTY_CL_TYPE(*clt_ptr);
     }
+    clt = type_ptr_db_insert(&type_ptr_db, *clt_ptr, type, uid);
+    if (uid != NEW_UID)
+        // was pointer alias
+        return clt;
 
     // Slow path for anything (except for pointers) which is being
     // proceeded for the first time (next time, hashed ctl is used instead)
-    return add_type_if_needed_slow(&type_ptr_db, type, insn, ptr);
+    read_sparse_type(clt, type);
+    if (type && type->type == SYM_PTR) {
+        // use obtained dereferenced type
+        clt->item_cnt = 1;
+        clt->items = MEM_NEW(struct cl_type_item);
+        if (!clt->items)
+            die("MEM_NEW");
+        assert(ptr_type);
+        clt->items->type = ptr_type;
+    } else
+        if (ptr)
+            *ptr = &type_ptr_db.ptr_db.heads[type_ptr_db.ptr_db.pos];
+    return clt;
 }
 
 
@@ -1291,10 +1287,10 @@ static void handle_insn_ret(struct instruction *insn)
     struct cl_type *resulting_type;
 
     cli.code = CL_INSN_RET;
-    read_sparse_location(&cli.loc, insn->pos);
 
     // src operand
     pseudo_to_cl_operand(insn, insn->src, &op, true);
+    read_sparse_location(&cli.loc, insn->pos);
     cli.data.insn_ret.src = &op;
 
     cl->insn(cl, &cli);
