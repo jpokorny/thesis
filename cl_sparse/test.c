@@ -1284,7 +1284,7 @@ static void handle_insn_ret(struct instruction *insn)
     struct cl_operand op;
     struct cl_insn cli;
 
-    pseudo_to_cl_operand(insn, insn->src, &op, true);
+    pseudo_to_cl_operand(insn, insn->src, &op, is_base_type(insn->type));
     cli.code                = CL_INSN_RET;
     cli.data.insn_ret.src   = &op;
     read_sparse_location(&cli.loc, insn->pos);
