@@ -365,7 +365,7 @@ static struct cl_type* type_db_insert(type_db_t db, struct cl_type *clt,
 
     struct cl_type *rv = typen_insert_with_uid(db, clt, key, uid);
     if (!rv)
-        die("typen_insert_as_new() failed");
+        die("typen_insert_with_uid() failed");
 
     // guaranteed to NOT return NULL
     return rv;
