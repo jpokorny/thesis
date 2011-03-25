@@ -1023,10 +1023,6 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
         read_pseudo_sym(op, insn->src->sym, insn->orig_type);
     } else {
         read_pseudo(op, pseudo);
-#if 0        
-        if (access)
-            read_insn_op_access(op, insn);
-#else
         // XXX: op.code != CL_OPERAND_VOID
         if (access && insn->type) {
             struct cl_type *resulting_type;
@@ -1038,7 +1034,6 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
                 read_insn_op_access(op, insn);
             }
         }
-#endif
     }
 }
 
