@@ -993,7 +993,10 @@ static void read_insn_op_access(struct cl_operand *op, struct instruction *insn)
                 break;
         ac->data.item.id = i;
         ac->type = /*dangerous?*/ (struct cl_type *) op->type;
-        op->accessor = ac;
+        if (op->accessor)
+            ac->next = op->accessor;
+        else
+            op->accessor = ac;
         op->type = (struct cl_type *)op->type->items[i].type;
     } else if (op->type->code == CL_TYPE_PTR
                && op->type->items[0].type->code == CL_TYPE_STRUCT) {
