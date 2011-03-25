@@ -1,13 +1,14 @@
-struct s01 {
+struct s_02 {
     int n1;
 };
 
-struct ss01 {
-    struct s01 s1;
+struct ss_02 {
+    struct s_02 s1;
 };
 
 
-static struct ss01 f01(struct ss01 arg)
+static struct s_02 return_struct(struct ss_02 arg)
 {
-    return arg;
+    return arg.s1;
 }
+

@@ -1,8 +1,8 @@
-struct s03 {
+struct s_02 {
     int n1;
 };
 
-static struct s03 f03(struct s03 arg)
+static int return_int(struct s_02 arg)
 {
-    return arg;
+    return arg.n1;
 }
