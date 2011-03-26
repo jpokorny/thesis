@@ -862,6 +862,7 @@ static void read_pseudo_sym(struct cl_operand *op, struct symbol *sym,
 
     if (sym->bb_target) {
         WARN_UNHANDLED(sym->pos, "sym->bb_target");
+        CL_TRAP;
         op->code = CL_OPERAND_VOID;
         return;
     }
@@ -971,6 +972,8 @@ static void read_insn_op_access(struct cl_operand *op, struct instruction *insn)
     if (!ac)
         die("MEM_NEW failed");
 
+    //CL_TRAP;
+    // FIXME: CL_TYPE_VOID (is it, after all, allowed to find this here?)
     #define MAP_ACCESSOR(var, type, acc) case CL_##type: var = CL_##acc; break;
     switch (op->type->code) {
         MAP_ACCESSOR(ac->code, TYPE_PTR,    ACCESSOR_DEREF)
@@ -1018,16 +1021,16 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
         return;
 
     if (insn->opcode == OP_PTRCAST && pseudo == insn->src
-        /* && pseudo->type == PSEUDO_SYM*/ ) {
+        && pseudo->type == PSEUDO_SYM) {
         read_pseudo_sym(op, insn->src->sym, insn->orig_type);
     } else {
         read_pseudo(op, pseudo);
-        // XXX: op.code != CL_OPERAND_VOID
-        if (access && insn->type) {
+        if (access && insn->type && op->type->code != CL_TYPE_VOID) {
             struct cl_type *resulting_type;
             resulting_type = add_type_if_needed(insn->type, NULL, NULL);
             assert(resulting_type);
-            while (op->type != resulting_type) {
+            while (op->type != resulting_type
+                   && op->type->code != CL_TYPE_VOID) {
                 //CL_TRAP;
                 //printf("access\n");
                 read_insn_op_access(op, insn);
@@ -1275,7 +1278,7 @@ static void handle_insn_ret(struct instruction *insn)
   * CL_INSN_RET
   *     cl_insn.insn_ret.src ... cl_operand representing return value
   *
-  * Problems:
+  * Problems: << FIXME: this is in common for all assignments, solved globally
   * 1. One-element struct -- how to represent return value correctly?
   * S. Use insn->type to deduce the right one.  Because the resulting type
   *    should have been already inserted into hash table, we can compare
@@ -1342,7 +1345,7 @@ static void insn_assignment_base(struct instruction *insn,
 
     // TODO: move to function?
     // FIXME SPARSE?: hack because sparse generates extra instruction
-    //         e.g. store %arg1 -> 0[in] if "in" == "%arg1"
+    //         e.g. store %arg1 -> 0[in], in case of "in" == "%arg1"
 #if 1
     if (lhs->type != PSEUDO_SYM || rhs->type != PSEUDO_ARG
          || op_lhs.data.var->uid != op_rhs.data.var->uid) {
@@ -1553,6 +1556,7 @@ static bool handle_insn(struct instruction *insn)
         case OP_PHI:
         case OP_PHISOURCE:
             // FIXME: this might be a SPARSE bug if DO_PER_EP_UNSAA is set
+            // NOTE: really encountered (hash_table.c)
             WARN_UNHANDLED(insn->pos, show_instruction(insn));
             break;
 
