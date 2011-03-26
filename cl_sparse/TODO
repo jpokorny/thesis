@@ -7,6 +7,7 @@ others:
 
 priority
 --------
+double deref as with hash_table.c: 82 (cl_pp is dying)
 
 
 not to forget
@@ -18,3 +19,4 @@ type recursion for (typedef'd) functions?
 sparse:
 =======
 * does not complain about nonsensical recursive type (see tests/struct/rs1-01.c.bad)
+* generates phi instruction after unssa (hash_table.c: 85)
