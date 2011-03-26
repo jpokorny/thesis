@@ -963,7 +963,7 @@ static void read_pseudo(struct cl_operand *op, pseudo_t pseudo)
     }
 }
 
-static void read_insn_op_access(struct cl_operand *op, struct instruction *insn)
+static void read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
 {
     int i = 0;
     struct cl_accessor *ac, *ac_chain;
@@ -987,10 +987,10 @@ static void read_insn_op_access(struct cl_operand *op, struct instruction *insn)
 
     if (op->type->code == CL_TYPE_STRUCT) {
         // accessing struct element is different with the first level access
-        // (use insn->offset) and with other accesses (always zero offset)
+        // (use insn_offset) and with other accesses (always zero offset)
         if (!op->accessor) {
             for (i = 0; i < op->type->item_cnt; i++)
-                if (op->type->items[i].offset == insn->offset)
+                if (op->type->items[i].offset == insn_offset)
                     break;
         }
         ac->data.item.id = i;
@@ -1020,20 +1020,28 @@ static void pseudo_to_cl_operand(struct instruction *insn, pseudo_t pseudo,
     if (!is_pseudo(pseudo))
         return;
 
+    // FIXME: why?
     if (insn->opcode == OP_PTRCAST && pseudo == insn->src
         && pseudo->type == PSEUDO_SYM) {
         read_pseudo_sym(op, insn->src->sym, insn->orig_type);
     } else {
         read_pseudo(op, pseudo);
-        if (access && insn->type && op->type->code != CL_TYPE_VOID) {
-            struct cl_type *resulting_type;
+        if (/*access &&*/ insn->type /*&& op->type->code != CL_TYPE_VOID*/) {
+            int insn_offset = insn->offset;
+            const struct cl_type *resulting_type;
             resulting_type = add_type_if_needed(insn->type, NULL, NULL);
+            if (insn->opcode == OP_STORE && pseudo == insn->target && !access) {
+                // remove one level of indirection of target type
+                // (will be compensated by adding reference to rhs operand)
+                resulting_type = resulting_type->items[0].type;
+                insn_offset = 0;
+            }
             assert(resulting_type);
             while (op->type != resulting_type
                    && op->type->code != CL_TYPE_VOID) {
                 //CL_TRAP;
                 //printf("access\n");
-                read_insn_op_access(op, insn);
+                read_insn_op_access(op, insn_offset);
             }
         }
     }
@@ -1332,6 +1340,18 @@ static void insn_assignment_base(struct instruction *insn,
         op_rhs.data.cst.data.cst_int.value = rhs->value;
     }
 
+    if (insn->opcode == OP_STORE) {
+        // add reference
+        //CL_TRAP;
+        struct cl_accessor *ac = MEM_NEW(struct cl_accessor);
+        if (!ac)
+            die("NEW_MEM failed");
+        ac->code = CL_ACCESSOR_REF;
+        ac->type = op_rhs.type;
+        ac->next = NULL;
+        op_rhs.accessor->next = ac;
+        op_rhs.type = add_type_if_needed(insn->type, NULL, NULL);
+    }
 
 #if 0
     if (op_lhs.access && op_lhs.name && op_lhs.offset
@@ -1369,19 +1389,40 @@ static void insn_assignment_base(struct instruction *insn,
 
 static void handle_insn_store(struct instruction *insn)
 
-{
+{/* Synopsis -- input:
+  * insn->symbol ... mem. address containing value to be assigned
+  * insn->target ... source value
+  * insn->type   ... type of value to be assigned
+  *
+  * Synopsis -- output:
+  * CL_INSN_UNOP
+  *     CL_UNOP_ASSIGN
+  *
+  * Problems:
+  * 1. Register is not immediately connected with type information
+  * S. Use insn->type
+  */
     //CL_TRAP;
-    insn_assignment_base(insn,
-            insn->symbol, insn->target,
-            true        , false);
+    insn_assignment_base(insn, insn->symbol, insn->target,
+                               true        , false);
 }
 
 static void handle_insn_load(struct instruction *insn)
-{
-    //CL_TRAP;
-    insn_assignment_base(insn,
-            insn->target, insn->symbol,
-            false       , true);
+{/* Synopsis -- input:
+  * insn->target ... register (XXX: only?) to be assigned
+  * insn->src    ... mem. address containing source value
+  * insn->type   ... type of value to be assigned
+  *
+  * Synopsis -- output:
+  * CL_INSN_UNOP
+  *     CL_UNOP_ASSIGN
+  *
+  * Problems:
+  * 1. Register is not immediately connected with type information
+  * S. Use insn->type
+  */
+    insn_assignment_base(insn, insn->target, insn->src,
+                               false       , true     );
 }
 
 static void handle_insn_copy(struct instruction *insn)
