@@ -1119,8 +1119,8 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
     // at first, create and emit CL_INSN_COND, then
     // create and emit respective basic blocks
     //
-    // note: BB label uniqueness: addr(insn) + (1 or 2),
-    //       provided that pointer has size of 4+
+    // note: BB label uniqueness: addr(insn) + (1, 2 or 3), provided that
+    //       insn has size of 4+ and char 1
 
     struct cl_operand cond, src, dst;
     char *bb_label_true = NULL,
@@ -1462,16 +1462,6 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
         }
         op_rhs.type = add_type_if_needed(insn->type, NULL, NULL);
     }
-
-#if 0
-    if (op_lhs.access && op_lhs.name && op_lhs.offset
-            && 0 == strcmp(op_lhs.name, op_lhs.offset))
-        CL_TRAP;
-
-    if (op_rhs.access && op_rhs.name && op_rhs.offset
-            && 0 == strcmp(op_rhs.name, op_rhs.offset))
-        CL_TRAP;
-#endif
 
     // FIXME SPARSE?: hack because sparse generates extra instruction
     //         e.g. store %arg1 -> 0[in], in case of "in" == "%arg1"
