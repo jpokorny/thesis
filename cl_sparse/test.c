@@ -1004,6 +1004,7 @@ read_pseudo_arg(struct cl_operand *op, const struct instruction *def, int pos)
 static void
 read_pseudo_reg(struct cl_operand *op, const pseudo_t pseudo)
 {/* Synopsis:
+  * pseudo->def
   *
   * Note: pseudo->def == NULL for copy.32
   */
@@ -1026,13 +1027,13 @@ read_pseudo(struct cl_operand *op, const pseudo_t pseudo)
         return op;
 
     switch (pseudo->type) {
-        case PSEUDO_SYM:  /* union -> sym */
+        case PSEUDO_SYM:
             read_pseudo_sym(op, pseudo->sym, NULL);
             break;
-        case PSEUDO_REG:  /* union -> def */
+        case PSEUDO_REG:
             read_pseudo_reg(op, pseudo);
             break;
-        case PSEUDO_VAL: /* union -> val */
+        case PSEUDO_VAL:
             op->type = &int_clt;
             provide_cst(op, CL_TYPE_INT)->data.cst_int.value = pseudo->value;
             break;
