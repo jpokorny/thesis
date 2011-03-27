@@ -128,7 +128,6 @@ struct ptr_db_arr {
 
 
 const char *GIT_SHA1 = "someversion";
-//typedef struct typen_data *type_db_t;
 
 static struct cl_code_listener *cl;
 
@@ -143,12 +142,10 @@ static struct type_ptr_db {
 };
 typedef struct type_ptr_db *type_ptr_db_t;
 
-//static type_db_t type_db = NULL;
-//static struct ptr_db_arr
 FILE *real_stderr = NULL; /**< used to access "unfaked" stderr */
 
 
-// associated with respective base types in populate_with_base_types()
+// associated with respective base types in `populate_with_base_types()'
 static struct cl_type
     void_clt,
     incomplete_clt,
@@ -179,7 +176,7 @@ static const struct cl_operand empty_cl_operand = {
 #define EMPTY_CL_OPERAND(clop)  do { *(clop) = empty_cl_operand; } while (0)
 
 static const struct cl_type empty_cl_type = {
-    .uid        = -1,  /**< normally set during the insertion into hash table */
+    .uid        = NEW_UID,  /**< completely in control of type_enumerator */
     .code       = CL_TYPE_UNKNOWN,
     .loc        = EMPTY_LOC,
     .scope      = CL_SCOPE_GLOBAL,
