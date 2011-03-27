@@ -57,6 +57,8 @@
 #define DO_PER_EP_UNSAA             1
 #define DO_PER_EP_SET_UP_STORAGE    1
 
+#define FIX_SPARSE_EXTRA_ARG_TO_MEM 1
+
 #define SHOW_PSEUDO_INSNS           0
 
 
@@ -1357,15 +1359,12 @@ handle_insn_ret(struct cl_insn *cli, const struct instruction *insn)
   * insn->type ... type of return value
   *
   * Synopsis -- output:
-  * CL_INSN_RET
+  * CL_INSN_RET (already set from `handle_insn')
   *     cl_insn.insn_ret.src ... cl_operand representing return value
   *
-  * Problems: << FIXME: this is in common for all assignments, solved globally
+  * Problems:
   * 1. One-element struct -- how to represent return value correctly?
-  * S. Use insn->type to deduce the right one.  Because the resulting type
-  *    should have been already inserted into hash table, we can compare
-  *    struct cl_type pointers directly and keep accessing the original type
-  *    until we get the same as a resulting one.
+  * S. See P1 for `handle_assignment_base' (`adjust_cl_operand_accessors').
   */
     struct cl_operand op;
     const struct cl_type *resulting_type;
@@ -1387,9 +1386,15 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
                      bool lhs_access,            bool rhs_access
 )
 {/* Synopsis -- input:
-  * insn->type ... type of value to assign
+  * insn->type ... type of value to assign (XXX: may be missing?)
   *
   * Problems:
+  * 1. One-element struct -- how to represent return value correctly?
+  * S. Use insn->type to deduce the right one.  We can compare
+  *    struct cl_type pointers directly and keep accessing the original type
+  *    until we get the same as a resulting one
+  *    (see `adjust_cl_operand_accessors()').
+  *    The same apply for multi-pointers (?).
   */
     struct cl_operand op_lhs, op_rhs;
 
@@ -1446,7 +1451,7 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
     // FIXME SPARSE?:
     // hack because sparse generates extra instruction
     // e.g. store %arg1 -> 0[in], in case of "in" == "%arg1"
-#if 1
+#if FIX_SPARSE_EXTRA_ARG_TO_MEM
     if (lhs->type != PSEUDO_SYM || rhs->type != PSEUDO_ARG
          || op_lhs.data.var->uid != op_rhs.data.var->uid) {
 #endif
@@ -1455,7 +1460,7 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
         //i>
         cl->insn(cl, cli);
         //i>
-#if 1
+#if FIX_SPARSE_EXTRA_ARG_TO_MEM
     } else {
         WARN_VA(insn->pos, "instruction omitted: %s",
                 show_instruction((struct instruction *) insn));
