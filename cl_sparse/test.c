@@ -1114,90 +1114,85 @@ static bool
 handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
 {/* Synopsis:
   *
-  * Problems:
+  * Note:
+  * at first, create and emit CL_INSN_COND, then create and emit respective BBs
+  *
+  * note: BB label uniqueness: addr(insn) + (1, 2 or 3), provided that
+  *       insn has size of 4+ and char 1
   */
-    // at first, create and emit CL_INSN_COND, then
-    // create and emit respective basic blocks
-    //
-    // note: BB label uniqueness: addr(insn) + (1, 2 or 3), provided that
-    //       insn has size of 4+ and char 1
-
     struct cl_operand cond, src, dst;
-    char *bb_label_true = NULL,
-         *bb_label_false = NULL,
-         *bb_label_end = NULL;
+    char *bb_label_true, *bb_label_false, *bb_label_merge;
 
     // BB labels
     if (   asprintf(&bb_label_true,  "%p", ((char *) insn) + 1) < 0
         || asprintf(&bb_label_false, "%p", ((char *) insn) + 2) < 0
-        || asprintf(&bb_label_end,   "%p", ((char *) insn) + 3) < 0)
+        || asprintf(&bb_label_merge, "%p", ((char *) insn) + 3) < 0)
         die("asprintf failed");
 
-    cli->code                      = CL_INSN_COND;
+    /* cond instruction */
 
+    cli->code                      = CL_INSN_COND;
     cli->data.insn_cond.src        = read_pseudo(&cond, insn->src1);
     cli->data.insn_cond.then_label = bb_label_true;
     cli->data.insn_cond.else_label = bb_label_false;
-
     //i>
     cl->insn(cl, cli);
     //i>
-
     free_cl_operand_data(&cond);
 
-    // first BB ("then" branch)
+    /* first BB ("then" branch) with assignment and jump to merging BB */
 
     //b>
     cl->bb_open(cl, bb_label_true);
     //b>
+    free(bb_label_true);
 
-    cli->code                      = CL_INSN_UNOP;
-    cli->data.insn_unop.code       = CL_UNOP_ASSIGN;
-
-    cli->data.insn_unop.dst        = read_pseudo(&dst, insn->target);
-    cli->data.insn_unop.src        = read_pseudo(&src, insn->src2);
-
+    cli->code                = CL_INSN_UNOP;
+    cli->data.insn_unop.code = CL_UNOP_ASSIGN;
+    cli->data.insn_unop.dst  = read_pseudo(&dst, insn->target);
+    cli->data.insn_unop.src  = read_pseudo(&src, insn->src2);
     //i>
     cl->insn(cl, cli);
     //i>
-
     free_cl_operand_data(&src);
 
-    cli->code                      = CL_INSN_JMP;
-    cli->data.insn_jmp.label       = bb_label_end;
+    cli->code                = CL_INSN_JMP;
+    cli->data.insn_jmp.label = bb_label_merge;
+    //i>
     cl->insn(cl, cli);
+    //i>
 
-    // second BB ("else" branch) .. warning: copy-paste from above
+    /* second BB ("else" branch) with assignment and jump to merging BB */
 
     //b>
     cl->bb_open(cl, bb_label_false);
     //b>
+    free(bb_label_false);
 
-    cli->code                      = CL_INSN_UNOP;
-    cli->data.insn_unop.code       = CL_UNOP_ASSIGN;
-
-    // reusing already generated operand for insn->target
-    cli->data.insn_unop.src        = read_pseudo(&src, insn->src3);
-
+    cli->code                = CL_INSN_UNOP;
+    cli->data.insn_unop.code = CL_UNOP_ASSIGN;
+    cli->data.insn_unop.dst  = &dst;
+    cli->data.insn_unop.src  = read_pseudo(&src, insn->src3);
     //i>
     cl->insn(cl, cli);
     //i>
-
     free_cl_operand_data(&src);
     free_cl_operand_data(&dst);
 
-    cli->code                      = CL_INSN_JMP;
-    cli->data.insn_jmp.label       = bb_label_end;
-
+    cli->code                = CL_INSN_JMP;
+    cli->data.insn_jmp.label = bb_label_merge;
     //i>
     cl->insn(cl, cli);
     //i>
 
-    // merging BB
+    /* merging BB */
 
     //b>
-    cl->bb_open(cl, bb_label_end);
+    cl->bb_open(cl, bb_label_merge);
     //b>
+    free(bb_label_merge);
+
+    return true;
 }
 
 static bool
@@ -1210,18 +1205,18 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
     struct pseudo *arg;
     int cnt = 0;
 
-    // open call
+    /* open call */
+
     read_pseudo(&dst, insn->target);
     read_pseudo(&fnc, insn->func);
-
     //c>
     cl->insn_call_open(cl, &cli->loc, &dst, &fnc);
     //c>
-
     free_cl_operand_data(&dst);
     free_cl_operand_data(&fnc);
 
-    // go through arguments
+    /* emit arguments */
+
     FOR_EACH_PTR(insn->arguments, arg) {
         struct cl_operand arg_operand;
         if (arg->type == PSEUDO_SYM) {
@@ -1230,27 +1225,25 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
         } else {
             read_pseudo(&arg_operand, arg);
         }
-
         //c>
         cl->insn_call_arg(cl, ++cnt, &arg_operand);
         //c>
-
         free_cl_operand_data(&arg_operand);
     } END_FOR_EACH_PTR(arg);
+
+    /* close call */
 
     //c>
     cl->insn_call_close(cl);
     //c>
 
+    /* special handling of non-returning function (end of BB) */
+
     if (insn->func->sym->ctype.modifiers & MOD_NORETURN) {
-        // this call never returns --> end of BB!!
-
-        cli->code    = CL_INSN_ABORT;
-
+        cli->code = CL_INSN_ABORT;
         //i>
         cl->insn(cl, cli);
         //i>
-
         return false;
     }
 
@@ -1263,24 +1256,26 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
   *
   * Problems:
   */
-    char *bb_name_true = NULL;
-    char *bb_name_false = NULL;
+    char *bb_name_true, *bb_name_false;
     struct cl_operand op;
 
     if (asprintf(&bb_name_true, "%p", insn->bb_true) < 0)
         die("asprintf failed");
 
+    /* unconditional jump handling */
+
     if (!is_pseudo(insn->cond)) {
         cli->code                = CL_INSN_JMP;
         cli->data.insn_jmp.label = bb_name_true;
-
         //i>
         cl->insn(cl, cli);
         //i>
-
         free(bb_name_true);
+
         return true;
     }
+
+    /* conditional jump handling */
 
     if (asprintf(&bb_name_false, "%p", insn->bb_false) < 0)
         die("asprintf failed");
@@ -1289,11 +1284,9 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
     cli->data.insn_cond.src        = read_pseudo(&op, insn->cond);
     cli->data.insn_cond.then_label = bb_name_true;
     cli->data.insn_cond.else_label = bb_name_false;
-
     //i>
     cl->insn(cl, cli);
     //i>
-
     free_cl_operand_data(&op);
     free(bb_name_true);
     free(bb_name_false);
@@ -1310,52 +1303,44 @@ handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
     struct cl_operand op;
     struct multijmp *jmp;
 
-    // emit insn_switch_open
-    read_pseudo(&op, insn->target);
+    /* open switch */
 
+    read_pseudo(&op, insn->target);
     //s>
     cl->insn_switch_open(cl, &cli->loc, &op);
     //s>
-
     free_cl_operand_data(&op);
 
-    // go through cases
+    /* emit cases */
+
     FOR_EACH_PTR(insn->multijmp_list, jmp) {
-        struct cl_operand val_lo = { CL_OPERAND_VOID };
-        struct cl_operand val_hi = { CL_OPERAND_VOID };
-        char *label = NULL;
-
-        // if true, it's case; default otherwise
-        if (jmp->begin <= jmp->end) {
-            val_lo.code = CL_OPERAND_CST;
-            val_hi.code = CL_OPERAND_CST;
-
-            // TODO: read types
-            val_lo.type = &int_clt;
-            val_hi.type = &int_clt;
-
-            val_lo.data.cst.code = CL_TYPE_INT;
-            val_hi.data.cst.code = CL_TYPE_INT;
-
-            val_lo.data.cst.data.cst_int.value = jmp->begin;
-            val_hi.data.cst.data.cst_int.value = jmp->end;
-        }
+        char *label;
+        struct cl_operand val_lo = { .code = CL_OPERAND_VOID };
+        struct cl_operand val_hi = { .code = CL_OPERAND_VOID };
 
         if (asprintf(&label, "%p", jmp->target) < 0)
             die("asprintf failed");
 
-        // emit insn_switch_case
-        // FIXME: not enough accurate location info from SPARSE for switch/case
+        // if true, it's case; default otherwise
+        if (jmp->begin <= jmp->end) {
+            // TODO: read types
+            val_lo.type = &int_clt;
+            val_hi.type = &int_clt;
 
+            provide_cst(&val_lo, CL_TYPE_INT)->data.cst_int.value = jmp->begin;
+            provide_cst(&val_hi, CL_TYPE_INT)->data.cst_int.value = jmp->end;
+        }
+
+        // FIXME: not enough accurate location info from SPARSE for switch/case
         //s>
         cl->insn_switch_case(cl, &cli->loc, &val_lo, &val_hi, label);
         //s>
-
         free_cl_operand_data(&val_lo);
         free_cl_operand_data(&val_hi);
         free(label);
-
     } END_FOR_EACH_PTR(jmp);
+
+    /* close switch */
 
     //s>
     cl->insn_switch_close(cl);
@@ -1384,17 +1369,12 @@ handle_insn_ret(struct cl_insn *cli, const struct instruction *insn)
     struct cl_operand op;
     const struct cl_type *resulting_type;
 
-    // src operand
     cli->data.insn_ret.src = read_pseudo(&op, insn->src);
-
     resulting_type = add_type_if_needed(insn->type, NULL, NULL);
-    assert(resulting_type);
     adjust_cl_operand_accessors(&op, resulting_type, insn->offset);
-
     //i>
     cl->insn(cl, cli);
     //i>
-
     free_cl_operand_data(&op);
 
     return true;
@@ -1410,8 +1390,7 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
   *
   * Problems:
   */
-    struct cl_operand op_lhs;
-    struct cl_operand op_rhs;
+    struct cl_operand op_lhs, op_rhs;
 
     // FIXME: why?
     if (insn->opcode == OP_PTRCAST && rhs->type == PSEUDO_SYM) {
@@ -1463,15 +1442,15 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
         op_rhs.type = add_type_if_needed(insn->type, NULL, NULL);
     }
 
-    // FIXME SPARSE?: hack because sparse generates extra instruction
-    //         e.g. store %arg1 -> 0[in], in case of "in" == "%arg1"
+    // FIXME SPARSE?:
+    // hack because sparse generates extra instruction
+    // e.g. store %arg1 -> 0[in], in case of "in" == "%arg1"
 #if 1
     if (lhs->type != PSEUDO_SYM || rhs->type != PSEUDO_ARG
          || op_lhs.data.var->uid != op_rhs.data.var->uid) {
 #endif
         cli->data.insn_unop.dst = &op_lhs;
         cli->data.insn_unop.src = &op_rhs;
-
         //i>
         cl->insn(cl, cli);
         //i>
@@ -1481,7 +1460,6 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
                 show_instruction((struct instruction *) insn));
     }
 #endif
-
     free_cl_operand_data(&op_lhs);
     free_cl_operand_data(&op_rhs);
 
@@ -1503,9 +1481,7 @@ handle_insn_store(struct cl_insn *cli, const struct instruction *insn)
   * 1. Register is not immediately connected with type information
   * S. Use insn->type
   */
-    //CL_TRAP;
-    return
-    insn_assignment_base(cli, insn,
+    return insn_assignment_base(cli, insn,
         insn->symbol,  /* := */  insn->target,
         true,                    insn->target->type != PSEUDO_REG
     );
@@ -1526,8 +1502,7 @@ handle_insn_load(struct cl_insn *cli, const struct instruction *insn)
   * 1. Register is not immediately connected with type information
   * S. Use insn->type
   */
-    return
-    insn_assignment_base(cli, insn,
+    return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
         false,                   true
     );
@@ -1536,8 +1511,7 @@ handle_insn_load(struct cl_insn *cli, const struct instruction *insn)
 static inline bool
 handle_insn_copy(struct cl_insn *cli, const struct instruction *insn)
 {
-    return
-    insn_assignment_base(cli, insn,
+    return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
         false,                   false
     );
@@ -1546,9 +1520,7 @@ handle_insn_copy(struct cl_insn *cli, const struct instruction *insn)
 static inline bool
 handle_insn_ptrcast(struct cl_insn *cli, const struct instruction *insn)
 {
-    //CL_TRAP;
-    return
-    insn_assignment_base(cli, insn,
+    return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
         false,                   false
     );
@@ -1565,11 +1537,9 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
     cli->data.insn_binop.dst  = read_pseudo(&dst,  insn->target);
     cli->data.insn_binop.src1 = read_pseudo(&src1, insn->src1  );
     cli->data.insn_binop.src2 = read_pseudo(&src2, insn->src2  );
-
     //i>
     cl->insn(cl, cli);
     //i>
-
     free_cl_operand_data(&dst);
     free_cl_operand_data(&src1);
     free_cl_operand_data(&src2);
@@ -1608,7 +1578,7 @@ static bool handle_insn(struct instruction *insn)
      * Instructions with more complicated rules (more instructions are emitted
      * per the single original one) are denoted with NOP, unhandled with ABORT.
      */
-        //action| sparse insn.    | cl insn. (+ uni/bin)| handler            |
+        // type | sparse insn.    | cl insn. (+ uni/bin)| handler            |
         //------+-----------------+---------------------+--------------------|
 
         INSN_GEN( RET             , RET                 , handle_insn_ret    ),
