@@ -226,26 +226,23 @@ static int cl_verbose = 0;
 
 #define NOKILL  ((pid_t) 0)
 
-#define CLEANUP(pid, cl)  do {         \
-        if (pid != NOKILL) kill(pid, SIGKILL);   \
-        cl->destroy(cl);               \
-        cl_global_cleanup();           \
-    } while (0)
-
 #define PERROR_EXIT(str, code) \
     do { perror(str); exit(code); } while (0)
 
-#define PERROR_CLEANUP_EXIT(str, pid, cl, code) \
-    do { perror(str); CLEANUP(pid, cl); exit(code); } while (0)
-
-#define ERROR(...)  do {\
-        fprintf(real_stderr, __VA_ARGS__); \
-        fprintf(real_stderr, "\n"); \
+#define PERROR_KILL_EXIT(str, pid, code)  do { \
+        perror(str);                           \
+        if (pid != NOKILL) kill(pid, SIGKILL); \
+        exit(code);                            \
     } while (0)
 
-#define NOTE(...)  do {\
+#define ERROR(...)  do {                   \
+        fprintf(real_stderr, __VA_ARGS__); \
+        fprintf(real_stderr, "\n");        \
+    } while (0)
+
+#define NOTE(...)  do {               \
         fprintf(stdout, __VA_ARGS__); \
-        fprintf(stdout, "\n"); \
+        fprintf(stdout, "\n");        \
     } while (0)
 
 
@@ -302,16 +299,30 @@ static void cl_error(const char *msg)
 // Freeing resources helper functions
 //
 
+static void
+free_clt(struct cl_type *clt);
+
+static inline void
+free_clt_items(struct cl_type_item *items, int item_cnt)
+{
+    int i;
+    for (i = 0; i < item_cnt; i++) {
+        // nested types are captured on the base level and free'd from here
+        printf("cleaning: '%s' %p\n", items[i].name, items[i].name);
+        free((char *) items[i].name);
+    }
+}
 
 static void
-cb_free_clt(struct cl_type *clt)
+free_clt(struct cl_type *clt)
 {
     // skip base types that are not on heap
-    if (clt->uid > type_ptr_db.last_base_type_uid) {
-        enum cl_type_e code = clt->code;
-        switch (code) {
+    if (clt && clt->uid > type_ptr_db.last_base_type_uid) {
+        switch (clt->code) {
             case CL_TYPE_PTR:
             case CL_TYPE_FNC:
+            case CL_TYPE_STRUCT:
+                free_clt_items(clt->items,  clt->item_cnt);
                 free(clt->items);
                 break;
 
@@ -378,7 +389,7 @@ populate_with_base_types(type_ptr_db_t db);
 static void
 type_ptr_db_init(type_ptr_db_t db)
 {
-    db->type_db = typen_create(cb_free_clt);
+    db->type_db = typen_create(free_clt);
     if (!db->type_db)
         die("ht_create() failed");
 
@@ -389,6 +400,19 @@ static void
 type_ptr_db_destroy(type_ptr_db_t db)
 {
     typen_destroy(db->type_db);
+
+    // destroy pointer hieararchy
+    struct ptr_db_arr *ptr_db = &db->ptr_db;
+    struct ptr_db_item *item, *item_next;
+    int i;
+    for (i = ptr_db->alloc_size - ptr_db->remain_size - 1; i >= 0; i--) {
+        item = ptr_db->heads[i].next;
+        while (item) {
+            item_next = item->next;
+            free(item);
+            item = item_next;
+        }
+    }
     free(db->ptr_db.heads);
 }
 
@@ -626,11 +650,11 @@ add_subtype(struct cl_type *clt, struct symbol *subtype)
 
     struct cl_type_item *subtype_item;
 
-    clt->items = MEM_RESIZE_ARR(clt->items, clt->item_cnt+1);
+    clt->items = MEM_RESIZE_ARR(clt->items, ++clt->item_cnt);
     if (!clt->items)
         die("MEM_RESIZE_ARR failed");
 
-    subtype_item = &clt->items[clt->item_cnt++];
+    subtype_item = &clt->items[clt->item_cnt-1];
     subtype_item->type = add_type_if_needed(subtype, NULL);
     subtype_item->name = read_ident(subtype->ident);
     if (clt->code == CL_TYPE_STRUCT || clt->code == CL_TYPE_UNION)
@@ -773,7 +797,7 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
     struct cl_type *ptr_type = NULL;
     // Extra handling of pointer symbols, potentially fast circuit for pointer
     // type alias (i.e. no allocation)
-    if (type && type->type == SYM_PTR) {
+    if (type->type == SYM_PTR) {
         struct ptr_db_item *prev = NULL;
 
         ptr_type = add_type_if_needed(type->ctype.base_type, &prev);
@@ -815,6 +839,7 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
             die("MEM_NEW");
         assert(ptr_type);
         clt->items->type = ptr_type;
+        clt->items->name = NULL;
     } else
         if (ptr)
             *ptr = &type_ptr_db.ptr_db.heads[type_ptr_db.ptr_db.pos];
@@ -2094,11 +2119,23 @@ create_cl_chain(const struct cl_plug_options *opt)
 // Worker loop (sparse -> linearized code -> processing -> code_listener)
 // Note: used in both fork and fork-free setups
 static int
-worker_loop(struct cl_code_listener *cl, int argc, char **argv)
+worker_loop(struct cl_plug_options *opt, int argc, char **argv)
 {
     char *file;
     struct string_list *filelist = NULL;
     struct symbol_list *symlist;
+
+    // initialize code listener
+    struct cl_init_data init = { .debug = trivial_printer,
+                                 .warn  = cl_warn,
+                                 .error = cl_error,
+                                 .note  = trivial_printer,
+                                 .die   = trivial_printer  };
+    cl_global_init(&init);
+    cl = create_cl_chain(opt);
+    if (!cl)
+        // error message already emitted
+        return EXIT_FAILURE;
 
     // initialize sparse
     symlist = sparse_initialize(argc, argv, &filelist);
@@ -2125,7 +2162,8 @@ worker_loop(struct cl_code_listener *cl, int argc, char **argv)
     // finalize and destroy
     type_ptr_db_destroy(&type_ptr_db);
     cl->acknowledge(cl);
-    CLEANUP(NOKILL, cl);
+    cl->destroy(cl);
+    cl_global_cleanup();
 
     return EXIT_SUCCESS;
 }
@@ -2134,7 +2172,7 @@ worker_loop(struct cl_code_listener *cl, int argc, char **argv)
 #if DO_FORK
 // Master loop (grab worker's stderr via read_fd, print it after work is over)
 static int
-master_loop(struct cl_code_listener *cl, int read_fd, pid_t pid)
+master_loop(int read_fd, pid_t pid)
 #define MASTER_BUFFSIZE  (4096)
 {
       int stat_loc, res = 0;
@@ -2147,7 +2185,7 @@ master_loop(struct cl_code_listener *cl, int read_fd, pid_t pid)
           if (poll(&fds, 1, -1) < 0) {
               if (errno == EINTR)
                   continue;
-              PERROR_CLEANUP_EXIT("pol", pid, cl, 2);
+              PERROR_KILL_EXIT("pol", pid, 2);
           } else if (fds.revents & POLLHUP)
             // worker has finished
             break;
@@ -2157,23 +2195,20 @@ master_loop(struct cl_code_listener *cl, int read_fd, pid_t pid)
               remain_size = MASTER_BUFFSIZE;
               buffer = MEM_RESIZE_ARR(buffer, alloc_size);
               if (!buffer)
-                  PERROR_CLEANUP_EXIT("MEM_RESIZE_ARR", pid, cl, 2);
+                  PERROR_KILL_EXIT("MEM_RESIZE_ARR", pid, 2);
           }
           read_size = read(read_fd, &buffer[alloc_size-remain_size],
                            remain_size);
           if (read_size < 0)
-              PERROR_CLEANUP_EXIT("read", pid, cl, 2);
+              PERROR_KILL_EXIT("read", pid, 2);
           remain_size -= read_size;
       }
 
       if (wait(&stat_loc) == (pid_t)-1)
-          PERROR_CLEANUP_EXIT("wait", pid, cl, 2);
+          PERROR_KILL_EXIT("wait", pid, 2);
       if (WIFEXITED(stat_loc)) {
           res = WEXITSTATUS(stat_loc);
           fprintf(real_stderr, "sparse returned %i\n", res);
-          if (res)
-              // sparse ended prematurely (probably caused by invalid syntax)
-              CLEANUP(NOKILL, cl);
       }
 
       if (alloc_size-remain_size) {
@@ -2204,28 +2239,17 @@ int main(int argc, char *argv[])
     if (retval = handle_cl_args(argc, argv, &opt))
         return retval;
 
-    // initialize code listener
-    struct cl_init_data init = { .debug = trivial_printer,
-                                 .warn  = cl_warn,
-                                 .error = cl_error,
-                                 .note  = trivial_printer,
-                                 .die   = trivial_printer  };
-    cl_global_init(&init);
-    cl = create_cl_chain(&opt);
-    if (!cl)
-        // error message already emitted
-        return EXIT_FAILURE;
-
 #if DO_FORK
     // set up pipe
     int fildes[2];
     if (pipe(fildes) < 0)
-        PERROR_CLEANUP_EXIT("pipe", NOKILL, cl, 2);
+        PERROR_KILL_EXIT("pipe", NOKILL, 2);
     // master-worker fork
     pid_t pid = fork();
     if (pid == -1)
-        PERROR_CLEANUP_EXIT("fork", NOKILL, cl, 2);
+        PERROR_KILL_EXIT("fork", NOKILL, 2);
     else if (pid == 0) {
+
         /* child = worker, use fildes[1] for writing */
 
         if (close(fildes[0]) < 0)
@@ -2235,18 +2259,19 @@ int main(int argc, char *argv[])
 #endif
 
         // main processing loop
-        retval = worker_loop(cl, argc, argv);
+        retval = worker_loop(&opt, argc, argv);
 
 #if DO_FORK
         if (fclose(real_stderr) == EOF || close(fildes[1]) < 0)
             PERROR_EXIT("fclose/close", 2);
     } else {
+
         /* parent = master, use fildes[0] for reading */
 
         if (close(fildes[1]) < 0)
-            PERROR_CLEANUP_EXIT("close", pid, cl, 2);
+            PERROR_KILL_EXIT("close", pid, 2);
         // master loop -- gather what sparse produce to stderr
-        retval = master_loop(cl, fildes[0], pid);
+        retval = master_loop(fildes[0], pid);
     }
 #endif
 
