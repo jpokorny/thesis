@@ -141,7 +141,7 @@ static void* te_realloc_if_needed(struct typen_data *te)
         te->cnt_allocated += TE_CHUNK;
 
 #if (0 < DEBUG_TYPE_ENUMERATOR)
-        fprintf(stderr, "%s:\tcnt_allocated <-- %lu\t\n", __FUNCTION__,
+        fprintf(stderr, "%s:\tcnt_allocated <-- %zu\t\n", __FUNCTION__,
                 te->cnt_allocated);
         fprintf(stderr, "%s:\tte->items = %p\n", __FUNCTION__,
                 (void *) te->items);
@@ -173,7 +173,7 @@ struct cl_type* typen_insert_with_uid(struct typen_data *te, struct cl_type *typ
         // OOM
         return NULL;
 
-    if (uid <= NEW_UID) {
+    if (uid == NEW_UID) {
         uid = te->last_uid;
         type->uid = uid + 1;
         te->last_uid = type->uid;
@@ -181,8 +181,7 @@ struct cl_type* typen_insert_with_uid(struct typen_data *te, struct cl_type *typ
     } else {
         type->uid = uid;
         // -1 difference between uid and index (see also typen_get_by_uid)
-        uid--;
-        item->next = te->items[uid];
+        item->next = te->items[--uid];
     }
 
     item->key = key;
