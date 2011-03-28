@@ -115,7 +115,7 @@ void typen_destroy(struct typen_data *te)
 {
     struct te_item *item, *item_next;
     int i;
-    for(i = 0; i < te->last_uid - 1; ++i) {
+    for(i = 0; i < te->last_uid; ++i) {
         te->free_fnc(te->items[i]->type);
         item = te->items[i];
         while (item) {
