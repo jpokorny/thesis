@@ -39,6 +39,7 @@
 #include "type_enumerator.h"
 
 // sparse headers
+#include "sparse/lib.h"
 #include "sparse/expression.h"
 #include "sparse/linearize.h"
 #include "sparse/scope.h"
@@ -58,6 +59,7 @@
 #define DO_PER_EP_SET_UP_STORAGE    1
 
 #define FIX_SPARSE_EXTRA_ARG_TO_MEM 1
+#define DO_SPARSE_FREE              1
 
 #define SHOW_PSEUDO_INSNS           0
 
@@ -306,11 +308,9 @@ static inline void
 free_clt_items(struct cl_type_item *items, int item_cnt)
 {
     int i;
-    for (i = 0; i < item_cnt; i++) {
+    for (i = 0; i < item_cnt; i++)
         // nested types are captured on the base level and free'd from here
-        //printf("cleaning: '%s' %p\n", items[i].name, items[i].name);
         free((char *) items[i].name);
-    }
 }
 
 static void
@@ -2135,6 +2135,9 @@ worker_loop(struct cl_plug_options *opt, int argc, char **argv)
     } END_FOR_EACH_PTR_NOTAG(file);
 
     // finalize and destroy
+#if DO_SPARSE_FREE
+    free(input_streams);
+#endif
     type_ptr_db_destroy(&type_ptr_db);
     cl->acknowledge(cl);
     cl->destroy(cl);
