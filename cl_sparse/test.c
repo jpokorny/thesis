@@ -756,8 +756,8 @@ read_type(struct cl_type *clt, struct symbol *type)
      * Note:
      * Unhandled types are denoted with CL_TYPE_UNKNOWN.
      */
-        // how? | sparse type   | clt    | handler          |
-        // -----+---------------+--------+------------------|
+        // how? | sparse type   | clt    | handler               |
+        // -----+---------------+--------+-----------------------|
 
         /* these should not get there (?) */
         TYPE_IGN( UNINITIALIZED ,        ,                       ),
