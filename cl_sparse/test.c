@@ -168,17 +168,16 @@ static struct cl_type
 
 #define EMPTY_LOC  { .file = NULL, .line = -1, .column = -1, .sysp = false }
 
-static const struct cl_operand empty_cl_operand = {
+static const struct cl_operand pristine_cl_operand = {
     .code     = CL_OPERAND_VOID,
     .loc      = EMPTY_LOC,
     .scope    = CL_SCOPE_GLOBAL,
     .type     = NULL,
     .accessor = NULL,
 };
-#define EMPTY_CL_OPERAND(clop)  do { *(clop) = empty_cl_operand; } while (0)
 
-static const struct cl_type empty_cl_type = {
-    .uid        = NEW_UID,  /**< completely in control of type_enumerator */
+static const struct cl_type pristine_cl_type = {
+    .uid        = NEW_UID,  /**< in control of type_enumerator */
     .code       = CL_TYPE_UNKNOWN,
     .loc        = EMPTY_LOC,
     .scope      = CL_SCOPE_GLOBAL,
@@ -188,8 +187,6 @@ static const struct cl_type empty_cl_type = {
     .items      = NULL,
     //.array_size = 0,
 };
-#define EMPTY_CL_TYPE(clt)  do { *(clt) = empty_cl_type; } while (0)
-
 
 static int cl_verbose = 0;
 #define CL_VERBOSE_LOCATION     (1 << 1)
@@ -570,6 +567,22 @@ static inline bool is_base_type(const struct symbol *type)
     return (type->type == SYM_BASETYPE);
 }
 
+static inline struct cl_type* empty_cl_type(struct cl_type* clt)
+{
+    *clt = pristine_cl_type;
+    return clt;
+}
+
+static inline struct cl_type* new_cl_type(void)
+{
+    struct cl_type *retval = MEM_NEW(struct cl_type);
+    if (!retval)
+        die("MEM_NEW failed");
+
+    // guaranteed not to return NULL
+    return empty_cl_type(retval);
+}
+
 static int
 populate_with_base_types(type_ptr_db_t db)
 #define TYPE(sym, clt)  { &sym##_clt, &sym##_ctype, CL_TYPE_##clt, #sym }
@@ -621,7 +634,7 @@ populate_with_base_types(type_ptr_db_t db)
     int i;
     for (i = 0; i < ARRAY_SIZE(base_types); i++) {
         clt = base_types[i].ref;
-        EMPTY_CL_TYPE(clt);
+        empty_cl_type(clt);
 
         ctype = base_types[i].ctype;
 
@@ -701,7 +714,6 @@ read_composite_type(struct cl_type *clt, struct symbol *type)
         case SYM_STRUCT:
             clt->code       = CL_TYPE_STRUCT;
             clt->name       = read_ident(type->ident);
-            clt->items      = NULL;
             add_subtypes(clt, type->symbol_list);
             break;
 
@@ -716,6 +728,7 @@ read_composite_type(struct cl_type *clt, struct symbol *type)
 
         case SYM_FN:
             clt->code       = CL_TYPE_FNC;
+            clt->name       = read_ident(type->ident);
             add_subtype(clt, type->ctype.base_type);
             add_subtypes(clt, type->arguments);
             // XXX: probably convention in cl?
@@ -829,12 +842,9 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
     } else
         clt_ptr = &clt;
 
-    if (uid == NEW_UID) {
-        *clt_ptr = MEM_NEW(struct cl_type);
-        if (!*clt_ptr)
-            die("MEM_NEW failed");
-        EMPTY_CL_TYPE(*clt_ptr);
-    }
+    if (uid == NEW_UID)
+        *clt_ptr = new_cl_type();
+
     clt = type_ptr_db_insert(&type_ptr_db, *clt_ptr, type, uid);
     if (uid != NEW_UID)
         // was pointer alias
@@ -864,6 +874,22 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
 // Symbols/pseudos/operands handling
 //
 
+
+static inline struct cl_operand* empty_cl_operand(struct cl_operand* op)
+{
+    *op = pristine_cl_operand;
+    return op;
+}
+
+static inline struct cl_operand* new_cl_operand(void)
+{
+    struct cl_operand *retval = MEM_NEW(struct cl_operand);
+    if (!retval)
+        die("MEM_NEW failed");
+
+    // guaranteed not to return NULL
+    return empty_cl_operand(retval);
+}
 
 static inline struct cl_cst *
 provide_cst(struct cl_operand *op, enum cl_type_e cst_type)
@@ -928,7 +954,7 @@ read_sym_initializer(struct cl_operand *op, struct expression *expr)
 static void
 read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
 {
-    EMPTY_CL_OPERAND(op);
+    empty_cl_operand(op);
 
     // read symbol location and scope
     read_location(&op->loc, sym->pos);
@@ -967,10 +993,12 @@ read_pseudo_arg(struct cl_operand *op, const pseudo_t pseudo)
 {
     struct symbol *arg_sym;
 
-    //CL_TRAP;
+    // empty_cl_operand(op) called in `read_pseudo_sym'
+
     arg_sym = get_arg_at_pos(pseudo->def->bb->ep->name, pseudo->nr);
     if (!arg_sym)
         CL_TRAP;
+
     // XXX: op->scope       = CL_SCOPE_FUNCTION;
     // XXX: var->artificial = false;
     read_pseudo_sym(op, arg_sym);
@@ -982,7 +1010,7 @@ read_pseudo_reg(struct cl_operand *op, const pseudo_t pseudo)
   * pseudo->def
   *
   */
-    EMPTY_CL_OPERAND(op);
+    empty_cl_operand(op);
 
     op->type = get_instruction_type(pseudo->def);
 
@@ -991,15 +1019,22 @@ read_pseudo_reg(struct cl_operand *op, const pseudo_t pseudo)
     var->name = NULL;
 }
 
+static inline void
+read_pseudo_val(struct cl_operand *op, const pseudo_t pseudo)
+{
+    empty_cl_operand(op);
+
+    op->type = &int_clt;
+    provide_cst(op, CL_TYPE_INT)->data.cst_int.value = pseudo->value;
+}
+
 static inline struct cl_operand *
 read_pseudo(struct cl_operand *op, const pseudo_t pseudo)
 {/* Synopsis:
   * sparse/linearize.h
   */
-    if (!is_pseudo(pseudo)) {
-        EMPTY_CL_OPERAND(op);
-        return op;
-    }
+    if (!is_pseudo(pseudo))
+        return empty_cl_operand(op);
 
     switch (pseudo->type) {
         case PSEUDO_REG:
@@ -1009,9 +1044,7 @@ read_pseudo(struct cl_operand *op, const pseudo_t pseudo)
             read_pseudo_sym(op, pseudo->sym);
             break;
         case PSEUDO_VAL:
-            EMPTY_CL_OPERAND(op);
-            op->type = &int_clt;
-            provide_cst(op, CL_TYPE_INT)->data.cst_int.value = pseudo->value;
+            read_pseudo_val(op, pseudo);
             break;
         case PSEUDO_ARG:
             read_pseudo_arg(op, pseudo);
@@ -1198,7 +1231,7 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
     FOR_EACH_PTR(insn->arguments, arg) {
         struct cl_operand arg_operand;
         if (arg->type == PSEUDO_SYM) {
-            EMPTY_CL_OPERAND(&arg_operand);
+            empty_cl_operand(&arg_operand);
             read_pseudo_sym(&arg_operand, arg->sym);
         } else {
             read_pseudo(&arg_operand, arg);
