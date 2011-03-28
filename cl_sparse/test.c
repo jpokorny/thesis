@@ -70,6 +70,8 @@
 //
 
 
+#define PARTIALLY_ORDERED(a, b, c)  (a <= b && b <= c)
+
 #define MEM_NEW(type) \
     malloc(sizeof(type))
 
@@ -696,56 +698,115 @@ add_subtypes(struct cl_type *clt, struct symbol_list *subtypes)
     } END_FOR_EACH_PTR(subtype);
 }
 
+static inline void
+read_type_fnc(struct cl_type *clt, struct symbol *type)
+{
+    clt->name       = read_ident(type->ident);
+    add_subtype(clt, type->ctype.base_type);
+    add_subtypes(clt, type->arguments);
+    // XXX: probably convention in cl?
+    add_subtype(clt, &void_ctype);
+}
+
+static inline void
+read_type_struct(struct cl_type *clt, struct symbol *type)
+{
+    clt->name = read_ident(type->ident);
+    add_subtypes(clt, type->symbol_list);
+}
+
+static inline void
+read_type_union(struct cl_type *clt, struct symbol *type)
+{
+    CL_TRAP;
+    clt->name     = read_ident(type->ident);
+    //TODO:
+    //add_subtypes(clt, type->symbol_list);
+    clt->item_cnt = /* TODO */ 0;
+    clt->items    = /* TODO */ NULL;
+}
+
+static inline void
+read_type_enum(struct cl_type *clt, struct symbol *type)
+{
+    clt->name = read_ident(type->ident);
+}
+
+typedef void (*type_handler)(struct cl_type *, struct symbol *);
 static void
-read_composite_type(struct cl_type *clt, struct symbol *type)
+read_type(struct cl_type *clt, struct symbol *type)
+#define TYPE_STD(spt, clt, hnd) \
+        [SYM_##spt] = { .type_code = CL_TYPE_##clt, .data.handler = hnd }
+#define TYPE_IGN(spt, _, __) \
+        [SYM_##spt] = { .type_code = CL_TYPE_UNKNOWN,  \
+                        .data.type_str = "SYM_ "#spt }
 {/* Synopsis:
   * sparse/symbol.h
   */
+    const struct type_handlers {
+        enum cl_type_e    type_code;
+        union {
+            type_handler  handler;
+            const char    *type_str;
+        } data;
+    } type_handlers[] = {
+    /* Synopsis:
+     * sparse/symbol.h
+     *
+     * Note:
+     * Unhandled types are denoted with CL_TYPE_UNKNOWN.
+     */
+        // how? | sparse type   | clt    | handler          |
+        // -----+---------------+--------+------------------|
+
+        /* these should not get there (?) */
+        TYPE_IGN( UNINITIALIZED ,        ,                       ),
+        TYPE_IGN( PREPROCESSOR  ,        ,                       ),
+        TYPE_IGN( BASETYPE      ,        ,                       ),
+        TYPE_IGN( NODE          ,        ,                       ),
+
+        /* ready to handle (TODO: array) */
+        TYPE_STD( PTR           , PTR    , NULL /*set code only*/),
+        TYPE_STD( FN            , FNC    , read_type_fnc         ),
+        TYPE_IGN( ARRAY         , ARRAY  ,                       ),
+        TYPE_STD( STRUCT        , STRUCT , read_type_struct      ),
+        TYPE_STD( UNION         , UNION  , read_type_union       ),
+        TYPE_STD( ENUM          , ENUM   , read_type_enum        ),
+
+        /* what about these? */
+        TYPE_IGN( TYPEDEF       ,        ,                       ),
+        TYPE_IGN( TYPEOF        ,        ,                       ),
+        TYPE_IGN( MEMBER        ,        ,                       ),
+        TYPE_IGN( BITFIELD      ,        ,                       ),
+        TYPE_IGN( LABEL         ,        ,                       ),
+        TYPE_IGN( RESTRICT      ,        ,                       ),
+        TYPE_IGN( FOULED        ,        ,                       ),
+        TYPE_IGN( KEYWORD       ,        ,                       ),
+        TYPE_IGN( BAD           ,        ,                       ),
+    };
+
+    const struct type_handlers *type_handler;
+
+    //assert(PARTIALLY_ORDERED( SYM_UNINITIALIZED, symbol->type, SYM_BAD ));
+    type_handler = &type_handlers[type->type];
+
     read_location(&clt->loc, type->pos);
     read_scope(&clt->scope, type->scope);
+
+    clt->code = type_handler->type_code;
     clt->size = sizeof_from_bits(type->bit_size);
 
-    switch (type->type) {
-        case SYM_PTR:
-            clt->code       = CL_TYPE_PTR;
-            // item added back in `add_type_if_needed'
-            break;
-
-        case SYM_STRUCT:
-            clt->code       = CL_TYPE_STRUCT;
-            clt->name       = read_ident(type->ident);
-            add_subtypes(clt, type->symbol_list);
-            break;
-
-        case SYM_UNION:
-            clt->code       = CL_TYPE_UNION;
-            clt->name       = read_ident(type->ident);
-            //TODO:
-            //add_subtypes(clt, type->symbol_list);
-            clt->item_cnt   = /* TODO */ 0;
-            clt->items      = /* TODO */ NULL;
-            break;
-
-        case SYM_FN:
-            clt->code       = CL_TYPE_FNC;
-            clt->name       = read_ident(type->ident);
-            add_subtype(clt, type->ctype.base_type);
-            add_subtypes(clt, type->arguments);
-            // XXX: probably convention in cl?
-            add_subtype(clt, &void_ctype);
-            break;
-
-        case SYM_ENUM:
-            clt->code       = CL_TYPE_ENUM;
-            clt->name       = read_ident(type->ident);
-            break;
-
-        default:
-            // base types should be already handled
-            CL_TRAP;
-            clt->code       = CL_TYPE_UNKNOWN;
+    switch (type_handler->type_code) {
+        case CL_TYPE_UNKNOWN:
+            WARN_UNHANDLED(type->pos, type_handler->data.type_str);
             clt->name       = strdup(show_typename(type));
+            return;
+        default:
+            break;
     }
+
+    if (type_handler->data.handler)
+        type_handler->data.handler(clt, type);
 }
 
 static void
@@ -852,7 +913,7 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
 
     // Slow path for anything (except for pointers) which is being
     // proceeded for the first time (next time, hashed ctl is used instead)
-    read_composite_type(clt, type);
+    read_type(clt, type);
     if (type->type == SYM_PTR) {
         // use obtained dereferenced type
         clt->item_cnt = 1;
@@ -1559,9 +1620,10 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
     return true;
 }
 
-typedef bool insn_handler(struct cl_insn *, const struct instruction *);
-static bool handle_insn(struct instruction *insn)
-#define INSN_GEN(spi, cli, hnd) \
+typedef bool (*insn_handler)(struct cl_insn *, const struct instruction *);
+static bool
+handle_insn(struct instruction *insn)
+#define INSN_STD(spi, cli, hnd) \
     [OP_##spi] = { .insn_code = CL_INSN_##cli, .data.handler = hnd }
 #define INSN_UNI(spi, unop_code, hnd) \
     [OP_##spi] = { .insn_code = CL_INSN_UNOP,                                \
@@ -1579,7 +1641,7 @@ static bool handle_insn(struct instruction *insn)
             enum cl_binop_e  binop;
         } code;
         union {
-            insn_handler     *handler;
+            insn_handler     handler;
             const char       *insn_str;
         } data;
     } insn_handlers[] = {
@@ -1590,10 +1652,9 @@ static bool handle_insn(struct instruction *insn)
      * Instructions with more complicated rules (more instructions are emitted
      * per the single original one) are denoted with NOP, unhandled with ABORT.
      */
-        // type | sparse insn.    | cl insn. (+ uni/bin)| handler            |
+        // how? | sparse insn.    | cl insn. (+uni/bin) | handler            |
         //------+-----------------+---------------------+--------------------|
 
-        INSN_GEN( RET             , RET                 , handle_insn_ret    ),
         INSN_IGN( BADOP           ,                     ,                    ),
 
         /* Entry */
@@ -1601,9 +1662,9 @@ static bool handle_insn(struct instruction *insn)
 
         /* Terminator */
         // OP_TERMINATOR = OP_RET
-        INSN_GEN( RET             , RET                 , handle_insn_ret    ),
-        INSN_GEN( BR              , NOP /*JMP or COND*/ , handle_insn_br     ),
-        INSN_GEN( SWITCH          , NOP /*another way*/ , handle_insn_switch ),
+        INSN_STD( RET             , RET                 , handle_insn_ret    ),
+        INSN_STD( BR              , NOP /*JMP or COND*/ , handle_insn_br     ),
+        INSN_STD( SWITCH          , NOP /*another way*/ , handle_insn_switch ),
         INSN_IGN( INVOKE          ,                     ,                    ),
         INSN_IGN( COMPUTEDGOTO    ,                     ,                    ),
         INSN_IGN( UNWIND          ,                     ,                    ),
@@ -1650,7 +1711,7 @@ static bool handle_insn(struct instruction *insn)
         INSN_IGN( NEG             ,                     ,                    ),
 
         /* Select - three input values */
-        INSN_GEN( SEL             , NOP /*COND*/        , handle_insn_sel    ),
+        INSN_STD( SEL             , NOP /*COND*/        , handle_insn_sel    ),
 
         /* Memory */
         INSN_IGN( MALLOC          ,                     ,                    ),
@@ -1672,7 +1733,7 @@ static bool handle_insn(struct instruction *insn)
         INSN_UNI( FPCAST          , ASSIGN              , handle_insn_copy   ),
         INSN_UNI( PTRCAST         , ASSIGN              , handle_insn_ptrcast),
         INSN_IGN( INLINED_CALL    ,                     ,                    ),
-        INSN_GEN( CALL            , NOP /*another way*/ , handle_insn_call   ),
+        INSN_STD( CALL            , NOP /*another way*/ , handle_insn_call   ),
         INSN_IGN( VANEXT          ,                     ,                    ),
         INSN_IGN( VAARG           ,                     ,                    ),
         INSN_IGN( SLICE           ,                     ,                    ),
@@ -1691,16 +1752,14 @@ static bool handle_insn(struct instruction *insn)
     };
 
     struct cl_insn cli;
-    const struct insn_handlers* insn_handler;
-
-    enum opcode code = insn->opcode;
-    //assert(OP_BADOP <= code && code <= OP_COPY);
+    const struct insn_handlers *insn_handler;
 
     if (verbose & CL_VERBOSE_INSTRUCTION)
         NOTE("\t%d: instruction to be processed: %s", insn->pos.line,
                                                       show_instruction(insn));
 
-    insn_handler = &insn_handlers[code];
+    //assert(PARTIALLY_ORDERED( OP_BADOP, insn->opcode, OP_COPY));
+    insn_handler = &insn_handlers[insn->opcode];
 
     read_location(&cli.loc, insn->pos);
     cli.code = insn_handler->insn_code;
@@ -1708,7 +1767,7 @@ static bool handle_insn(struct instruction *insn)
     switch (insn_handler->insn_code) {
         case CL_INSN_ABORT:
             WARN_UNHANDLED(insn->pos, insn_handler->data.insn_str);
-            break;
+            return true;
         case CL_INSN_UNOP:
             cli.data.insn_unop.code = insn_handler->code.unop;
             break;
