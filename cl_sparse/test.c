@@ -193,7 +193,8 @@ static const struct cl_type pristine_cl_type = {
 static int cl_verbose = 0;
 #define CL_VERBOSE_LOCATION     (1 << 1)
 #define CL_VERBOSE_INSTRUCTION  (1 << 2)
-#define CL_VERBOSE_INSERT_TYPE  (1 << 3)
+#define CL_VERBOSE_TYPE         (1 << 3)
+#define CL_VERBOSE_INSERT_TYPE  (1 << 4)
 
 
 
@@ -732,24 +733,23 @@ read_type_enum(struct cl_type *clt, struct symbol *type)
     clt->name = read_ident(type->ident);
 }
 
-typedef void (*type_handler)(struct cl_type *, struct symbol *);
 static void
 read_type(struct cl_type *clt, struct symbol *type)
 #define TYPE_STD(spt, clt, hnd) \
-        [SYM_##spt] = { .type_code = CL_TYPE_##clt, .data.handler = hnd }
+    [SYM_##spt]={ .type_code=CL_TYPE_##clt, .prop.handler=hnd }
 #define TYPE_IGN(spt, _, __) \
-        [SYM_##spt] = { .type_code = CL_TYPE_UNKNOWN,  \
-                        .data.type_str = "SYM_"#spt }
+    [SYM_##spt]={ .type_code=CL_TYPE_UNKNOWN, .prop.string="SYM_"#spt }
 {/* Synopsis:
   * sparse/symbol.h
   */
-    const struct type_handlers {
+    typedef void (*type_handler)(struct cl_type *, struct symbol *);
+    const struct type_transformer {
         enum cl_type_e    type_code;
         union {
             type_handler  handler;
-            const char    *type_str;
-        } data;
-    } type_handlers[] = {
+            const char    *string;
+        } prop;
+    } type_transformers[] = {
     /* Synopsis:
      * sparse/symbol.h
      *
@@ -768,7 +768,7 @@ read_type(struct cl_type *clt, struct symbol *type)
         /* ready to handle (TODO: array) */
         TYPE_STD( PTR           , PTR    , NULL /*set code only*/),
         TYPE_STD( FN            , FNC    , read_type_fnc         ),
-        TYPE_IGN( ARRAY         , ARRAY  ,                       ),
+        TYPE_IGN( ARRAY         , ARRAY  , read_type_array       ),
         TYPE_STD( STRUCT        , STRUCT , read_type_struct      ),
         TYPE_STD( UNION         , UNION  , read_type_union       ),
         TYPE_STD( ENUM          , ENUM   , read_type_enum        ),
@@ -785,29 +785,34 @@ read_type(struct cl_type *clt, struct symbol *type)
         TYPE_IGN( BAD           ,        ,                       ),
     };
 
-    const struct type_handlers *type_handler;
+    const struct type_transformer *transformer;
 
-    //assert(PARTIALLY_ORDERED( SYM_UNINITIALIZED, symbol->type, SYM_BAD ));
-    type_handler = &type_handlers[type->type];
+    if (verbose & CL_VERBOSE_TYPE) {
+        NOTE("\t%d: type to be processed:\n", type->pos.line);
+        show_symbol(type);
+    }
+
+    //assert(PARTIALLY_ORDERED( SYM_UNINITIALIZED , symbol->type , SYM_BAD ));
+    transformer = &type_transformers[type->type];
 
     read_location(&clt->loc, type->pos);
     read_scope(&clt->scope, type->scope);
 
-    clt->code = type_handler->type_code;
+    clt->code = transformer->type_code;
     clt->size = sizeof_from_bits(type->bit_size);
 
-    switch (type_handler->type_code) {
+    switch (transformer->type_code) {
         case CL_TYPE_UNKNOWN:
             CL_TRAP;
-            WARN_UNHANDLED(type->pos, type_handler->data.type_str);
-            clt->name       = strdup(show_typename(type));
+            WARN_UNHANDLED(type->pos, transformer->prop.string);
+            clt->name = strdup(show_typename(type));
             return;
         default:
             break;
     }
 
-    if (type_handler->data.handler)
-        type_handler->data.handler(clt, type);
+    if (transformer->prop.handler)
+        transformer->prop.handler(clt, type);
 }
 
 static inline void
@@ -1613,21 +1618,22 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
     return true;
 }
 
-typedef bool (*insn_handler)(struct cl_insn *, const struct instruction *);
 static bool
 handle_insn(struct instruction *insn)
 #define INSN_STD(spi, cli, hnd) \
-    [OP_##spi] = { .insn_code = CL_INSN_##cli, .data.handler = hnd }
+    [OP_##spi]={ .insn_code=CL_INSN_##cli,\
+                 .prop.handler=hnd }
 #define INSN_UNI(spi, unop_code, hnd) \
-    [OP_##spi] = { .insn_code = CL_INSN_UNOP,                                \
-                   .code.unop = CL_UNOP_##unop_code, .data.handler = hnd }
-#define INSN_BIN(spi, binop_code, hnd)                                       \
-    [OP_##spi] = { .insn_code = CL_INSN_BINOP,                               \
-                   .code.binop = CL_BINOP_##binop_code , .data.handler = hnd }
+    [OP_##spi]={ .insn_code=CL_INSN_UNOP, .code.unop=CL_UNOP_##unop_code,\
+                 .prop.handler=hnd }
+#define INSN_BIN(spi, binop_code, hnd) \
+    [OP_##spi]={ .insn_code=CL_INSN_BINOP, .code.binop=CL_BINOP_##binop_code,\
+                 .prop.handler=hnd }
 #define INSN_IGN(spi, _, __) \
-    [OP_##spi] = { .insn_code = CL_INSN_ABORT, .data.insn_str = "OP_" #spi }
+    [OP_##spi] = { .insn_code=CL_INSN_ABORT, .prop.string = "OP_" #spi }
 {
-    const struct insn_handlers {
+    typedef bool (*insn_handler)(struct cl_insn *, const struct instruction *);
+    const struct insn_transformer {
         enum cl_insn_e       insn_code;
         union {
             enum cl_unop_e   unop;
@@ -1635,9 +1641,9 @@ handle_insn(struct instruction *insn)
         } code;
         union {
             insn_handler     handler;
-            const char       *insn_str;
-        } data;
-    } insn_handlers[] = {
+            const char       *string;
+        } prop;
+    } insn_transformers[] = {
     /* Synopsis:
      * sparse/linearize.h
      *
@@ -1745,34 +1751,34 @@ handle_insn(struct instruction *insn)
     };
 
     struct cl_insn cli;
-    const struct insn_handlers *insn_handler;
+    const struct insn_transformer *transformer;
 
     if (verbose & CL_VERBOSE_INSTRUCTION)
         NOTE("\t%d: instruction to be processed: %s", insn->pos.line,
                                                       show_instruction(insn));
 
-    //assert(PARTIALLY_ORDERED( OP_BADOP, insn->opcode, OP_COPY));
-    insn_handler = &insn_handlers[insn->opcode];
+    //assert(PARTIALLY_ORDERED( OP_BADOP , insn->opcode , OP_COPY ));
+    transformer = &insn_transformers[insn->opcode];
 
     read_location(&cli.loc, insn->pos);
-    cli.code = insn_handler->insn_code;
+    cli.code = transformer->insn_code;
 
-    switch (insn_handler->insn_code) {
+    switch (transformer->insn_code) {
         case CL_INSN_ABORT:
-            WARN_UNHANDLED(insn->pos, insn_handler->data.insn_str);
+            WARN_UNHANDLED(insn->pos, transformer->prop.string);
             return true;
         case CL_INSN_UNOP:
-            cli.data.insn_unop.code = insn_handler->code.unop;
+            cli.data.insn_unop.code = transformer->code.unop;
             break;
         case CL_INSN_BINOP:
-            cli.data.insn_binop.code = insn_handler->code.binop;
+            cli.data.insn_binop.code = transformer->code.binop;
             break;
         default:
             break;
     }
 
-    assert(insn_handler->data.handler);
-    return insn_handler->data.handler(&cli, insn);
+    assert(transformer->prop.handler);
+    return transformer->prop.handler(&cli, insn);
 }
 
 static bool is_insn_interesting(struct instruction *insn)
