@@ -305,6 +305,19 @@ static void
 free_clt(struct cl_type *clt);
 
 static inline void
+free_cl_accessors(struct cl_accessor *ac)
+{
+    struct cl_accessor *ac_next;
+
+    while (ac) {
+        ac_next = ac->next;
+        // TODO: index
+        free(ac);
+        ac = ac_next;
+    }
+}
+
+static inline void
 free_clt_items(struct cl_type_item *items, int item_cnt)
 {
     int i;
@@ -359,6 +372,8 @@ free_cl_operand_data(struct cl_operand *op)
 {
     switch (op->code) {
         case CL_OPERAND_VAR:
+            // XXX: cl_pp says that accessor is not expected for CL_OPERAND_CST
+            free_cl_accessors(op->accessor);
             free((char *) op->data.var->name);
             free(op->data.var);
             break;
@@ -371,9 +386,6 @@ free_cl_operand_data(struct cl_operand *op)
         default:
             break;
     }
-
-    // TODO
-    free(op->accessor);
 }
 
 
