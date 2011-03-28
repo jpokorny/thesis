@@ -308,7 +308,7 @@ free_clt_items(struct cl_type_item *items, int item_cnt)
     int i;
     for (i = 0; i < item_cnt; i++) {
         // nested types are captured on the base level and free'd from here
-        printf("cleaning: '%s' %p\n", items[i].name, items[i].name);
+        //printf("cleaning: '%s' %p\n", items[i].name, items[i].name);
         free((char *) items[i].name);
     }
 }
@@ -926,6 +926,8 @@ read_sym_initializer(struct cl_operand *op, struct expression *expr)
 static void
 read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
 {
+    EMPTY_CL_OPERAND(op);
+
     // read symbol location and scope
     read_location(&op->loc, sym->pos);
     read_scope(&op->scope, sym->scope);
@@ -978,6 +980,8 @@ read_pseudo_reg(struct cl_operand *op, const pseudo_t pseudo)
   * pseudo->def
   *
   */
+    EMPTY_CL_OPERAND(op);
+
     op->type = get_instruction_type(pseudo->def);
 
     struct cl_var *var = provide_var(op);
@@ -990,10 +994,10 @@ read_pseudo(struct cl_operand *op, const pseudo_t pseudo)
 {/* Synopsis:
   * sparse/linearize.h
   */
-    EMPTY_CL_OPERAND(op);
-
-    if (!is_pseudo(pseudo))
+    if (!is_pseudo(pseudo)) {
+        EMPTY_CL_OPERAND(op);
         return op;
+    }
 
     switch (pseudo->type) {
         case PSEUDO_REG:
@@ -1003,6 +1007,7 @@ read_pseudo(struct cl_operand *op, const pseudo_t pseudo)
             read_pseudo_sym(op, pseudo->sym);
             break;
         case PSEUDO_VAL:
+            EMPTY_CL_OPERAND(op);
             op->type = &int_clt;
             provide_cst(op, CL_TYPE_INT)->data.cst_int.value = pseudo->value;
             break;
@@ -1814,22 +1819,11 @@ static void handle_fnc_arg_list(struct symbol_list *arg_list)
     int argc = 0;
     FOR_EACH_PTR(arg_list, arg) {
         struct cl_operand op;
-        op.code                     = CL_OPERAND_VAR;
-        op.scope                    = CL_SCOPE_FUNCTION;
-        op.type                     = clt_from_sym(arg);
-        op.accessor                 = NULL;
-        op.data.var = MEM_NEW(struct cl_var);
-#if 1
-        op.data.var->uid             = /* TODO */ (int)(long) arg;
-        op.data.var->name            = read_ident(arg->ident);
-#endif
 
-        read_location(&op.loc, arg->pos);
-
+        read_pseudo_sym(&op, arg);
         //f>
         cl->fnc_arg_decl(cl, ++argc, &op);
         //f>
-
         free_cl_operand_data(&op);
     } END_FOR_EACH_PTR(arg);
 }
@@ -1837,21 +1831,12 @@ static void handle_fnc_arg_list(struct symbol_list *arg_list)
 static void handle_fnc_def(struct symbol *sym)
 {
     struct cl_operand fnc;
-    read_location(&fnc.loc, sym->pos);
-    read_scope(&fnc.scope, sym->scope);
 
-    fnc.code                            = CL_OPERAND_CST;
-    fnc.type                            = clt_from_sym(sym);
-    fnc.accessor                        = NULL;
-    fnc.data.cst.code                   = CL_TYPE_FNC;
-    fnc.data.cst.data.cst_fnc.name      = show_ident(sym->ident);
-    fnc.data.cst.data.cst_fnc.is_extern = false;
-
+    read_pseudo_sym(&fnc, sym);
     //f>
     cl->fnc_open(cl, &fnc);
     //f>
-
-    /* no need to call free_cl_operand_data() */
+    free_cl_operand_data(&fnc);
 
     // dump argument list
     handle_fnc_arg_list(sym->ctype.base_type->arguments);
