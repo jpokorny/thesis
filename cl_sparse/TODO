@@ -20,3 +20,11 @@ sparse:
 =======
 * does not complain about nonsensical recursive type (see tests/struct/rs1-01.c.bad)
 * generates phi instruction after unssa (hash_table.c: 85)
+
+
+code listener:
+==============
+
+* accessors with CL_OPERAND_CST
+* type->items for CL_TYPE_FNC ([0] = return value, [1+] = args, why one extra
+                               expected?)
