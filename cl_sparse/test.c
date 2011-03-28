@@ -847,16 +847,6 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
 }
 
 
-static inline struct cl_type *
-clt_from_sym(struct symbol *sym)
-{
-    if (!sym || !sym->ctype.base_type)
-        CL_TRAP;
-
-    return add_type_if_needed(sym->ctype.base_type, NULL);
-}
-
-
 
 //
 // Symbols/pseudos/operands handling
@@ -914,7 +904,7 @@ read_sym_initializer(struct cl_operand *op, struct expression *expr)
 
     switch (expr->type) {
         case EXPR_STRING:
-            op->type = clt_from_sym(expr->ctype);
+            op->type = add_type_if_needed(expr->ctype, NULL);
             provide_cst(op, CL_TYPE_STRING)->data.cst_string.value
                 = read_string(expr->string);
             return;
@@ -944,7 +934,7 @@ read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
         return;
     }
 
-    op->type = clt_from_sym(sym);
+    op->type = add_type_if_needed(sym, NULL);
 
     if (sym->ctype.base_type->type == SYM_FN) {
         struct cl_cst *cst = provide_cst(op, CL_TYPE_FNC);
