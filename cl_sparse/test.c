@@ -1300,7 +1300,7 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
   *
   * Problems:
   */
-    struct cl_operand dst, fnc;
+    struct cl_operand dst, fnc, arg_op;
     struct pseudo *arg;
     int cnt = 0;
 
@@ -1317,17 +1317,11 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
     /* emit arguments */
 
     FOR_EACH_PTR(insn->arguments, arg) {
-        struct cl_operand arg_operand;
-        if (arg->type == PSEUDO_SYM) {
-            empty_cl_operand(&arg_operand);
-            read_pseudo_sym(&arg_operand, arg->sym);
-        } else {
-            read_pseudo(&arg_operand, arg);
-        }
+        read_pseudo(&arg_op, arg);
         //c>
-        cl->insn_call_arg(cl, ++cnt, &arg_operand);
+        cl->insn_call_arg(cl, ++cnt, &arg_op);
         //c>
-        free_cl_operand_data(&arg_operand);
+        free_cl_operand_data(&arg_op);
     } END_FOR_EACH_PTR(arg);
 
     /* close call */
@@ -1937,16 +1931,16 @@ static void handle_fnc_body(struct symbol *sym)
 
 static void handle_fnc_arg_list(struct symbol_list *arg_list)
 {
-    struct symbol *arg;
     int argc = 0;
-    FOR_EACH_PTR(arg_list, arg) {
-        struct cl_operand op;
+    struct symbol *arg;
+    struct cl_operand arg_op;
 
-        read_pseudo_sym(&op, arg);
+    FOR_EACH_PTR(arg_list, arg) {
+        read_pseudo_sym(&arg_op, arg);
         //f>
-        cl->fnc_arg_decl(cl, ++argc, &op);
+        cl->fnc_arg_decl(cl, ++argc, &arg_op);
         //f>
-        free_cl_operand_data(&op);
+        free_cl_operand_data(&arg_op);
     } END_FOR_EACH_PTR(arg);
 }
 
