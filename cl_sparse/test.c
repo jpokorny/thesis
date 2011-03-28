@@ -671,7 +671,7 @@ get_instruction_type(struct instruction *insn)
         return &int_clt;
 }
 
-static void
+static struct cl_type_item *
 add_subtype(struct cl_type *clt, struct symbol *subtype)
 {
     assert(clt->item_cnt >= 0);
@@ -687,6 +687,8 @@ add_subtype(struct cl_type *clt, struct symbol *subtype)
     subtype_item->name = read_ident(subtype->ident);
     if (clt->code == CL_TYPE_STRUCT || clt->code == CL_TYPE_UNION)
         subtype_item->offset = subtype->offset;
+
+    return subtype_item;
 }
 
 static void
@@ -707,6 +709,15 @@ read_type_fnc(struct cl_type *clt, struct symbol *type)
     add_subtypes(clt, type->arguments);
     // XXX: probably convention in cl?
     add_subtype(clt, &void_ctype);
+}
+
+static inline void
+read_type_array(struct cl_type *clt, struct symbol *type)
+{
+    //CL_TRAP;
+    //clt->name = read_ident(type->ident);
+    int subtype_size = add_subtype(clt, type->ctype.base_type)->type->size;
+    clt->array_size = clt->size/subtype_size;
 }
 
 static inline void
@@ -768,7 +779,7 @@ read_type(struct cl_type *clt, struct symbol *type)
         /* ready to handle (TODO: array) */
         TYPE_STD( PTR           , PTR    , NULL /*set code only*/),
         TYPE_STD( FN            , FNC    , read_type_fnc         ),
-        TYPE_IGN( ARRAY         , ARRAY  , read_type_array       ),
+        TYPE_STD( ARRAY         , ARRAY  , read_type_array       ),
         TYPE_STD( STRUCT        , STRUCT , read_type_struct      ),
         TYPE_STD( UNION         , UNION  , read_type_union       ),
         TYPE_STD( ENUM          , ENUM   , read_type_enum        ),
@@ -788,7 +799,7 @@ read_type(struct cl_type *clt, struct symbol *type)
     const struct type_transformer *transformer;
 
     if (verbose & CL_VERBOSE_TYPE) {
-        NOTE("\t%d: type to be processed:\n", type->pos.line);
+        NOTE("\t%d: type to be processed:", type->pos.line);
         show_symbol(type);
     }
 
@@ -815,11 +826,12 @@ read_type(struct cl_type *clt, struct symbol *type)
         transformer->prop.handler(clt, type);
 }
 
-static inline void
-type_unwrap(struct symbol **type)
+static inline struct symbol *
+type_unwrap(struct symbol *type)
 {
-    if ((*type)->type == SYM_NODE)
-        *type = (*type)->ctype.base_type;
+    return (type->type == SYM_NODE)
+        ? type->ctype.base_type
+        : type;
 #if 0
     while ((*type)->type == SYM_NODE /* others? */)
         *type = (*type)->ctype.base_type;
@@ -858,6 +870,7 @@ static struct cl_type *
 add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
 {
     struct cl_type *clt;
+    struct symbol *unwrapped_type;
 
     if (!type)
         CL_TRAP;
@@ -865,10 +878,10 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
     // FIXME: this approach is completely wrong since we get type info for the
     // operand's base however we need to get type info in regards to the given
     // accessor
-    type_unwrap(&type);
+    unwrapped_type = type_unwrap(type);
 
     // Fastest path, we have the type already in hash table
-    clt = typen_get_by_key(type_ptr_db.type_db, type);
+    clt = typen_get_by_key(type_ptr_db.type_db, unwrapped_type);
     if (clt) {
         // type already hashed
         if (ptr)
@@ -881,10 +894,10 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
     struct cl_type *ptr_type = NULL;
     // Extra handling of pointer symbols, potentially fast circuit for pointer
     // type alias (i.e. no allocation)
-    if (type->type == SYM_PTR) {
+    if (unwrapped_type->type == SYM_PTR) {
         struct ptr_db_item *prev = NULL;
 
-        ptr_type = add_type_if_needed(type->ctype.base_type, &prev);
+        ptr_type = add_type_if_needed(unwrapped_type->ctype.base_type, &prev);
         if (!prev->next) {
             prev->next = MEM_NEW(struct ptr_db_item);
             if (!prev->next)
@@ -904,15 +917,15 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
     if (uid == NEW_UID)
         *clt_ptr = new_cl_type();
 
-    clt = type_ptr_db_insert(&type_ptr_db, *clt_ptr, type, uid);
+    clt = type_ptr_db_insert(&type_ptr_db, *clt_ptr, unwrapped_type, uid);
     if (uid != NEW_UID)
         // was pointer alias
         return clt;
 
     // Slow path for anything (except for pointers) which is being
     // proceeded for the first time (next time, hashed ctl is used instead)
-    read_type(clt, type);
-    if (type->type == SYM_PTR) {
+    read_type(clt, unwrapped_type);
+    if (unwrapped_type->type == SYM_PTR) {
         // use obtained dereferenced type
         clt->item_cnt = 1;
         clt->items = MEM_NEW(struct cl_type_item);
@@ -921,9 +934,19 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
         assert(ptr_type);
         clt->items->type = ptr_type;
         clt->items->name = NULL;
-    } else
-        if (ptr)
-            *ptr = &type_ptr_db.ptr_db.heads[type_ptr_db.ptr_db.pos];
+
+        return clt;
+    }
+
+    if (unwrapped_type->type == SYM_ARRAY && type->type == SYM_NODE) {
+        //CL_TRAP;
+        // normalize size of the "outer" dimension as well as missing size
+        clt->size = sizeof_from_bits(type->bit_size);
+        clt->array_size = clt->size/clt->items[0].type->size;
+    }
+    if (ptr)
+        *ptr = &type_ptr_db.ptr_db.heads[type_ptr_db.ptr_db.pos];
+
     return clt;
 }
 
@@ -947,7 +970,8 @@ static inline struct cl_operand* new_cl_operand(void)
         die("MEM_NEW failed");
 
     // guaranteed not to return NULL
-    return empty_cl_operand(retval);
+    //return empty_cl_operand(retval);
+    return retval;
 }
 
 static inline struct cl_cst *
@@ -999,6 +1023,7 @@ read_sym_initializer(struct cl_operand *op, struct expression *expr)
     if (!expr)
         return;
 
+    //CL_TRAP;
     switch (expr->type) {
         case EXPR_STRING:
             op->type = add_type_if_needed(expr->ctype, NULL);
@@ -1010,7 +1035,7 @@ read_sym_initializer(struct cl_operand *op, struct expression *expr)
     }
 }
 
-static void
+static struct cl_operand *
 read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
 {
     empty_cl_operand(op);
@@ -1045,9 +1070,11 @@ read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
     struct cl_var *var = provide_var(op);
     var->uid  = (int)(long) sym;
     var->name = read_ident(sym->ident);
+
+    return op;
 }
 
-static inline void
+static inline struct cl_operand *
 read_pseudo_arg(struct cl_operand *op, const pseudo_t pseudo)
 {
     struct symbol *arg_sym;
@@ -1060,10 +1087,10 @@ read_pseudo_arg(struct cl_operand *op, const pseudo_t pseudo)
 
     // XXX: op->scope       = CL_SCOPE_FUNCTION;
     // XXX: var->artificial = false;
-    read_pseudo_sym(op, arg_sym);
+    return read_pseudo_sym(op, arg_sym);
 }
 
-static void
+static struct cl_operand *
 read_pseudo_reg(struct cl_operand *op, const pseudo_t pseudo)
 {/* Synopsis:
   * pseudo->def
@@ -1076,15 +1103,19 @@ read_pseudo_reg(struct cl_operand *op, const pseudo_t pseudo)
     struct cl_var *var = provide_var(op);
     var->uid  = (int)(long) pseudo;
     var->name = NULL;
+
+    return op;
 }
 
-static inline void
-read_pseudo_val(struct cl_operand *op, const pseudo_t pseudo)
+static inline struct cl_operand *
+read_pseudo_val(struct cl_operand *op, long long value)
 {
     empty_cl_operand(op);
 
     op->type = &int_clt;
-    provide_cst(op, CL_TYPE_INT)->data.cst_int.value = pseudo->value;
+    provide_cst(op, CL_TYPE_INT)->data.cst_int.value = value;
+
+    return op;
 }
 
 static inline struct cl_operand *
@@ -1096,18 +1127,10 @@ read_pseudo(struct cl_operand *op, const pseudo_t pseudo)
         return empty_cl_operand(op);
 
     switch (pseudo->type) {
-        case PSEUDO_REG:
-            read_pseudo_reg(op, pseudo);
-            break;
-        case PSEUDO_SYM:
-            read_pseudo_sym(op, pseudo->sym);
-            break;
-        case PSEUDO_VAL:
-            read_pseudo_val(op, pseudo);
-            break;
-        case PSEUDO_ARG:
-            read_pseudo_arg(op, pseudo);
-            break;
+        case PSEUDO_REG: return read_pseudo_reg(op, pseudo);
+        case PSEUDO_SYM: return read_pseudo_sym(op, pseudo->sym);
+        case PSEUDO_VAL: return read_pseudo_val(op, pseudo->value);
+        case PSEUDO_ARG: return read_pseudo_arg(op, pseudo);
 #if 0
         case PSEUDO_PHI:
             WARN_UNHANDLED(insn->pos, "PSEUDO_PHI");
@@ -1117,28 +1140,31 @@ read_pseudo(struct cl_operand *op, const pseudo_t pseudo)
             // PSEUDO_PHI
             CL_TRAP;
     }
-
-    return op;
 }
 
-static void
+static int
 read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
 {
     int i = 0;
+    // by default, `insn_offset' is consumed by this round;
+    // e.g., accessing struct element is different with the first level
+    // access (use insn_offset) and with other accesses (always zero offset);
+    // non-zero return value is effectively propagated only with array
+    int retval = 0;
+
     struct cl_accessor *ac;
 
     ac = provide_trailing_accessor(op);
 
-    //CL_TRAP;
-    // FIXME: CL_TYPE_VOID (is it, after all, allowed to find this here?)
     #define MAP_ACCESSOR(var, type, acc) case CL_##type: var = CL_##acc; break;
     switch (op->type->code) {
         MAP_ACCESSOR(ac->code, TYPE_PTR,    ACCESSOR_DEREF)
+        MAP_ACCESSOR(ac->code, TYPE_ARRAY,  ACCESSOR_DEREF_ARRAY)
         MAP_ACCESSOR(ac->code, TYPE_STRUCT, ACCESSOR_ITEM)
         default: CL_TRAP;
     }
 
-    // accessor's type is the operand's type (will be peeled off immediately)
+    // accessor's type is the operand's type (it itself is to be peeled off)
     ac->type = (struct cl_type *) op->type;
 
     if (op->type->code == CL_TYPE_STRUCT) {
@@ -1146,12 +1172,19 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
             if (op->type->items[i].offset == insn_offset)
                 break;
         ac->data.item.id = i;
+    } else if (op->type->code == CL_TYPE_ARRAY) {
+        //FIXME
+        //CL_TRAP;
+        div_t indexes = div(insn_offset, op->type->size/op->type->array_size);
+        ac->data.array.index = read_pseudo_val(new_cl_operand(), indexes.quot);
+        // the remainder serves for next index-dereferencing rounds
+        retval = indexes.rem;
     }
 
     // peel off one level of type/access decoration from the operand
     op->type = (struct cl_type *)op->type->items[i].type;
 
-    return;
+    return retval;
 }
 
 static inline void
@@ -1165,12 +1198,8 @@ adjust_cl_operand_accessors(struct cl_operand *op,
         // there is no operand
         return;
 
-    while (op->type != expected_type /*&& op->type->code != CL_TYPE_VOID*/) {
-        read_insn_op_access(op, offset);
-        // accessing struct element is different with the first level access
-        // (use insn_offset) and with other accesses (always zero offset)
-        offset = 0;
-    }
+    while (op->type != expected_type /*&& op->type->code != CL_TYPE_VOID*/)
+        offset = read_insn_op_access(op, offset);
 }
 
 
