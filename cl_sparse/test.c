@@ -739,7 +739,7 @@ read_type(struct cl_type *clt, struct symbol *type)
         [SYM_##spt] = { .type_code = CL_TYPE_##clt, .data.handler = hnd }
 #define TYPE_IGN(spt, _, __) \
         [SYM_##spt] = { .type_code = CL_TYPE_UNKNOWN,  \
-                        .data.type_str = "SYM_ "#spt }
+                        .data.type_str = "SYM_"#spt }
 {/* Synopsis:
   * sparse/symbol.h
   */
@@ -798,6 +798,7 @@ read_type(struct cl_type *clt, struct symbol *type)
 
     switch (type_handler->type_code) {
         case CL_TYPE_UNKNOWN:
+            CL_TRAP;
             WARN_UNHANDLED(type->pos, type_handler->data.type_str);
             clt->name       = strdup(show_typename(type));
             return;
@@ -809,23 +810,15 @@ read_type(struct cl_type *clt, struct symbol *type)
         type_handler->data.handler(clt, type);
 }
 
-static void
-skip_accessors(struct symbol **ptype)
+static inline void
+type_unwrap(struct symbol **type)
 {
-    while (*ptype) {
-        struct symbol *type = *ptype;
-        switch (type->type) {
-            case SYM_NODE:
-            case SYM_ARRAY:
-            case SYM_BITFIELD:
-                // skip accessor
-                break;
-
-            default:
-                return;
-        }
-        *ptype = type->ctype.base_type;
-    }
+    if ((*type)->type == SYM_NODE)
+        *type = (*type)->ctype.base_type;
+#if 0
+    while ((*type)->type == SYM_NODE /* others? */)
+        *type = (*type)->ctype.base_type;
+#endif
 }
 
 // for given type "clt", return respective item from pointer hieararchy;
@@ -867,7 +860,7 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
     // FIXME: this approach is completely wrong since we get type info for the
     // operand's base however we need to get type info in regards to the given
     // accessor
-    skip_accessors(&type);
+    type_unwrap(&type);
 
     // Fastest path, we have the type already in hash table
     clt = typen_get_by_key(type_ptr_db.type_db, type);
