@@ -820,7 +820,7 @@ read_type(struct cl_type *clt, const struct symbol *type)
         TYPE_IGN( BASETYPE      ,        ,                       ),
         TYPE_IGN( NODE          ,        ,                       ),
 
-        /* ready to handle (TODO: array) */
+        /* ready to handle */
         TYPE_STD( PTR           , PTR    , NULL /*set code only*/),
         TYPE_STD( FN            , FNC    , read_type_fnc         ),
         TYPE_STD( ARRAY         , ARRAY  , read_type_array       ),
