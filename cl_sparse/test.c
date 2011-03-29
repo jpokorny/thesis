@@ -301,91 +301,135 @@ static void cl_error(const char *msg)
 // Freeing resources helper functions
 //
 
-static void
-free_clt(struct cl_type *clt);
 
-static inline void
-free_cl_accessors(struct cl_accessor *ac)
-{
-    struct cl_accessor *ac_next;
+// macro language brings wholly new dimensions to the C world, FWIW
+#define OR  : case
+#define IN(choices)  , choices
+#define COND_WHICH(cond, which) \
+    switch (cond) {             \
+        case which:
+#define BEGIN_WHEN(cond_which)  \
+        COND_WHICH(cond_which)
+#define ELSE_WHEN(conde_which)  \
+        break;
 
-    while (ac) {
-        ac_next = ac->next;
-        // TODO: index
-        free(ac);
-        ac = ac_next;
-    }
-}
+#define END_WHEN  }
 
-static inline void
-free_clt_items(struct cl_type_item *items, int item_cnt)
-{
-    int i;
-    for (i = 0; i < item_cnt; i++)
-        // nested types are captured on the base level and free'd from here
-        free((char *) items[i].name);
-}
 
+// Note: *clt (as well as nested items) expected to be heap-based
 static void
 free_clt(struct cl_type *clt)
 {
     // skip base types that are not on heap
-    if (clt && clt->uid > type_ptr_db.last_base_type_uid) {
-        switch (clt->code) {
-            case CL_TYPE_PTR:
-            case CL_TYPE_FNC:
-            case CL_TYPE_STRUCT:
-                free_clt_items(clt->items,  clt->item_cnt);
-                free(clt->items);
-                break;
+    if (clt->uid > type_ptr_db.last_base_type_uid) {
 
-            // TODO
-            default:
-                break;
-        }
-
+        /* clt->name */
         free((char *) clt->name);
+
+        /* clt->items */
+        // selective approach can expose wrong usage through leaked memory
+        BEGIN_WHEN(clt->code IN (CL_TYPE_PTR     OR
+                                 CL_TYPE_STRUCT  OR
+                                 //CL_TYPE_UNION   OR
+                                 CL_TYPE_ARRAY   OR
+                                 CL_TYPE_FNC     ))
+        {
+            int i;
+            for (i = 0; i < clt->item_cnt; i++) {
+                /* clt->items[i].type (skipped) */
+
+                /* clt->items[i].name */
+                free((char *) clt->items[i].name);
+            }
+            free(clt->items);
+        }
+        END_WHEN
+
+        /* clt (heap!) */
         free(clt);
     }
 }
 
 static void
-free_cl_cst_data(struct cl_operand *op)
+free_cl_operand_heap(struct cl_operand *op);
+
+// Note: *initial (as well as nested items) expected to be heap-based
+static void
+free_op_initializers(struct cl_initializer *initial)
 {
-    switch (op->data.cst.code) {
-        case CL_TYPE_FNC:
-            free((char *) op->data.cst.data.cst_fnc.name);
-            break;
+    /* initial->type (skipped) */
 
-        case CL_TYPE_STRING:
-            free((char *) op->data.cst.data.cst_string.value);
-            break;
+    if (!initial->type->item_cnt) {
+        /* initial->data.value (heap-based!) */
+        free_cl_operand_heap(initial->data.value);
+    } else {
+        /* initial->data.nested_initials */
+        int i;
+        for (i = 0; i < initial->type->item_cnt; i++)
+            if (initial->data.nested_initials[i])
+                free_op_initializers(initial->data.nested_initials[i]);
+    }
 
-        // TODO
-        default:
-            break;
+    /* initial (heap!) */
+    free(initial);
+}
+
+// Note: *op expected NOT (contrary to nested items) to be heap-based
+//       (most common usage)
+static void
+free_cl_operand(struct cl_operand *op)
+{
+    if (op->code == CL_OPERAND_VOID)
+        return;
+
+    /* op->type (skipped) */
+
+    /* op->accessor */
+    // XXX: cl_pp says that accessor is not expected for CL_OPERAND_CST
+    struct cl_accessor *ac_next, *ac = op->accessor;
+    while (ac) {
+        ac_next = ac->next;
+        /* ac->type (skipped) */
+        /* ac->next (in the next round) */
+        if (ac->code == CL_ACCESSOR_DEREF_ARRAY){
+            /* ac->data.array.index (heap-based!) */
+            free_cl_operand_heap(ac->data.array.index);
+        }
+        // free current and go to the next one in the chain
+        free(ac);
+        ac = ac_next;
+    }
+
+    if (op->code == CL_OPERAND_CST) {
+        /* op->data.cst... */
+        switch (op->data.cst.code) {
+            case CL_TYPE_FNC:
+                free((char *) op->data.cst.data.cst_fnc.name);
+                break;
+            case CL_TYPE_STRING:
+                free((char *) op->data.cst.data.cst_string.value);
+                break;
+        }
+    } else if (op->code == CL_OPERAND_VAR) {
+        /* op->data.var->name */
+        free((char *) op->data.var->name);
+        /* op->data.var->initial... */
+        if (op->data.var->initial)
+            free_op_initializers(op->data.var->initial);
+
+        /* op->data.var */
+        free(op->data.var);
     }
 }
 
-static void
-free_cl_operand_data(struct cl_operand *op)
+// Note: *op expected to be heap-based
+static inline void
+free_cl_operand_heap(struct cl_operand *op)
 {
-    switch (op->code) {
-        case CL_OPERAND_VAR:
-            // XXX: cl_pp says that accessor is not expected for CL_OPERAND_CST
-            free_cl_accessors(op->accessor);
-            free((char *) op->data.var->name);
-            free(op->data.var);
-            break;
+    free_cl_operand(op);
 
-        case CL_OPERAND_CST:
-            free_cl_cst_data(op);
-            break;
-
-        // TODO
-        default:
-            break;
-    }
+    /* op (heap!) */
+    free(op);
 }
 
 
@@ -656,7 +700,7 @@ populate_with_base_types(type_ptr_db_t db)
 }
 
 static struct cl_type *
-add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr);
+add_type_if_needed(const struct symbol *type, struct ptr_db_item **ptr);
 
 static inline struct cl_type *
 get_instruction_type(struct instruction *insn)
@@ -702,7 +746,7 @@ add_subtypes(struct cl_type *clt, struct symbol_list *subtypes)
 }
 
 static inline void
-read_type_fnc(struct cl_type *clt, struct symbol *type)
+read_type_fnc(struct cl_type *clt, const struct symbol *type)
 {
     clt->name       = read_ident(type->ident);
     add_subtype(clt, type->ctype.base_type);
@@ -712,7 +756,7 @@ read_type_fnc(struct cl_type *clt, struct symbol *type)
 }
 
 static inline void
-read_type_array(struct cl_type *clt, struct symbol *type)
+read_type_array(struct cl_type *clt, const struct symbol *type)
 {
     //CL_TRAP;
     //clt->name = read_ident(type->ident);
@@ -721,14 +765,14 @@ read_type_array(struct cl_type *clt, struct symbol *type)
 }
 
 static inline void
-read_type_struct(struct cl_type *clt, struct symbol *type)
+read_type_struct(struct cl_type *clt, const struct symbol *type)
 {
     clt->name = read_ident(type->ident);
     add_subtypes(clt, type->symbol_list);
 }
 
 static inline void
-read_type_union(struct cl_type *clt, struct symbol *type)
+read_type_union(struct cl_type *clt, const struct symbol *type)
 {
     CL_TRAP;
     clt->name     = read_ident(type->ident);
@@ -739,13 +783,13 @@ read_type_union(struct cl_type *clt, struct symbol *type)
 }
 
 static inline void
-read_type_enum(struct cl_type *clt, struct symbol *type)
+read_type_enum(struct cl_type *clt, const struct symbol *type)
 {
     clt->name = read_ident(type->ident);
 }
 
 static void
-read_type(struct cl_type *clt, struct symbol *type)
+read_type(struct cl_type *clt, const struct symbol *type)
 #define TYPE_STD(spt, clt, hnd) \
     [SYM_##spt]={ .type_code=CL_TYPE_##clt, .prop.handler=hnd }
 #define TYPE_IGN(spt, _, __) \
@@ -753,7 +797,7 @@ read_type(struct cl_type *clt, struct symbol *type)
 {/* Synopsis:
   * sparse/symbol.h
   */
-    typedef void (*type_handler)(struct cl_type *, struct symbol *);
+    typedef void (*type_handler)(struct cl_type *, const struct symbol *);
     const struct type_transformer {
         enum cl_type_e    type_code;
         union {
@@ -800,7 +844,7 @@ read_type(struct cl_type *clt, struct symbol *type)
 
     if (verbose & CL_VERBOSE_TYPE) {
         NOTE("\t%d: type to be processed:", type->pos.line);
-        show_symbol(type);
+        show_symbol((struct symbol *) type);
     }
 
     //assert(PARTIALLY_ORDERED( SYM_UNINITIALIZED , symbol->type , SYM_BAD ));
@@ -816,7 +860,7 @@ read_type(struct cl_type *clt, struct symbol *type)
         case CL_TYPE_UNKNOWN:
             CL_TRAP;
             WARN_UNHANDLED(type->pos, transformer->prop.string);
-            clt->name = strdup(show_typename(type));
+            clt->name = strdup(show_typename((struct symbol *)type));
             return;
         default:
             break;
@@ -826,8 +870,8 @@ read_type(struct cl_type *clt, struct symbol *type)
         transformer->prop.handler(clt, type);
 }
 
-static inline struct symbol *
-type_unwrap(struct symbol *type)
+static inline const struct symbol *
+type_unwrap(const struct symbol *type)
 {
     return (type->type == SYM_NODE)
         ? type->ctype.base_type
@@ -867,10 +911,10 @@ get_ptr_db_item(type_ptr_db_t db, const struct cl_type *clt,
 
 // note: the only function that uses type_ptr_db global variable directly
 static struct cl_type *
-add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
+add_type_if_needed(const struct symbol *type, struct ptr_db_item **ptr)
 {
     struct cl_type *clt;
-    struct symbol *unwrapped_type;
+    const struct symbol *unwrapped_type;
 
     if (!type)
         CL_TRAP;
@@ -881,7 +925,7 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
     unwrapped_type = type_unwrap(type);
 
     // Fastest path, we have the type already in hash table
-    clt = typen_get_by_key(type_ptr_db.type_db, unwrapped_type);
+    clt = typen_get_by_key(type_ptr_db.type_db, (void *) unwrapped_type);
     if (clt) {
         // type already hashed
         if (ptr)
@@ -917,7 +961,8 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
     if (uid == NEW_UID)
         *clt_ptr = new_cl_type();
 
-    clt = type_ptr_db_insert(&type_ptr_db, *clt_ptr, unwrapped_type, uid);
+    clt = type_ptr_db_insert(&type_ptr_db, *clt_ptr, (void *) unwrapped_type,
+                             uid);
     if (uid != NEW_UID)
         // was pointer alias
         return clt;
@@ -957,41 +1002,100 @@ add_type_if_needed(struct symbol *type, struct ptr_db_item **ptr)
 //
 
 
-static inline struct cl_operand* empty_cl_operand(struct cl_operand* op)
+#define CST(op)      (&op->data.cst)
+#define CST_INT(op)  (&CST(op)->data.cst_int)
+#define CST_STR(op)  (&CST(op)->data.cst_string)
+#define CST_FNC(op)  (&CST(op)->data.cst_fnc)
+
+#define VAR(op)      (op->data.var)
+
+static inline struct cl_operand *
+empty_cl_operand(struct cl_operand* op)
 {
-    *op = pristine_cl_operand;
+    op->code = CL_OPERAND_VOID;
     return op;
 }
 
-static inline struct cl_operand* new_cl_operand(void)
+static inline struct cl_operand *
+new_cl_operand(void)
 {
     struct cl_operand *retval = MEM_NEW(struct cl_operand);
     if (!retval)
         die("MEM_NEW failed");
 
     // guaranteed not to return NULL
-    //return empty_cl_operand(retval);
     return retval;
 }
 
-static inline struct cl_cst *
-provide_cst(struct cl_operand *op, enum cl_type_e cst_type)
+// Note: not to be used directly
+static inline struct cl_operand *
+build_cst(struct cl_operand *op)
 {
-    op->code = CL_OPERAND_CST;
-    op->data.cst.code = cst_type;
-    return &op->data.cst;
+    op->code     = CL_OPERAND_CST;
+    op->accessor = NULL;
+
+    return op;
 }
 
-static inline struct cl_var *
-provide_var(struct cl_operand *op)
+static inline struct cl_operand *
+build_cst_fnc(struct cl_operand *op, const struct symbol *sym)
 {
-    op->code = CL_OPERAND_VAR;
-    op->data.var = MEM_NEW(struct cl_var);
-    if (!op->data.var)
+    build_cst(op);
+
+    op->type               = add_type_if_needed(sym, NULL);
+    CST(op)->code          = CL_TYPE_FNC;
+    CST_FNC(op)->name      = read_ident(sym->ident);
+    CST_FNC(op)->is_extern = MOD_EXTERN & sym->ctype.modifiers;
+    CST_FNC(op)->uid       = (int)(long) sym;
+
+    return op;
+}
+
+static inline struct cl_operand *
+build_cst_int(struct cl_operand *op, int value)
+{
+    build_cst(op);
+
+    op->type           = &int_clt;
+    CST(op)->code      = CL_TYPE_INT;
+    CST_INT(op)->value = value;
+
+    return op;
+}
+
+// TODO: make it accepting const char *
+static inline struct cl_operand *
+build_cst_string(struct cl_operand *op, struct expression *expr)
+{
+    build_cst(op);
+
+    op->type           = add_type_if_needed(expr->ctype, NULL); //XXX
+    CST(op)->code      = CL_TYPE_STRING;
+    CST_STR(op)->value = read_string(expr->string);
+
+    return op;
+}
+
+// Note: type not (re)set
+// Note: different semantics from `built_cst_*'
+static inline struct cl_var *
+build_var(struct cl_operand *op)
+{
+    op->code     = CL_OPERAND_VAR;
+    op->accessor = NULL;
+
+    VAR(op) = MEM_NEW(struct cl_var);
+    if (!VAR(op))
         die("MEM_NEW failed");
 
+    // initialize pointers checked by freeing helper
+    VAR(op)->name       = NULL;
+    VAR(op)->initial    = NULL;
+    VAR(op)->artificial = true;
+
+
     // guaranteed not to return NULL
-    return op->data.var;
+    return VAR(op);
 }
 
 static inline struct cl_accessor *
@@ -1011,7 +1115,10 @@ provide_trailing_accessor(struct cl_operand *op)
     *retval = MEM_NEW(struct cl_accessor);
     if (!*retval)
         die("MEM_NEW failed");
+
     (*retval)->next = NULL;
+    // FIXME: should not be there
+    //(*retval)->data.array.index = NULL;
 
     // guaranteed not to return NULL
     return *retval;
@@ -1026,9 +1133,7 @@ read_sym_initializer(struct cl_operand *op, struct expression *expr)
     //CL_TRAP;
     switch (expr->type) {
         case EXPR_STRING:
-            op->type = add_type_if_needed(expr->ctype, NULL);
-            provide_cst(op, CL_TYPE_STRING)->data.cst_string.value
-                = read_string(expr->string);
+            build_cst_string(op, expr);
             return;
         default:
             CL_TRAP;
@@ -1056,18 +1161,12 @@ read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
         return;
     }
 
+    if (sym->ctype.base_type->type == SYM_FN)
+        return build_cst_fnc(op, sym);
+
     op->type = add_type_if_needed(sym, NULL);
 
-    if (sym->ctype.base_type->type == SYM_FN) {
-        struct cl_cst *cst = provide_cst(op, CL_TYPE_FNC);
-        cst->data.cst_fnc.name      = read_ident(sym->ident);
-        cst->data.cst_fnc.is_extern = MOD_EXTERN & sym->ctype.modifiers;
-        cst->data.cst_fnc.uid       = (int)(long) sym;
-
-        return;
-    }
-
-    struct cl_var *var = provide_var(op);
+    struct cl_var *var = build_var(op);
     var->uid  = (int)(long) sym;
     var->name = read_ident(sym->ident);
 
@@ -1100,20 +1199,8 @@ read_pseudo_reg(struct cl_operand *op, const pseudo_t pseudo)
 
     op->type = get_instruction_type(pseudo->def);
 
-    struct cl_var *var = provide_var(op);
+    struct cl_var *var = build_var(op);
     var->uid  = (int)(long) pseudo;
-    var->name = NULL;
-
-    return op;
-}
-
-static inline struct cl_operand *
-read_pseudo_val(struct cl_operand *op, long long value)
-{
-    empty_cl_operand(op);
-
-    op->type = &int_clt;
-    provide_cst(op, CL_TYPE_INT)->data.cst_int.value = value;
 
     return op;
 }
@@ -1129,7 +1216,7 @@ read_pseudo(struct cl_operand *op, const pseudo_t pseudo)
     switch (pseudo->type) {
         case PSEUDO_REG: return read_pseudo_reg(op, pseudo);
         case PSEUDO_SYM: return read_pseudo_sym(op, pseudo->sym);
-        case PSEUDO_VAL: return read_pseudo_val(op, pseudo->value);
+        case PSEUDO_VAL: return build_cst_int(op, pseudo->value);
         case PSEUDO_ARG: return read_pseudo_arg(op, pseudo);
 #if 0
         case PSEUDO_PHI:
@@ -1173,11 +1260,11 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
                 break;
         ac->data.item.id = i;
     } else if (op->type->code == CL_TYPE_ARRAY) {
-        //FIXME
+        //FIXME: turn back
         //CL_TRAP;
         div_t indexes = div(insn_offset, op->type->size/op->type->array_size);
-        ac->data.array.index = read_pseudo_val(new_cl_operand(), indexes.quot);
-        // the remainder serves for next index-dereferencing rounds
+        ac->data.array.index = build_cst_int(new_cl_operand(), indexes.quot);
+        // the remainder serves for next index-based-dereferencing rounds
         retval = indexes.rem;
     }
 
@@ -1237,7 +1324,7 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
     //i>
     cl->insn(cl, cli);
     //i>
-    free_cl_operand_data(&cond);
+    free_cl_operand(&cond);
 
     /* first BB ("then" branch) with assignment and jump to merging BB */
 
@@ -1253,7 +1340,7 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
     //i>
     cl->insn(cl, cli);
     //i>
-    free_cl_operand_data(&src);
+    free_cl_operand(&src);
 
     cli->code                = CL_INSN_JMP;
     cli->data.insn_jmp.label = bb_label_merge;
@@ -1275,8 +1362,8 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
     //i>
     cl->insn(cl, cli);
     //i>
-    free_cl_operand_data(&src);
-    free_cl_operand_data(&dst);
+    free_cl_operand(&src);
+    free_cl_operand(&dst);
 
     cli->code                = CL_INSN_JMP;
     cli->data.insn_jmp.label = bb_label_merge;
@@ -1311,8 +1398,8 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
     //c>
     cl->insn_call_open(cl, &cli->loc, &dst, &fnc);
     //c>
-    free_cl_operand_data(&dst);
-    free_cl_operand_data(&fnc);
+    free_cl_operand(&dst);
+    free_cl_operand(&fnc);
 
     /* emit arguments */
 
@@ -1321,7 +1408,7 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
         //c>
         cl->insn_call_arg(cl, ++cnt, &arg_op);
         //c>
-        free_cl_operand_data(&arg_op);
+        free_cl_operand(&arg_op);
     } END_FOR_EACH_PTR(arg);
 
     /* close call */
@@ -1380,7 +1467,7 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
     //i>
     cl->insn(cl, cli);
     //i>
-    free_cl_operand_data(&op);
+    free_cl_operand(&op);
     free(bb_name_true);
     free(bb_name_false);
 
@@ -1402,7 +1489,7 @@ handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
     //s>
     cl->insn_switch_open(cl, &cli->loc, &op);
     //s>
-    free_cl_operand_data(&op);
+    free_cl_operand(&op);
 
     /* emit cases */
 
@@ -1417,19 +1504,16 @@ handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
         // if true, it's case; default otherwise
         if (jmp->begin <= jmp->end) {
             // TODO: read types
-            val_lo.type = &int_clt;
-            val_hi.type = &int_clt;
-
-            provide_cst(&val_lo, CL_TYPE_INT)->data.cst_int.value = jmp->begin;
-            provide_cst(&val_hi, CL_TYPE_INT)->data.cst_int.value = jmp->end;
+            build_cst_int(&val_lo, jmp->begin);
+            build_cst_int(&val_hi, jmp->end);
         }
 
         // FIXME: not enough accurate location info from SPARSE for switch/case
         //s>
         cl->insn_switch_case(cl, &cli->loc, &val_lo, &val_hi, label);
         //s>
-        free_cl_operand_data(&val_lo);
-        free_cl_operand_data(&val_hi);
+        free_cl_operand(&val_lo);
+        free_cl_operand(&val_hi);
         free(label);
     } END_FOR_EACH_PTR(jmp);
 
@@ -1465,7 +1549,7 @@ handle_insn_ret(struct cl_insn *cli, const struct instruction *insn)
     //i>
     cl->insn(cl, cli);
     //i>
-    free_cl_operand_data(&op);
+    free_cl_operand(&op);
 
     return true;
 }
@@ -1554,8 +1638,8 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
                 show_instruction((struct instruction *) insn));
     }
 #endif
-    free_cl_operand_data(&op_lhs);
-    free_cl_operand_data(&op_rhs);
+    free_cl_operand(&op_lhs);
+    free_cl_operand(&op_rhs);
 
     return true;
 }
@@ -1634,9 +1718,9 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
     //i>
     cl->insn(cl, cli);
     //i>
-    free_cl_operand_data(&dst);
-    free_cl_operand_data(&src1);
-    free_cl_operand_data(&src2);
+    free_cl_operand(&dst);
+    free_cl_operand(&src1);
+    free_cl_operand(&src2);
 
     return true;
 }
@@ -1940,7 +2024,7 @@ static void handle_fnc_arg_list(struct symbol_list *arg_list)
         //f>
         cl->fnc_arg_decl(cl, ++argc, &arg_op);
         //f>
-        free_cl_operand_data(&arg_op);
+        free_cl_operand(&arg_op);
     } END_FOR_EACH_PTR(arg);
 }
 
@@ -1952,7 +2036,7 @@ static void handle_fnc_def(struct symbol *sym)
     //f>
     cl->fnc_open(cl, &fnc);
     //f>
-    free_cl_operand_data(&fnc);
+    free_cl_operand(&fnc);
 
     // dump argument list
     handle_fnc_arg_list(sym->ctype.base_type->arguments);
