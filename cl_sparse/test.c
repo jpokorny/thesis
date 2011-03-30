@@ -887,7 +887,7 @@ static struct ptr_db_item *
 type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db, const struct cl_type *clt)
 {
     if (clt->code == CL_TYPE_PTR)
-        return type_ptr_db_lookup_ptr(ptr_db, clt->items->type);
+        return type_ptr_db_lookup_ptr(ptr_db, clt->items->type)->next;
 
     int i;
     for (i = 0; i < ptr_db->last; i++)
