@@ -787,7 +787,7 @@ read_type_enum(struct cl_type *clt, const struct symbol *type)
     clt->name = read_ident(type->ident);
 }
 
-static void
+static const struct symbol *
 read_type(struct cl_type *clt, const struct symbol *type)
 #define TYPE_STD(spt, clt, hnd) \
     [SYM_##spt]={ .type_code=CL_TYPE_##clt, .prop.handler=hnd }
@@ -796,6 +796,9 @@ read_type(struct cl_type *clt, const struct symbol *type)
 {/* Synopsis:
   * sparse/symbol.h
   */
+    if (type->type == SYM_NODE)
+        return read_type(clt, type->ctype.base_type);
+
     typedef void (*type_handler)(struct cl_type *, const struct symbol *);
     const struct type_transformer {
         enum cl_type_e    type_code;
@@ -817,7 +820,7 @@ read_type(struct cl_type *clt, const struct symbol *type)
         TYPE_IGN( UNINITIALIZED ,        ,                       ),
         TYPE_IGN( PREPROCESSOR  ,        ,                       ),
         TYPE_IGN( BASETYPE      ,        ,                       ),
-        TYPE_IGN( NODE          ,        ,                       ),
+        TYPE_IGN( NODE          ,        , /* already handled */ ),
 
         /* ready to handle */
         TYPE_STD( PTR           , PTR    , NULL /*set code only*/),
@@ -867,6 +870,8 @@ read_type(struct cl_type *clt, const struct symbol *type)
 
     if (transformer->prop.handler)
         transformer->prop.handler(clt, type);
+
+    return type;
 }
 
 static inline const struct symbol *
@@ -875,9 +880,16 @@ type_unwrap(const struct symbol *raw_type)
     if (!raw_type)
         CL_TRAP;
 
-    return (raw_type->type == SYM_NODE)
-        ? raw_type->ctype.base_type
-        : raw_type;
+    if (raw_type->type == SYM_NODE) {
+        const struct symbol *retval = raw_type->ctype.base_type;
+        if (retval->type == SYM_ARRAY && retval->bit_size == -1)
+            // first level array without explicitly specified array size
+            return raw_type;
+        else
+            return retval;
+    }
+
+    return raw_type;
 }
 
 // for given type "clt", return respective item from pointer hieararchy;
@@ -932,6 +944,7 @@ static inline struct cl_type *
 postprocess_type_array(struct cl_type *clt, const struct symbol *array_symbol)
 {
     if (array_symbol->type == SYM_NODE) {
+        //CL_TRAP;
         // normalize size of the "outer" dimension as well as missing size
         clt->size = sizeof_from_bits(array_symbol->bit_size);
         clt->array_size = clt->size/clt->items[0].type->size;
@@ -989,7 +1002,7 @@ add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
 
     // Slow path for anything (except for pointers) which is being
     // proceeded for the first time (next time, hashed ctl is used instead)
-    read_type(clt, type);
+    type = read_type(clt, type);
 
     switch (type->type) {
         case SYM_PTR:
