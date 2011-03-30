@@ -57,6 +57,7 @@
 #define DO_EXPAND_SYMBOL            1
 #define DO_PER_EP_UNSAA             1
 #define DO_PER_EP_SET_UP_STORAGE    1
+#define DO_USE_EXTENDED_CMP         0
 
 #define FIX_SPARSE_EXTRA_ARG_TO_MEM 1
 #define DO_SPARSE_FREE              1
@@ -117,9 +118,16 @@
 //
 
 
+struct arr_db_item {
+    int             arr_size;
+    struct cl_type  *clt;
+};
+
 struct ptr_db_item {
     struct cl_type      *clt;
     struct ptr_db_item  *next;
+    size_t              arr_cnt;
+    struct arr_db_item  **arr;
 };
 
 struct ptr_db_arr {
@@ -617,8 +625,11 @@ type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
             if (!ptr_db->heads)
                 die("MEM_RESIZE_ARR");
         }
+        // TODO: nicer?
         ptr_db->heads[ptr_db->last].clt = clt;
         ptr_db->heads[ptr_db->last].next = NULL;
+        ptr_db->heads[ptr_db->last].arr_cnt = 0;
+        ptr_db->heads[ptr_db->last].arr = NULL;
 
         if (ptr)
             *ptr = &ptr_db->heads[ptr_db->last];
@@ -880,16 +891,9 @@ type_unwrap(const struct symbol *raw_type)
     if (!raw_type)
         CL_TRAP;
 
-    if (raw_type->type == SYM_NODE) {
-        const struct symbol *retval = raw_type->ctype.base_type;
-        if (retval->type == SYM_ARRAY && retval->bit_size == -1)
-            // first level array without explicitly specified array size
-            return raw_type;
-        else
-            return retval;
-    }
-
-    return raw_type;
+    return (raw_type->type == SYM_NODE)
+        ? raw_type->ctype.base_type
+        : raw_type;
 }
 
 // for given type "clt", return respective item from pointer hieararchy;
@@ -899,6 +903,10 @@ type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db, const struct cl_type *clt)
 {
     if (clt->code == CL_TYPE_PTR)
         return type_ptr_db_lookup_ptr(ptr_db, clt->items->type)->next;
+#if 0
+    else if (clt->code == CL_TYPE_ARRAY)
+        return type_ptr_db_lookup_ptr(ptr_db, clt->items->type);
+#endif
 
     int i;
     for (i = 0; i < ptr_db->last; i++)
@@ -971,24 +979,52 @@ add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
 
     // Extra handling of pointer symbols, potentially fast circuit for pointer
     // type alias (i.e. no allocation)
-    if (type->type == SYM_PTR) {
+    if (type->type == SYM_PTR || type->type == SYM_ARRAY) {
         struct ptr_db_item *prev = NULL;
 
         ptr_type = add_type_if_needed(type->ctype.base_type, &prev);
-        if (!prev->next) {
-            prev->next = MEM_NEW(struct ptr_db_item);
-            if (!prev->next)
-                die("MEM_NEW");
-            prev->next->clt = NULL;
-            prev->next->next = NULL;
-        } else {
-            assert(prev->next->clt);
-            uid = prev->next->clt->uid;
-        }
-        if (ptr)
-            *ptr = prev->next;
 
-        clt_ptr = &prev->next->clt;
+        if (type->type == SYM_ARRAY) {
+            int size = sizeof_from_bits(raw_symbol->bit_size);
+            int array_size = size/ptr_type->size;
+            int i;
+            for (i = 0; i < prev->arr_cnt; i++)
+                if (prev->arr[i]->arr_size == array_size)
+                    break;
+            if (i == prev->arr_cnt) {
+                prev->arr = MEM_RESIZE_ARR(prev->arr, ++prev->arr_cnt);
+                if (!prev->arr)
+                    die("MEM_RESIZE failed");
+                prev->arr[i] = MEM_NEW(struct arr_db_item);
+                if (!prev->arr[i])
+                    die("MEM_NEW failed");
+                prev->arr[i]->arr_size = array_size;
+            } else {
+                assert(prev->arr[i]->clt);
+                uid = prev->arr[i]->clt->uid;
+                if (ptr)
+                    *ptr = type_ptr_db_lookup_ptr(&type_ptr_db.ptr_db,
+                                                  prev->arr[i]->clt);
+            }
+
+            clt_ptr = &prev->arr[i]->clt;
+
+        } else if (type->type == SYM_PTR) {
+            if (!prev->next) {
+                prev->next = MEM_NEW(struct ptr_db_item);
+                if (!prev->next)
+                    die("MEM_NEW");
+                prev->next->clt = NULL;
+                prev->next->next = NULL;
+            } else {
+                assert(prev->next->clt);
+                uid = prev->next->clt->uid;
+            }
+            if (ptr)
+                *ptr = prev->next;
+
+            clt_ptr = &prev->next->clt;
+        }
     } else
         clt_ptr = &clt;
 
@@ -1269,7 +1305,6 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
                 break;
         ac->data.item.id = i;
     } else if (op->type->code == CL_TYPE_ARRAY) {
-        //FIXME: turn back
         //CL_TRAP;
         div_t indexes = div(insn_offset, op->type->size/op->type->array_size);
         ac->data.array.index = build_cst_int(new_cl_operand(), indexes.quot);
@@ -1289,6 +1324,7 @@ same_type(const struct cl_type *t1, const struct cl_type *t2)
     if (t1 == t2)
         return true;
 
+#if DO_USE_EXTENDED_CMP
     if (t1->code == t2->code && t1->item_cnt == t2->item_cnt
         && t1->item_cnt > 0) {
         int i;
@@ -1297,6 +1333,10 @@ same_type(const struct cl_type *t1, const struct cl_type *t2)
                 return false;
         return  true;
     }
+#else
+    return false;
+#endif
+
 }
 
 static inline void
@@ -1307,7 +1347,7 @@ adjust_cl_operand_accessors(struct cl_operand *op,
     unsigned offset = first_offset;
 
     if (op->code == CL_OPERAND_VOID)
-        // there is no operand
+        // there is no operand (TODO: will we get ever here?)
         return;
 
     while (!same_type(op->type, expected_type))
