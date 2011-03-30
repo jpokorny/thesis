@@ -159,11 +159,12 @@ static void* te_realloc_if_needed(struct typen_data *te)
     return te->items;
 }
 
-struct cl_type* typen_insert_with_uid(struct typen_data *te, struct cl_type *type,
-                                      void *key, int uid)
+struct cl_type* typen_insert_with_uid(struct typen_data *te,
+                                      struct cl_type *type, void *key)
 {
     struct te_item *item;
     struct te_item *item_new;
+
     if (!te_realloc_if_needed(te))
         // OOM
         return NULL;
@@ -173,16 +174,15 @@ struct cl_type* typen_insert_with_uid(struct typen_data *te, struct cl_type *typ
         // OOM
         return NULL;
 
+    int uid = type->uid;
     if (uid == NEW_UID) {
         uid = te->last_uid;
         type->uid = uid + 1;
         te->last_uid = type->uid;
         item->next = NULL;
-    } else {
-        type->uid = uid;
+    } else
         // -1 difference between uid and index (see also typen_get_by_uid)
         item->next = te->items[--uid];
-    }
 
     item->key = key;
     item->type = type;
