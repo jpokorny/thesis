@@ -1107,7 +1107,7 @@ build_var(struct cl_operand *op)
 }
 
 static inline struct cl_accessor *
-provide_trailing_accessor(struct cl_operand *op)
+build_trailing_accessor(struct cl_operand *op)
 {
     struct cl_accessor *ac_chain, **retval;
 
@@ -1250,7 +1250,7 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
 
     struct cl_accessor *ac;
 
-    ac = provide_trailing_accessor(op);
+    ac = build_trailing_accessor(op);
 
     #define MAP_ACCESSOR(var, type, acc) case CL_##type: var = CL_##acc; break;
     switch (op->type->code) {
@@ -1622,7 +1622,7 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
         // add promised reference
         if (op_rhs.code == CL_OPERAND_VAR) {
             // accessor only when operand is variable
-            struct cl_accessor *ac = provide_trailing_accessor(&op_rhs);
+            struct cl_accessor *ac = build_trailing_accessor(&op_rhs);
             ac->code = CL_ACCESSOR_REF;
             ac->type = op_rhs.type;
         }
