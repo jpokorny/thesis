@@ -1143,19 +1143,19 @@ build_trailing_accessor(struct cl_operand *op)
     return *retval;
 }
 
-static void
+static struct cl_operand *
 read_sym_initializer(struct cl_operand *op, struct expression *expr)
 {
     if (!expr)
-        return;
+        return op;
 
     //CL_TRAP;
     switch (expr->type) {
         case EXPR_STRING:
-            build_cst_string(op, expr);
-            return;
+            return build_cst_string(op, expr);
         default:
             CL_TRAP;
+            return op;
     }
 }
 
@@ -1169,14 +1169,13 @@ read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
     if (sym->bb_target || sym->type != SYM_NODE)
         CL_TRAP;
 
-    if (!sym->ident) {
-        read_sym_initializer(op, sym->initializer);
-        return;
-    }
-
-    // TODO: investigate...
+    // function not treated as a variable
     if (sym->ctype.base_type->type == SYM_FN)
         return build_cst_fnc(op, sym);
+
+    // string
+    if (!sym->ident)
+        return read_sym_initializer(op, sym->initializer);
 
     op->type = add_type_if_needed(sym, NULL);
 
@@ -1284,6 +1283,22 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
     return retval;
 }
 
+static inline bool
+same_type(const struct cl_type *t1, const struct cl_type *t2)
+{
+    if (t1 == t2)
+        return true;
+
+    if (t1->code == t2->code && t1->item_cnt == t2->item_cnt
+        && t1->item_cnt > 0) {
+        int i;
+        for (i = 0; i < t1->item_cnt; i++)
+            if (!same_type(t1->items[i].type, t2->items[i].type))
+                return false;
+        return  true;
+    }
+}
+
 static inline void
 adjust_cl_operand_accessors(struct cl_operand *op,
                             const struct cl_type *expected_type,
@@ -1295,7 +1310,7 @@ adjust_cl_operand_accessors(struct cl_operand *op,
         // there is no operand
         return;
 
-    while (op->type != expected_type /*&& op->type->code != CL_TYPE_VOID*/)
+    while (!same_type(op->type, expected_type))
         offset = read_insn_op_access(op, offset);
 }
 
