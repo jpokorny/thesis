@@ -572,13 +572,6 @@ static inline int sizeof_from_bits(int bits)
 	return (bits >= 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
 }
 
-#ifdef USE_UNUSED
-static inline bool is_base_type(const struct symbol *type)
-{
-    return (type->type == SYM_BASETYPE);
-}
-#endif
-
 static inline struct cl_type* empty_cl_type(struct cl_type* clt)
 {
     *clt = pristine_cl_type;
