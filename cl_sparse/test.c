@@ -748,7 +748,6 @@ add_subtypes(struct cl_type *clt, struct symbol_list *subtypes)
 static inline void
 read_type_fnc(struct cl_type *clt, const struct symbol *type)
 {
-    clt->name       = read_ident(type->ident);
     add_subtype(clt, type->ctype.base_type);
     add_subtypes(clt, type->arguments);
     // XXX: probably convention in cl?
@@ -930,23 +929,24 @@ postprocess_type_ptr(struct cl_type *clt, struct cl_type *ptr_type)
 }
 
 static inline struct cl_type *
-postprocess_type_array(struct cl_type *clt, const struct symbol *type)
+postprocess_type_array(struct cl_type *clt, const struct symbol *array_symbol)
 {
-    // normalize size of the "outer" dimension as well as missing size
-    clt->size = sizeof_from_bits(type->bit_size);
-    clt->array_size = clt->size/clt->items[0].type->size;
-
+    if (array_symbol->type == SYM_NODE) {
+        // normalize size of the "outer" dimension as well as missing size
+        clt->size = sizeof_from_bits(array_symbol->bit_size);
+        clt->array_size = clt->size/clt->items[0].type->size;
+    }
     return clt;
 }
 
 // note: the only function that uses type_ptr_db global variable directly
 static struct cl_type *
-add_type_if_needed(const struct symbol *raw_type, struct ptr_db_item **ptr)
+add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
 {
     struct cl_type *clt;
     const struct symbol *type;
 
-    type = type_unwrap(raw_type);
+    type = type_unwrap(raw_symbol);
 
     // Fastest path, we have the type already in hash table
     clt = type_ptr_db_lookup_item(&type_ptr_db, type, ptr);
@@ -995,9 +995,7 @@ add_type_if_needed(const struct symbol *raw_type, struct ptr_db_item **ptr)
         case SYM_PTR:
             return postprocess_type_ptr(clt, ptr_type);
         case SYM_ARRAY:
-            return (raw_type->type == SYM_NODE)
-                       ? postprocess_type_array(clt, raw_type)
-                       : clt;
+            return postprocess_type_array(clt, raw_symbol);
         default:
             return clt;
     }
@@ -1155,7 +1153,7 @@ read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
     read_location(&op->loc, sym->pos);
     read_scope(&op->scope, sym->scope);
 
-    if (sym->bb_target)
+    if (sym->bb_target || sym->type != SYM_NODE)
         CL_TRAP;
 
     if (!sym->ident) {
