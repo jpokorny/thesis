@@ -596,6 +596,9 @@ static inline struct cl_type* new_cl_type(void)
     return empty_cl_type(retval);
 }
 
+static struct ptr_db_item *
+type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db, const struct cl_type *clt);
+
 static struct cl_type *
 type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
                    const struct symbol *type, struct ptr_db_item **ptr)
@@ -635,6 +638,9 @@ type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
             *ptr = &ptr_db->heads[ptr_db->last];
 
         ptr_db->last++;
+    } else if (type->type == SYM_ARRAY /* && uid != NEW_UID */) {
+        if (ptr)
+            *ptr = type_ptr_db_lookup_ptr(&db->ptr_db, clt);
     }
 
     // guaranteed to NOT return NULL
@@ -932,6 +938,21 @@ type_ptr_db_lookup_item(type_ptr_db_t db, const struct symbol *type,
     return clt;
 }
 
+static inline struct cl_type **
+preprocess_type_ptr(struct ptr_db_item *prev, struct ptr_db_item **ptr)
+{
+    if (!prev->next) {
+        prev->next = MEM_NEW(struct ptr_db_item);
+        if (!prev->next)
+            die("MEM_NEW");
+        prev->next->clt = NULL;
+        prev->next->next = NULL;
+    }
+    if (ptr)
+        *ptr = prev->next;
+
+    return &prev->next->clt;
+}
 
 static inline struct cl_type *
 postprocess_type_ptr(struct cl_type *clt, struct cl_type *ptr_type)
@@ -946,6 +967,30 @@ postprocess_type_ptr(struct cl_type *clt, struct cl_type *ptr_type)
     clt->items->name = NULL;
 
     return clt;
+}
+
+static inline struct cl_type **
+preprocess_type_array(struct ptr_db_item *prev, struct cl_type *ptr_type,
+                      const struct symbol *raw_symbol)
+{
+    int size = sizeof_from_bits(raw_symbol->bit_size);
+    int array_size = size/ptr_type->size;
+    int i;
+    for (i = 0; i < prev->arr_cnt; i++)
+        if (prev->arr[i]->arr_size == array_size)
+            break;
+    if (i == prev->arr_cnt) {
+        prev->arr = MEM_RESIZE_ARR(prev->arr, ++prev->arr_cnt);
+        if (!prev->arr)
+            die("MEM_RESIZE failed");
+        prev->arr[i] = MEM_NEW(struct arr_db_item);
+        if (!prev->arr[i])
+            die("MEM_NEW failed");
+        prev->arr[i]->arr_size = array_size;
+        prev->arr[i]->clt = NULL;
+    }
+
+    return &prev->arr[i]->clt;
 }
 
 static inline struct cl_type *
@@ -974,7 +1019,6 @@ add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
     if (clt)
         return clt;
 
-    int uid = NEW_UID;
     struct cl_type **clt_ptr, *ptr_type = NULL;
 
     // Extra handling of pointer symbols, potentially fast circuit for pointer
@@ -984,56 +1028,22 @@ add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
 
         ptr_type = add_type_if_needed(type->ctype.base_type, &prev);
 
-        if (type->type == SYM_ARRAY) {
-            int size = sizeof_from_bits(raw_symbol->bit_size);
-            int array_size = size/ptr_type->size;
-            int i;
-            for (i = 0; i < prev->arr_cnt; i++)
-                if (prev->arr[i]->arr_size == array_size)
-                    break;
-            if (i == prev->arr_cnt) {
-                prev->arr = MEM_RESIZE_ARR(prev->arr, ++prev->arr_cnt);
-                if (!prev->arr)
-                    die("MEM_RESIZE failed");
-                prev->arr[i] = MEM_NEW(struct arr_db_item);
-                if (!prev->arr[i])
-                    die("MEM_NEW failed");
-                prev->arr[i]->arr_size = array_size;
-            } else {
-                assert(prev->arr[i]->clt);
-                uid = prev->arr[i]->clt->uid;
-                if (ptr)
-                    *ptr = type_ptr_db_lookup_ptr(&type_ptr_db.ptr_db,
-                                                  prev->arr[i]->clt);
-            }
-
-            clt_ptr = &prev->arr[i]->clt;
-
-        } else if (type->type == SYM_PTR) {
-            if (!prev->next) {
-                prev->next = MEM_NEW(struct ptr_db_item);
-                if (!prev->next)
-                    die("MEM_NEW");
-                prev->next->clt = NULL;
-                prev->next->next = NULL;
-            } else {
-                assert(prev->next->clt);
-                uid = prev->next->clt->uid;
-            }
-            if (ptr)
-                *ptr = prev->next;
-
-            clt_ptr = &prev->next->clt;
-        }
+        if (type->type == SYM_PTR)
+            clt_ptr = preprocess_type_ptr(prev, ptr);
+        else if (type->type == SYM_ARRAY)
+            clt_ptr = preprocess_type_array(prev, ptr_type, raw_symbol);
     } else
         clt_ptr = &clt;
 
-    if (uid == NEW_UID)  // any new type except for existing pointer alias
+    bool is_new = (*clt_ptr == NULL);
+    if (is_new) {
+        // any new type except for existing pointer alias
         *clt_ptr = new_cl_type();
+    }
 
     clt = type_ptr_db_insert(&type_ptr_db, *clt_ptr, type, ptr);
 
-    if (uid != NEW_UID)
+    if (!is_new)
         return clt;  // existing pointer alias
 
     // Slow path for anything (except for pointers) which is being
