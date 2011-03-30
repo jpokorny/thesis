@@ -1151,8 +1151,6 @@ read_sym_initializer(struct cl_operand *op, struct expression *expr)
 static struct cl_operand *
 read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
 {
-    empty_cl_operand(op);
-
     // read symbol location and scope
     read_location(&op->loc, sym->pos);
     read_scope(&op->scope, sym->scope);
@@ -1187,8 +1185,6 @@ read_pseudo_arg(struct cl_operand *op, const pseudo_t pseudo)
 {
     struct symbol *arg_sym;
 
-    // empty_cl_operand(op) called in `read_pseudo_sym'
-
     arg_sym = get_arg_at_pos(pseudo->def->bb->ep->name, pseudo->nr);
     if (!arg_sym)
         CL_TRAP;
@@ -1204,8 +1200,6 @@ read_pseudo_reg(struct cl_operand *op, const pseudo_t pseudo)
   * pseudo->def
   *
   */
-    empty_cl_operand(op);
-
     op->type = get_instruction_type(pseudo->def);
 
     struct cl_var *var = build_var(op);
