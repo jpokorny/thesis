@@ -1155,12 +1155,8 @@ read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
     read_location(&op->loc, sym->pos);
     read_scope(&op->scope, sym->scope);
 
-    if (sym->bb_target) {
-        WARN_UNHANDLED(sym->pos, "sym->bb_target");
+    if (sym->bb_target)
         CL_TRAP;
-        op->code = CL_OPERAND_VOID;
-        return;
-    }
 
     if (!sym->ident) {
         read_sym_initializer(op, sym->initializer);
