@@ -1389,7 +1389,7 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
             break;
         }
         MAP_ACCESSOR(ac->code, TYPE_PTR, ACCESSOR_DEREF) {
-            if (insn_offset) {
+            if (insn_offset /* && op->type->items->type->size*/) {
                 // convert into another accessor then predestined (ptr -> arr)
                 ac->code = CL_ACCESSOR_DEREF_ARRAY;
                 div_t indexes = div(insn_offset, op->type->items->type->size);
@@ -1765,7 +1765,8 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
 
     if (lhs_access) {
         const struct cl_type *resulting_type = add_type_if_needed(type, NULL);
-        if (insn->opcode == OP_STORE && lhs->type == PSEUDO_VAL) {
+        if (insn->opcode == OP_STORE
+            && (lhs->type == PSEUDO_VAL || lhs->type == PSEUDO_REG)) {
             op_lhs.type = (struct cl_type*) resulting_type;
             struct cl_accessor *ac = build_trailing_accessor(&op_lhs);
             ac->code = CL_ACCESSOR_DEREF;
@@ -1816,7 +1817,7 @@ handle_insn_store(struct cl_insn *cli, const struct instruction *insn)
     //CL_TRAP;
     return insn_assignment_base(cli, insn,
         insn->symbol,  /* := */  insn->target,
-        true,                    (insn->target->type != PSEUDO_VAL)
+        true /*(insn->symbol->type != PSEUDO_REG)*/, (insn->target->type != PSEUDO_VAL)
     );
 }
 
