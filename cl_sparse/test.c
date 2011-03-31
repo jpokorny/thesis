@@ -1978,10 +1978,10 @@ handle_insn(struct instruction *insn)
         INSN_BIN( SET_GE          , GE                  , handle_insn_binop  ),
         INSN_BIN( SET_LT          , LT                  , handle_insn_binop  ),
         INSN_BIN( SET_GT          , GT                  , handle_insn_binop  ),
-        INSN_IGN( SET_B           ,                     ,                    ),
-        INSN_IGN( SET_A           ,                     ,                    ),
-        INSN_IGN( SET_BE          ,                     ,                    ),
-        INSN_IGN( SET_AE          ,                     ,                    ),
+        INSN_BIN( SET_B           , LT /*XXX: unsgined*/, handle_insn_binop  ),
+        INSN_BIN( SET_A           , GT /*XXX: unsgined*/, handle_insn_binop  ),
+        INSN_BIN( SET_BE          , LE /*XXX: unsgined*/, handle_insn_binop  ),
+        INSN_BIN( SET_AE          , GE /*XXX: unsgined*/, handle_insn_binop  ),
         // OP_BINCMP_END = OP_SET_AE,
 
         /* Uni */
