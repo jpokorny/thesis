@@ -957,6 +957,22 @@ type_ptr_db_lookup_item(type_ptr_db_t db, const struct symbol *type,
     return clt;
 }
 
+static struct ptr_db_item *
+new_ptr_db_item(void)
+{
+    struct ptr_db_item *retval = MEM_NEW(struct ptr_db_item);
+    if (!retval)
+        die("MEM_NEW");
+
+    retval->clt = NULL;
+    retval->next = NULL;
+    retval->arr_cnt = 0;
+    retval->arr = NULL;
+
+    // guaranteed not to return NULL
+    return retval;
+}
+
 static inline struct cl_type **
 prepare_type_array_ptr(const struct symbol *raw_symbol,
                        struct ptr_db_item **ptr)
@@ -968,18 +984,11 @@ prepare_type_array_ptr(const struct symbol *raw_symbol,
     ptr_type = add_type_if_needed(type->ctype.base_type, &prev);
 
     if (type->type == SYM_PTR) {
-        if (!prev->next) {
-            prev->next = MEM_NEW(struct ptr_db_item);
-            if (!prev->next)
-                die("MEM_NEW");
-            prev->next->clt = NULL;
-            prev->next->next = NULL;
-            prev->next->arr_cnt = 0;
-            prev->next->arr = NULL;
-        }
-        clt_ptr = &prev->next->clt;
+        if (!prev->next)
+            prev->next = new_ptr_db_item();
         if (ptr)
             *ptr = prev->next;
+        clt_ptr = &prev->next->clt;
     } else {
         // SYM_ARRAY
         int i, size = sizeof_from_bits(raw_symbol->bit_size)/ptr_type->size;
