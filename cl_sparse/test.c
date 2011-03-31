@@ -590,6 +590,7 @@ get_arg_at_pos(struct symbol *fn, int pos)
         return NULL;
 
     // FIXME: lot of possible but missing checks
+    // alternative: use also symbol->arg_count on SYM_FN
     FOR_EACH_PTR(fn->ctype.base_type->arguments, sym) {
         if (!--pos)
             retval = sym;
@@ -797,11 +798,26 @@ static inline struct cl_type *
 get_instruction_type(struct instruction *insn)
 {
     // Note: pseudo->def == NULL for copy.32
-    if (insn && insn->type)
-        return (insn->opcode >= OP_BINCMP && insn->opcode <= OP_BINCMP_END)
-            ? &bool_clt
-            : add_type_if_needed(insn->type, NULL);
-    else
+    if (insn && insn->type) {
+        switch (insn->opcode) {
+            case OP_BINCMP ... OP_BINCMP_END:
+                return &bool_clt;
+            case OP_CALL:
+                // NOTE: experimental, mainly for alloc et al.
+                // try to find immediatelly following OP_CAST
+                // (normally suppressed) and set the type respectively
+                if (ptr_list_size((struct ptr_list *) insn->target->users)) {
+                    struct pseudo_user *u;
+                    u = (struct pseudo_user *)PTR_ENTRY(insn->target->users,3);
+                    if (u->insn->opcode == OP_CAST)
+                        return add_type_if_needed(u->insn->type, NULL);
+                }
+                return add_type_if_needed(insn->type, NULL);
+                break;
+            default:
+                return add_type_if_needed(insn->type, NULL);
+        }
+    } else
         // type fallback
         return &int_clt;
 }
