@@ -971,10 +971,8 @@ prepare_type_array_ptr(const struct symbol *raw_symbol,
             prev->next = MEM_NEW(struct ptr_db_item);
             if (!prev->next)
                 die("MEM_NEW");
-            prev->next->clt = NULL;
-            prev->next->next = NULL;
+            prev->next->clt = prev->next->next = prev->next->arr = NULL;
             prev->next->arr_cnt = 0;
-            prev->next->arr = NULL;
         }
         clt_ptr = &prev->next->clt;
         if (ptr)
@@ -1001,6 +999,7 @@ prepare_type_array_ptr(const struct symbol *raw_symbol,
     }
 
     if (!*clt_ptr) {
+        // new type to be read (no pointer/array alias found)
         *clt_ptr = read_type(new_cl_type(), raw_symbol, type);
 
         // finalize SYM_PTR (not in `read_type()' as we have needed info here)
@@ -1031,7 +1030,7 @@ add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
         return clt;
 
     // Extra handling of pointer/arrays symbols, potentially fast circuit
-    // for pointer/array alias (i.e. no allocation)
+    // for pointer/array alias (i.e., no allocation)
     if (type->type == SYM_PTR || type->type == SYM_ARRAY)
         clt_ptr = prepare_type_array_ptr(raw_symbol, ptr);
     else
@@ -1039,7 +1038,7 @@ add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
 
     bool is_new = (*clt_ptr == NULL);
     if (is_new)
-        // any new type except for existing pointer alias
+        // any new type except for existing pointer/array alias
         *clt_ptr = new_cl_type();
 
     clt = type_ptr_db_insert(&type_ptr_db, *clt_ptr, type, ptr);
