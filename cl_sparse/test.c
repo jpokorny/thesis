@@ -456,6 +456,7 @@ type_ptr_db_init(type_ptr_db_t db)
     if (!db->type_db)
         die("ht_create() failed");
 
+    // fill with base types
     populate_with_base_types(db);
 }
 
@@ -971,8 +972,10 @@ prepare_type_array_ptr(const struct symbol *raw_symbol,
             prev->next = MEM_NEW(struct ptr_db_item);
             if (!prev->next)
                 die("MEM_NEW");
-            prev->next->clt = prev->next->next = prev->next->arr = NULL;
+            prev->next->clt = NULL;
+            prev->next->next = NULL;
             prev->next->arr_cnt = 0;
+            prev->next->arr = NULL;
         }
         clt_ptr = &prev->next->clt;
         if (ptr)
