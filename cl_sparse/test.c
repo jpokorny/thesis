@@ -137,6 +137,16 @@ struct ptr_db_arr {
 };
 
 
+//
+// cl types tracked outside the hash table
+//
+
+struct tracked_clt_db {
+    size_t          alloc_size;
+    size_t          last;
+    struct cl_type  **clts;
+};
+
 
 //
 // Globals
@@ -148,13 +158,15 @@ const char *GIT_SHA1 = "someversion";
 static struct cl_code_listener *cl;
 
 static struct type_ptr_db {
-    struct typen_data  *type_db;
-    struct ptr_db_arr  ptr_db;
-    int                last_base_type_uid;
+    int                    last_base_type_uid;
+    struct typen_data      *type_db;
+    struct ptr_db_arr      ptr_db;
+    struct tracked_clt_db  clt_db;
 } type_ptr_db = {
-    .type_db = NULL,
-    .ptr_db  = { .alloc_size = 0, .last = 0, .heads = NULL },
     .last_base_type_uid = 0,  //**< to prevent free of non-heap based types
+    .type_db = NULL,
+    .ptr_db = { .alloc_size = 0, .last = 0, .heads = NULL },
+    .clt_db = { .alloc_size = 0, .last = 0, .clts = NULL },
 };
 typedef struct type_ptr_db *type_ptr_db_t;
 
@@ -492,7 +504,13 @@ type_ptr_db_destroy(type_ptr_db_t db)
             item = item_next;
         }
     }
-    free(db->ptr_db.heads);
+    free(ptr_db->heads);
+
+    // destroy tracked cl types
+    struct tracked_clt_db *clt_db = &db->clt_db;
+    for (i = 0; i < clt_db->last; i++)
+        free_clt(clt_db->clts[i]);
+    free(clt_db->clts);
 }
 
 static bool
@@ -612,6 +630,28 @@ static inline struct cl_type* new_cl_type(void)
     return empty_cl_type(retval);
 }
 
+static inline struct cl_type* deref_cl_type(const struct cl_type* orig_type)
+{
+    struct cl_type *retval = MEM_NEW(struct cl_type);
+    if (!retval)
+        die("MEM_NEW failed");
+
+    *retval = *orig_type;
+    retval->uid = type_ptr_db.last_base_type_uid+1;
+    retval->code = CL_TYPE_PTR;
+    retval->name = NULL;
+    retval->size = 4; //FIXME!!!
+    retval->item_cnt = 1;
+    retval->items = MEM_NEW(struct cl_type_item);
+    if (!retval->items)
+        die("MEM_NEW failed");
+    retval->items->type = orig_type;
+    retval->items->name = NULL;
+
+    // guaranteed not to return NULL
+    return retval;
+}
+
 static struct ptr_db_item *
 type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db, const struct cl_type *clt);
 
@@ -642,7 +682,7 @@ type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
             ptr_db->alloc_size += PTRDBARR_SIZE;
             ptr_db->heads = MEM_RESIZE_ARR(ptr_db->heads, ptr_db->alloc_size);
             if (!ptr_db->heads)
-                die("MEM_RESIZE_ARR");
+                die("MEM_RESIZE_ARR failed");
         }
         // TODO: nicer?
         ptr_db->heads[ptr_db->last].clt = clt;
@@ -734,6 +774,24 @@ populate_with_base_types(type_ptr_db_t db)
 
 static struct cl_type *
 add_type_if_needed(const struct symbol *type, struct ptr_db_item **ptr);
+
+
+static struct cl_type *
+track_cl_type(struct cl_type *clt)
+#define CLTDBARR_SIZE  (32)
+{
+    struct tracked_clt_db *clt_db = &type_ptr_db.clt_db;
+
+    if (!(clt_db->alloc_size - clt_db->last)) {
+        clt_db->alloc_size += CLTDBARR_SIZE;
+        clt_db->clts = MEM_RESIZE_ARR(clt_db->clts, clt_db->alloc_size);
+        if (!clt_db->clts)
+            die("MEM_RESIZE_ARR failed");
+    }
+    clt_db->clts[clt_db->last++] = clt;
+
+    return clt;
+}
 
 static inline struct cl_type *
 get_instruction_type(struct instruction *insn)
@@ -1301,38 +1359,49 @@ static int
 read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
 {
     int i = 0;
-    // by default, `insn_offset' is consumed by this round;
+    // `insn_offset' is consumed only by CL_TYPE_STRUCT or CL_TYPE_ARRAY;
     // e.g., accessing struct element is different with the first level
-    // access (use insn_offset) and with other accesses (always zero offset);
-    // non-zero return value is effectively propagated only with array
-    int retval = 0;
+    // access (use insn_offset) and with other accesses (always zero offset)
+    int retval = insn_offset;
 
     struct cl_accessor *ac;
 
     ac = build_trailing_accessor(op);
 
-    #define MAP_ACCESSOR(var, type, acc) case CL_##type: var = CL_##acc; break;
-    switch (op->type->code) {
-        MAP_ACCESSOR(ac->code, TYPE_PTR,    ACCESSOR_DEREF)
-        MAP_ACCESSOR(ac->code, TYPE_ARRAY,  ACCESSOR_DEREF_ARRAY)
-        MAP_ACCESSOR(ac->code, TYPE_STRUCT, ACCESSOR_ITEM)
-        default: CL_TRAP;
-    }
-
     // accessor's type is the operand's type (it itself is to be peeled off)
     ac->type = (struct cl_type *) op->type;
 
-    if (op->type->code == CL_TYPE_STRUCT) {
-        for (i = 0; i < op->type->item_cnt; i++)
-            if (op->type->items[i].offset == insn_offset)
-                break;
-        ac->data.item.id = i;
-    } else if (op->type->code == CL_TYPE_ARRAY) {
-        //CL_TRAP;
-        div_t indexes = div(insn_offset, op->type->size/op->type->array_size);
-        ac->data.array.index = build_cst_int(new_cl_operand(), indexes.quot);
-        // the remainder serves for next index-based-dereferencing rounds
-        retval = indexes.rem;
+    #define MAP_ACCESSOR(var, type, acc) case CL_##type: var = CL_##acc;
+    switch (op->type->code) {
+        MAP_ACCESSOR(ac->code, TYPE_STRUCT, ACCESSOR_ITEM) {
+            for (i = 0; i < op->type->item_cnt; i++)
+                if (op->type->items[i].offset == insn_offset)
+                    break;
+            ac->data.item.id = i;
+            retval = 0;
+            break;
+        }
+        MAP_ACCESSOR(ac->code, TYPE_ARRAY, ACCESSOR_DEREF_ARRAY) {
+            div_t indexes = div(insn_offset, op->type->size/op->type->array_size);
+            ac->data.array.index = build_cst_int(new_cl_operand(), indexes.quot);
+            // the remainder serves for next index-based-dereferencing rounds
+            retval = indexes.rem;
+            break;
+        }
+        MAP_ACCESSOR(ac->code, TYPE_PTR, ACCESSOR_DEREF) {
+            if (insn_offset) {
+                // convert into another accessor then predestined (ptr -> arr)
+                ac->code = CL_ACCESSOR_DEREF_ARRAY;
+                div_t indexes = div(insn_offset, op->type->items->type->size);
+                ac->data.array.index = build_cst_int(new_cl_operand(),
+                                                     indexes.quot);
+                // the remainder serves for next index-based-dereferencing rounds
+                retval = indexes.rem;
+            }
+            break;
+        }
+        default:
+            CL_TRAP;
     }
 
     // peel off one level of type/access decoration from the operand
@@ -1666,46 +1735,43 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
     /* prepare RHS */
 
     read_pseudo(&op_rhs, rhs);
-    if (rhs_access && (rhs->type != PSEUDO_VAL)) {
-        const struct cl_type *resulting_type;
+
+    if (rhs_access) {
+        const struct cl_type *resulting_type = add_type_if_needed(type, NULL);
         int insn_offset = insn->offset;
-        resulting_type = add_type_if_needed(type, NULL);
-        if (insn->opcode == OP_STORE) {
+        if (insn->opcode == OP_STORE && rhs->type == PSEUDO_SYM) {
             // remove one level of indirection of target type
             // (will be compensated by adding reference to rhs operand)
             resulting_type = resulting_type->items[0].type;
             insn_offset = 0;
         }
-        assert(resulting_type);
         adjust_cl_operand_accessors(&op_rhs, resulting_type, insn_offset);
-    }
-
-    if (lhs->type == PSEUDO_VAL /* && lhs->value == 0 */
-        && op_rhs.type->code == CL_TYPE_PTR) {
-        op_lhs.code = CL_OPERAND_CST;
-        op_lhs.type = op_rhs.type;
-        op_lhs.accessor = NULL;
-        op_lhs.data.cst.code = CL_TYPE_INT;
-        op_lhs.data.cst.data.cst_int.value = lhs->value;
-    } else {
-        read_pseudo(&op_lhs, lhs);
-        if (lhs_access) {
-            const struct cl_type *resulting_type;
-            resulting_type = add_type_if_needed(type, NULL);
-            assert(resulting_type);
-            adjust_cl_operand_accessors(&op_lhs, resulting_type, insn->offset);
-        }
     }
 
     if (insn->opcode == OP_STORE || insn->opcode == OP_PTRCAST) {
         // add promised reference
-        if (op_rhs.code == CL_OPERAND_VAR) {
+        if (insn->opcode == OP_PTRCAST || rhs->type == PSEUDO_SYM) {
             // accessor only when operand is variable
             struct cl_accessor *ac = build_trailing_accessor(&op_rhs);
             ac->code = CL_ACCESSOR_REF;
             ac->type = op_rhs.type;
         }
         op_rhs.type = add_type_if_needed(type, NULL);
+    }
+
+    /* prepare LHS */
+
+    read_pseudo(&op_lhs, lhs);
+
+    if (lhs_access) {
+        const struct cl_type *resulting_type = add_type_if_needed(type, NULL);
+        if (insn->opcode == OP_STORE && lhs->type == PSEUDO_VAL) {
+            op_lhs.type = (struct cl_type*) resulting_type;
+            struct cl_accessor *ac = build_trailing_accessor(&op_lhs);
+            ac->code = CL_ACCESSOR_DEREF;
+            ac->type = track_cl_type(deref_cl_type(resulting_type));
+        }
+        adjust_cl_operand_accessors(&op_lhs, resulting_type, insn->offset);
     }
 
     // FIXME SPARSE?:
@@ -1721,11 +1787,11 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
         cl->insn(cl, cli);
         //i>
 #if FIX_SPARSE_EXTRA_ARG_TO_MEM
-    } else {
+    } else
         WARN_VA(insn->pos, "instruction omitted: %s",
                 show_instruction((struct instruction *) insn));
-    }
 #endif
+
     free_cl_operand(&op_lhs);
     free_cl_operand(&op_rhs);
 
@@ -1747,9 +1813,10 @@ handle_insn_store(struct cl_insn *cli, const struct instruction *insn)
   * 1. Register is not immediately connected with type information
   * S. Use insn->type
   */
+    //CL_TRAP;
     return insn_assignment_base(cli, insn,
         insn->symbol,  /* := */  insn->target,
-        true,                    insn->target->type != PSEUDO_REG
+        true,                    (insn->target->type != PSEUDO_VAL)
     );
 }
 
