@@ -43,9 +43,9 @@
 #include "sparse/expression.h"
 #include "sparse/linearize.h"
 #include "sparse/scope.h"
+#include "sparse/storage.h"
 //#include "sparse/flow.h"
 //#include "sparse/parse.h"
-//#include "sparse/storage.h"
 //#include "sparse/symbol.h"
 //#include "sparse/token.h"
 
@@ -314,10 +314,11 @@ static void cl_error(const char *msg)
         case which:
 #define BEGIN_WHEN(cond_which)  \
         COND_WHICH(cond_which)
-#define ELSE_WHEN(conde_which)  \
-        break;
-
-#define END_WHEN  }
+#define END_WHEN                \
+            ; break;            \
+        default:                \
+            break;              \
+    }
 
 
 // Note: *clt (as well as nested items) expected to be heap-based
@@ -413,6 +414,8 @@ free_cl_operand(struct cl_operand *op)
             case CL_TYPE_STRING:
                 free((char *) op->data.cst.data.cst_string.value);
                 break;
+            default:
+                break;
         }
     } else if (op->code == CL_OPERAND_VAR) {
         /* op->data.var->name */
@@ -443,7 +446,7 @@ free_cl_operand_heap(struct cl_operand *op)
 //
 
 
-static int
+static void
 populate_with_base_types(type_ptr_db_t db);
 
 static void
@@ -604,7 +607,7 @@ type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
                    const struct symbol *type, struct ptr_db_item **ptr)
 #define PTRDBARR_SIZE  (128)
 {
-    if (verbose & CL_VERBOSE_INSERT_TYPE) {
+    if (cl_verbose & CL_VERBOSE_INSERT_TYPE) {
         NOTE("add type (uid = %d, clt = %p): %p", clt->uid, clt, type);
         show_symbol((struct symbol *) type);
         NOTE("---");
@@ -647,7 +650,7 @@ type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
     return retval;
 }
 
-static int
+static void
 populate_with_base_types(type_ptr_db_t db)
 #define TYPE(sym, clt)  { &sym##_clt, &sym##_ctype, CL_TYPE_##clt, #sym }
 {
@@ -804,7 +807,7 @@ read_type_enum(struct cl_type *clt, const struct symbol *type)
     clt->name = read_ident(type->ident);
 }
 
-static const struct symbol *
+static struct cl_type *
 read_type(struct cl_type *clt, const struct symbol *type)
 #define TYPE_STD(spt, clt, hnd) \
     [SYM_##spt]={ .type_code=CL_TYPE_##clt, .prop.handler=hnd }
@@ -861,7 +864,7 @@ read_type(struct cl_type *clt, const struct symbol *type)
 
     const struct type_transformer *transformer;
 
-    if (verbose & CL_VERBOSE_TYPE) {
+    if (cl_verbose & CL_VERBOSE_TYPE) {
         NOTE("\t%d: type to be processed:", type->pos.line);
         show_symbol((struct symbol *) type);
     }
@@ -880,7 +883,7 @@ read_type(struct cl_type *clt, const struct symbol *type)
             CL_TRAP;
             WARN_UNHANDLED(type->pos, transformer->prop.string);
             clt->name = strdup(show_typename((struct symbol *)type));
-            return;
+            return clt;
         default:
             break;
     }
@@ -888,7 +891,7 @@ read_type(struct cl_type *clt, const struct symbol *type)
     if (transformer->prop.handler)
         transformer->prop.handler(clt, type);
 
-    return type;
+    return clt;
 }
 
 static inline const struct symbol *
@@ -939,34 +942,31 @@ type_ptr_db_lookup_item(type_ptr_db_t db, const struct symbol *type,
 }
 
 static inline struct cl_type **
-preprocess_type_ptr(struct ptr_db_item *prev, struct ptr_db_item **ptr)
+preprocess_type_ptr(struct ptr_db_item *prev, struct cl_type *ptr_type,
+                    const struct symbol *type, struct ptr_db_item **ptr)
 {
     if (!prev->next) {
         prev->next = MEM_NEW(struct ptr_db_item);
         if (!prev->next)
             die("MEM_NEW");
-        prev->next->clt = NULL;
         prev->next->next = NULL;
+        prev->next->clt = new_cl_type();
+
+        read_type(prev->next->clt, type);
+
+        // use obtained dereferenced type
+        prev->next->clt->item_cnt = 1;
+        prev->next->clt->items = MEM_NEW(struct cl_type_item);
+        if (!prev->next->clt->items)
+            die("MEM_NEW");
+        assert(ptr_type);
+        prev->next->clt->items->type = ptr_type;
+        prev->next->clt->items->name = NULL;
     }
     if (ptr)
         *ptr = prev->next;
 
     return &prev->next->clt;
-}
-
-static inline struct cl_type *
-postprocess_type_ptr(struct cl_type *clt, struct cl_type *ptr_type)
-{
-    // use obtained dereferenced type
-    clt->item_cnt = 1;
-    clt->items = MEM_NEW(struct cl_type_item);
-    if (!clt->items)
-        die("MEM_NEW");
-    assert(ptr_type);
-    clt->items->type = ptr_type;
-    clt->items->name = NULL;
-
-    return clt;
 }
 
 static inline struct cl_type **
@@ -975,6 +975,7 @@ preprocess_type_array(struct ptr_db_item *prev, struct cl_type *ptr_type,
 {
     int size = sizeof_from_bits(raw_symbol->bit_size);
     int array_size = size/ptr_type->size;
+
     int i;
     for (i = 0; i < prev->arr_cnt; i++)
         if (prev->arr[i]->arr_size == array_size)
@@ -987,22 +988,19 @@ preprocess_type_array(struct ptr_db_item *prev, struct cl_type *ptr_type,
         if (!prev->arr[i])
             die("MEM_NEW failed");
         prev->arr[i]->arr_size = array_size;
-        prev->arr[i]->clt = NULL;
+        prev->arr[i]->clt = new_cl_type();
+
+        read_type(prev->arr[i]->clt, raw_symbol);
+
+        if (raw_symbol->type == SYM_NODE) {
+            // normalize size of the "outer" dimension as well as missing size
+            prev->arr[i]->clt->size = size;
+            prev->arr[i]->clt->array_size = array_size
+                /*clt->size/clt->items[0].type->size*/;
+        }
     }
 
     return &prev->arr[i]->clt;
-}
-
-static inline struct cl_type *
-postprocess_type_array(struct cl_type *clt, const struct symbol *array_symbol)
-{
-    if (array_symbol->type == SYM_NODE) {
-        //CL_TRAP;
-        // normalize size of the "outer" dimension as well as missing size
-        clt->size = sizeof_from_bits(array_symbol->bit_size);
-        clt->array_size = clt->size/clt->items[0].type->size;
-    }
-    return clt;
 }
 
 // note: the only function that uses type_ptr_db global variable directly
@@ -1029,7 +1027,7 @@ add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
         ptr_type = add_type_if_needed(type->ctype.base_type, &prev);
 
         if (type->type == SYM_PTR)
-            clt_ptr = preprocess_type_ptr(prev, ptr);
+            clt_ptr = preprocess_type_ptr(prev, ptr_type, type, ptr);
         else if (type->type == SYM_ARRAY)
             clt_ptr = preprocess_type_array(prev, ptr_type, raw_symbol);
     } else
@@ -1048,16 +1046,7 @@ add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
 
     // Slow path for anything (except for pointers) which is being
     // proceeded for the first time (next time, hashed ctl is used instead)
-    type = read_type(clt, type);
-
-    switch (type->type) {
-        case SYM_PTR:
-            return postprocess_type_ptr(clt, ptr_type);
-        case SYM_ARRAY:
-            return postprocess_type_array(clt, raw_symbol);
-        default:
-            return clt;
-    }
+    return read_type(clt, type);
 }
 
 
@@ -1281,6 +1270,7 @@ read_pseudo(struct cl_operand *op, const pseudo_t pseudo)
         default:
             // PSEUDO_PHI
             CL_TRAP;
+            return op;
     }
 }
 
@@ -1935,7 +1925,7 @@ handle_insn(struct instruction *insn)
     struct cl_insn cli;
     const struct insn_transformer *transformer;
 
-    if (verbose & CL_VERBOSE_INSTRUCTION)
+    if (cl_verbose & CL_VERBOSE_INSTRUCTION)
         NOTE("\t%d: instruction to be processed: %s", insn->pos.line,
                                                       show_instruction(insn));
 
@@ -2061,7 +2051,7 @@ static void handle_fnc_ep(struct entrypoint *ep)
             continue;
 
         if (bb->parents || bb->children || bb->insns
-            || /* FIXME: is the following actually useful? */ 2 < verbose) {
+            || /* FIXME: is the following actually useful? */ 2 < cl_verbose) {
             handle_bb(bb);
         }
     } END_FOR_EACH_PTR(bb);
@@ -2201,7 +2191,7 @@ static void clean_up_symbols(struct symbol_list *list)
 
 static void print_help(const char *cmd)
 #define _(...) printf(__VA_ARGS__); printf("\n");
-#define __ _("");
+#define __ _(" ");
 {
 _("sparse-based code listener frontend"                                      )
 __
@@ -2252,7 +2242,7 @@ handle_cl_args(int argc, char *argv[], struct cl_plug_options *opt)
             print_help(argv[0]);
             return EXIT_FAILURE;
         } else if ((value = OPTPREFIXEQ_CL(argv[i],  "verbose"))) {
-            verbose = OPTVALUE(value)
+            cl_verbose = OPTVALUE(value)
                 ? atoi(value)
                 : ~0;
 
@@ -2332,7 +2322,7 @@ create_cl_chain(const struct cl_plug_options *opt)
         // error message already emitted
         return NULL;
 
-    if (CL_VERBOSE_LOCATION & verbose) {
+    if (CL_VERBOSE_LOCATION & cl_verbose) {
         if (!cl_append_listener(chain, "listener=\"locator\""))
             return NULL;
     }
@@ -2412,7 +2402,7 @@ worker_loop(struct cl_plug_options *opt, int argc, char **argv)
 
     // proceed the rest, file by file
     FOR_EACH_PTR_NOTAG(filelist, file) {
-        if (0 < verbose)
+        if (0 < cl_verbose)
             fprintf(real_stderr, "about to process '%s'...\n", file);
         cl->file_open(cl, file);
         clean_up_symbols(sparse(file));

@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS ?= #-std=c99 -Wall -Wextra -pedantic
+CFLAGS ?= -Wall -Wno-unused-function #-std=c99 -Wall -Wextra -pedantic
 CFLAGS += -g -ggdb3 #-O2
 
 CL_DIR = ../predator_cl/cl_build
