@@ -473,7 +473,13 @@ type_ptr_db_destroy(type_ptr_db_t db)
         while (item) {
             item_next = item->next;
 
-            /* item.type (skipped) */
+            /* item->clt (skipped) */
+
+            /* item->arr */
+            int j;
+            for (j = 0; j < item->arr_cnt; j++)
+                free(item->arr[j]);
+            free(item->arr);
 
             free(item);
             item = item_next;
@@ -766,7 +772,8 @@ add_subtypes(struct cl_type *clt, struct symbol_list *subtypes)
 }
 
 static inline void
-read_type_fnc(struct cl_type *clt, const struct symbol *type)
+read_type_fnc(struct cl_type *clt, const struct symbol *raw_symbol,
+              const struct symbol *type)
 {
     add_subtype(clt, type->ctype.base_type);
     add_subtypes(clt, type->arguments);
@@ -775,23 +782,33 @@ read_type_fnc(struct cl_type *clt, const struct symbol *type)
 }
 
 static inline void
-read_type_array(struct cl_type *clt, const struct symbol *type)
+read_type_array(struct cl_type *clt, const struct symbol *raw_symbol,
+                const struct symbol *type)
 {
     //CL_TRAP;
     //clt->name = read_ident(type->ident);
+    //
+    //
+
+    if (raw_symbol->type == SYM_NODE)
+        // normalize size of the "outer" dimension as well as missing size
+        clt->size = sizeof_from_bits(raw_symbol->bit_size);
     int subtype_size = add_subtype(clt, type->ctype.base_type)->type->size;
     clt->array_size = clt->size/subtype_size;
+                      // clt->size/clt->items[0].type->size
 }
 
 static inline void
-read_type_struct(struct cl_type *clt, const struct symbol *type)
+read_type_struct(struct cl_type *clt, const struct symbol *raw_symbol,
+                 const struct symbol *type)
 {
     clt->name = read_ident(type->ident);
     add_subtypes(clt, type->symbol_list);
 }
 
 static inline void
-read_type_union(struct cl_type *clt, const struct symbol *type)
+read_type_union(struct cl_type *clt, const struct symbol *raw_symbol,
+                const struct symbol *type)
 {
     CL_TRAP;
     clt->name     = read_ident(type->ident);
@@ -802,24 +819,24 @@ read_type_union(struct cl_type *clt, const struct symbol *type)
 }
 
 static inline void
-read_type_enum(struct cl_type *clt, const struct symbol *type)
+read_type_enum(struct cl_type *clt, const struct symbol *raw_symbol,
+               const struct symbol *type)
 {
     clt->name = read_ident(type->ident);
 }
 
+// Note: not to be called directly, but via add_type_if_needed
 static struct cl_type *
-read_type(struct cl_type *clt, const struct symbol *type)
+read_type(struct cl_type *clt, const struct symbol *raw_symbol,
+          const struct symbol *type)
 #define TYPE_STD(spt, clt, hnd) \
     [SYM_##spt]={ .type_code=CL_TYPE_##clt, .prop.handler=hnd }
 #define TYPE_IGN(spt, _, __) \
     [SYM_##spt]={ .type_code=CL_TYPE_UNKNOWN, .prop.string="SYM_"#spt }
-{/* Synopsis:
-  * sparse/symbol.h
-  */
-    if (type->type == SYM_NODE)
-        return read_type(clt, type->ctype.base_type);
-
-    typedef void (*type_handler)(struct cl_type *, const struct symbol *);
+{
+    typedef void (*type_handler)(struct cl_type *,
+                                 const struct symbol * /* raw_symbol */,
+                                 const struct symbol * /* type */);
     const struct type_transformer {
         enum cl_type_e    type_code;
         union {
@@ -840,7 +857,7 @@ read_type(struct cl_type *clt, const struct symbol *type)
         TYPE_IGN( UNINITIALIZED ,        ,                       ),
         TYPE_IGN( PREPROCESSOR  ,        ,                       ),
         TYPE_IGN( BASETYPE      ,        ,                       ),
-        TYPE_IGN( NODE          ,        , /* already handled */ ),
+        TYPE_IGN( NODE          ,        , /*unexpected in type*/),
 
         /* ready to handle */
         TYPE_STD( PTR           , PTR    , NULL /*set code only*/),
@@ -872,10 +889,12 @@ read_type(struct cl_type *clt, const struct symbol *type)
     //assert(PARTIALLY_ORDERED( SYM_UNINITIALIZED , symbol->type , SYM_BAD ));
     transformer = &type_transformers[type->type];
 
+    // TODO: raw symbol?
     read_location(&clt->loc, type->pos);
     read_scope(&clt->scope, type->scope);
 
     clt->code = transformer->type_code;
+    // TODO: raw_symbol?
     clt->size = sizeof_from_bits(type->bit_size);
 
     switch (transformer->type_code) {
@@ -889,7 +908,7 @@ read_type(struct cl_type *clt, const struct symbol *type)
     }
 
     if (transformer->prop.handler)
-        transformer->prop.handler(clt, type);
+        transformer->prop.handler(clt, raw_symbol, type);
 
     return clt;
 }
@@ -912,10 +931,6 @@ type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db, const struct cl_type *clt)
 {
     if (clt->code == CL_TYPE_PTR)
         return type_ptr_db_lookup_ptr(ptr_db, clt->items->type)->next;
-#if 0
-    else if (clt->code == CL_TYPE_ARRAY)
-        return type_ptr_db_lookup_ptr(ptr_db, clt->items->type);
-#endif
 
     int i;
     for (i = 0; i < ptr_db->last; i++)
@@ -925,7 +940,7 @@ type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db, const struct cl_type *clt)
     if (i < ptr_db->last)
         return &ptr_db->heads[i];
 
-    // should not happen
+    // not found ... should not happen
     CL_TRAP;
     return NULL;
 }
@@ -942,111 +957,102 @@ type_ptr_db_lookup_item(type_ptr_db_t db, const struct symbol *type,
 }
 
 static inline struct cl_type **
-preprocess_type_ptr(struct ptr_db_item *prev, struct cl_type *ptr_type,
-                    const struct symbol *type, struct ptr_db_item **ptr)
+prepare_type_array_ptr(const struct symbol *raw_symbol,
+                       struct ptr_db_item **ptr)
 {
-    if (!prev->next) {
-        prev->next = MEM_NEW(struct ptr_db_item);
-        if (!prev->next)
-            die("MEM_NEW");
-        prev->next->next = NULL;
-        prev->next->clt = new_cl_type();
+    struct cl_type **clt_ptr, *ptr_type = NULL;
+    struct ptr_db_item *prev = NULL;
+    const struct symbol *type = type_unwrap(raw_symbol);
 
-        read_type(prev->next->clt, type);
+    ptr_type = add_type_if_needed(type->ctype.base_type, &prev);
 
-        // use obtained dereferenced type
-        prev->next->clt->item_cnt = 1;
-        prev->next->clt->items = MEM_NEW(struct cl_type_item);
-        if (!prev->next->clt->items)
-            die("MEM_NEW");
-        assert(ptr_type);
-        prev->next->clt->items->type = ptr_type;
-        prev->next->clt->items->name = NULL;
+    if (type->type == SYM_PTR) {
+        if (!prev->next) {
+            prev->next = MEM_NEW(struct ptr_db_item);
+            if (!prev->next)
+                die("MEM_NEW");
+            prev->next->clt = NULL;
+            prev->next->next = NULL;
+            prev->next->arr_cnt = 0;
+            prev->next->arr = NULL;
+        }
+        clt_ptr = &prev->next->clt;
+        if (ptr)
+            *ptr = prev->next;
+    } else {
+        // SYM_ARRAY
+        int i, size = sizeof_from_bits(raw_symbol->bit_size)/ptr_type->size;
+
+        for (i = 0; i < prev->arr_cnt; i++)
+            if (prev->arr[i]->arr_size == size)
+                break;
+        if (i == prev->arr_cnt) {
+            // not found
+            prev->arr = MEM_RESIZE_ARR(prev->arr, ++prev->arr_cnt);
+            if (!prev->arr)
+                die("MEM_RESIZE failed");
+            prev->arr[i] = MEM_NEW(struct arr_db_item);
+            if (!prev->arr[i])
+                die("MEM_NEW failed");
+            prev->arr[i]->arr_size = size;
+            prev->arr[i]->clt = NULL;
+        }
+        clt_ptr = &prev->arr[i]->clt;
     }
-    if (ptr)
-        *ptr = prev->next;
 
-    return &prev->next->clt;
-}
+    if (!*clt_ptr) {
+        *clt_ptr = read_type(new_cl_type(), raw_symbol, type);
 
-static inline struct cl_type **
-preprocess_type_array(struct ptr_db_item *prev, struct cl_type *ptr_type,
-                      const struct symbol *raw_symbol)
-{
-    int size = sizeof_from_bits(raw_symbol->bit_size);
-    int array_size = size/ptr_type->size;
-
-    int i;
-    for (i = 0; i < prev->arr_cnt; i++)
-        if (prev->arr[i]->arr_size == array_size)
-            break;
-    if (i == prev->arr_cnt) {
-        prev->arr = MEM_RESIZE_ARR(prev->arr, ++prev->arr_cnt);
-        if (!prev->arr)
-            die("MEM_RESIZE failed");
-        prev->arr[i] = MEM_NEW(struct arr_db_item);
-        if (!prev->arr[i])
-            die("MEM_NEW failed");
-        prev->arr[i]->arr_size = array_size;
-        prev->arr[i]->clt = new_cl_type();
-
-        read_type(prev->arr[i]->clt, raw_symbol);
-
-        if (raw_symbol->type == SYM_NODE) {
-            // normalize size of the "outer" dimension as well as missing size
-            prev->arr[i]->clt->size = size;
-            prev->arr[i]->clt->array_size = array_size
-                /*clt->size/clt->items[0].type->size*/;
+        // finalize SYM_PTR (not in `read_type()' as we have needed info here)
+        if (type->type == SYM_PTR) {
+            // use obtained dereferenced type
+            (*clt_ptr)->item_cnt = 1;
+            (*clt_ptr)->items = MEM_NEW(struct cl_type_item);
+            if (!(*clt_ptr)->items)
+                die("MEM_NEW");
+            (*clt_ptr)->items->type = ptr_type;
+            (*clt_ptr)->items->name = NULL;
         }
     }
 
-    return &prev->arr[i]->clt;
+    return clt_ptr;
 }
 
 // note: the only function that uses type_ptr_db global variable directly
 static struct cl_type *
 add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
 {
-    struct cl_type *clt;
-    const struct symbol *type;
-
-    type = type_unwrap(raw_symbol);
+    struct cl_type *clt, **clt_ptr;
+    const struct symbol *type = type_unwrap(raw_symbol);
 
     // Fastest path, we have the type already in hash table
     clt = type_ptr_db_lookup_item(&type_ptr_db, type, ptr);
     if (clt)
         return clt;
 
-    struct cl_type **clt_ptr, *ptr_type = NULL;
-
-    // Extra handling of pointer symbols, potentially fast circuit for pointer
-    // type alias (i.e. no allocation)
-    if (type->type == SYM_PTR || type->type == SYM_ARRAY) {
-        struct ptr_db_item *prev = NULL;
-
-        ptr_type = add_type_if_needed(type->ctype.base_type, &prev);
-
-        if (type->type == SYM_PTR)
-            clt_ptr = preprocess_type_ptr(prev, ptr_type, type, ptr);
-        else if (type->type == SYM_ARRAY)
-            clt_ptr = preprocess_type_array(prev, ptr_type, raw_symbol);
-    } else
+    // Extra handling of pointer/arrays symbols, potentially fast circuit
+    // for pointer/array alias (i.e. no allocation)
+    if (type->type == SYM_PTR || type->type == SYM_ARRAY)
+        clt_ptr = prepare_type_array_ptr(raw_symbol, ptr);
+    else
         clt_ptr = &clt;
 
     bool is_new = (*clt_ptr == NULL);
-    if (is_new) {
+    if (is_new)
         // any new type except for existing pointer alias
         *clt_ptr = new_cl_type();
-    }
 
     clt = type_ptr_db_insert(&type_ptr_db, *clt_ptr, type, ptr);
 
     if (!is_new)
-        return clt;  // existing pointer alias
+        return clt;  // existing pointer/array alias
 
     // Slow path for anything (except for pointers) which is being
     // proceeded for the first time (next time, hashed ctl is used instead)
-    return read_type(clt, type);
+    //
+    // Important: these types are read ex-post in order to prevent recursion
+    //            with, e.g., structures
+    return read_type(clt, raw_symbol, type);
 }
 
 
