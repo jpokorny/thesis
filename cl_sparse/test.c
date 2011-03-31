@@ -470,17 +470,23 @@ type_ptr_db_destroy(type_ptr_db_t db)
     struct ptr_db_item *item, *item_next;
     int i;
     for (i = 0; i < ptr_db->last; i++) {
-        item = ptr_db->heads[i].next;
+        item = &ptr_db->heads[i];
+
+        /* item->clt (skipped) */
+
+        /* item->arr */
+        int j;
+        for (j = 0; j < item->arr_cnt; j++)
+            free(item->arr[j]);
+        free(item->arr);
+
+        // move onto next items, this one captured by `free(db->ptr_db.heads)'
+        item = item->next;
+
         while (item) {
             item_next = item->next;
 
             /* item->clt (skipped) */
-
-            /* item->arr */
-            int j;
-            for (j = 0; j < item->arr_cnt; j++)
-                free(item->arr[j]);
-            free(item->arr);
 
             free(item);
             item = item_next;
