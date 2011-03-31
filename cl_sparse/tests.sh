@@ -22,6 +22,8 @@ GENERATE_BAD=1
 SHOW_OK=1
 SHOW_IGNORE_REASON=0
 
+DIRDIFF=meld
+
 
 for i in $(seq 0 63); do SLINE="-$SLINE"; done
 for i in $(seq 0 63); do DLINE="=$DLINE"; done
@@ -184,6 +186,8 @@ function do_tests() {
     $DIFF $NEW_SUMMARY_LOG $PREV_SUMMARY_LOG
 
     [ $? -ne 0 ] && echo $DLINE
+
+    nohup $DIRDIFF $SPARSE_PP $PREV_SPARSE_PP 2>&1 >/dev/null &
 
     ###
     popd >/dev/null
