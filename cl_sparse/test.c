@@ -1002,9 +1002,12 @@ type_unwrap(const struct symbol *raw_type)
     if (!raw_type)
         CL_TRAP;
 
-    return (raw_type->type == SYM_NODE /* || raw_type->type == SYM_ENUM */)
-        ? raw_type->ctype.base_type
-        : raw_type;
+    const struct symbol *retval = raw_type;
+    while (retval->type == SYM_NODE || retval->type == SYM_BITFIELD
+           /*retval->type == SYM_ENUM */)
+        retval = retval->ctype.base_type;
+
+    return retval;
 }
 
 // for given type "clt", return respective item from pointer hieararchy;
@@ -1880,15 +1883,29 @@ handle_insn_ptrcast(struct cl_insn *cli, const struct instruction *insn)
 
 static bool
 handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
-{/* Synopsis:
-  *
-  * Problems:
+{/* Problems:
+  * 1. Binary arithmetics has to be installed ex post.
+  * S. CL_BINOP_PLUS -> CL_BINOP_POINTER_PLUS when suitable.
   */
     struct cl_operand dst, src1, src2;
 
     cli->data.insn_binop.dst  = read_pseudo(&dst,  insn->target);
     cli->data.insn_binop.src1 = read_pseudo(&src1, insn->src1  );
     cli->data.insn_binop.src2 = read_pseudo(&src2, insn->src2  );
+
+    // for pointer arithmetics, rewrite binary operation
+    if (src1.type->code == CL_TYPE_PTR || src2.type->code == CL_TYPE_PTR) {
+        switch (cli->data.insn_binop.code) {
+            case CL_BINOP_PLUS:
+                cli->data.insn_binop.code = CL_BINOP_POINTER_PLUS;
+                break;
+            default:
+                // only addition is supported (XXX: may other ops occur?)
+                CL_TRAP;
+                break;
+        }
+    }
+
     //i>
     cl->insn(cl, cli);
     //i>
