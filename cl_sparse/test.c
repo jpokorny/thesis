@@ -996,11 +996,13 @@ read_type(struct cl_type *clt, const struct symbol *raw_symbol,
 
 static inline const struct symbol *
 type_unwrap(const struct symbol *raw_type)
-{
+{/* See also:
+  * sparse/symbol.h: get_sym_type()
+  */
     if (!raw_type)
         CL_TRAP;
 
-    return (raw_type->type == SYM_NODE)
+    return (raw_type->type == SYM_NODE /* || raw_type->type == SYM_ENUM */)
         ? raw_type->ctype.base_type
         : raw_type;
 }
