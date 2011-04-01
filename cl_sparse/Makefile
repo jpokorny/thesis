@@ -41,7 +41,7 @@ check: $(PROGRAM)
 	./tests.sh
 
 clean: clean-check
-	$(RM) -f $(MAIN_SRC:.c=.o) $(SRCS:.c=.o)
+	$(RM) -f $(MAIN_SRC:.c=.o) $(SRCS:.c=.o) core vgcore.*
 
 clean-check:
 	./tests.sh clean
