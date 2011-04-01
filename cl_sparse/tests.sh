@@ -196,11 +196,29 @@ function do_tests() {
 
 function clean() {
     echo "cleaning"
-    rm -r $TESTSUITE_DIR/$GCC_DOTS || :
+    rm -r -- $TESTSUITE_DIR/$GCC_DOTS || :
 }
 
+function clean_prev() {
+    echo "cleaning previous"
+
+    # XXX: copy'n'paste from above
+
+    pushd $TESTSUITE_DIR >/dev/null
+    ###
+
+    PREV_SPARSE_DOTS=$TESTSUITE_DOTS/$(ls -1 -t $TESTSUITE_DOTS | head -n1)
+    PREV_SPARSE_PP=$TESTSUITE_SPARSE_PP/$(ls -1 -t $TESTSUITE_SPARSE_PP | head -n1)
+    PREV_SUMMARY_LOG=$(ls -1 -t $TESTSUITE_LOGS | head -n1)
+
+    rm -rf -- $PREV_SPARSE_DOTS $PREV_SPARSE_PP $PREV_SUMMARY_LOG
+
+    ###
+    popd >/dev/null
+}
 
 case $1 in "clean") $1;;
+           "clean_prev") $1;;
            "gcc_prelude") $1;;
            "") do_tests;;
            *) echo "$0 [clean|gcc_prelude (note: use \"source $0\" for this)]"

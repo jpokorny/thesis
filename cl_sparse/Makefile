@@ -19,7 +19,7 @@ SRCS = hash_table.c type_enumerator.c
 INC_DIR = include
 
 
-.PHONY: all clean check clean-check
+.PHONY: all clean check clean-check-prev clean-check
 
 
 all: $(PROGRAM)
@@ -42,6 +42,9 @@ check: $(PROGRAM)
 
 clean: clean-check
 	$(RM) -f $(MAIN_SRC:.c=.o) $(SRCS:.c=.o) core vgcore.*
+
+clean-check-prev:
+	./tests.sh clean_prev
 
 clean-check:
 	./tests.sh clean
