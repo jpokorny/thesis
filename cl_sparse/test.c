@@ -138,19 +138,6 @@ struct ptr_db_arr {
 };
 
 
-#if 0
-//
-// cl types tracked outside the hash table
-//
-
-struct tracked_clt_db {
-    size_t          alloc_size;
-    size_t          last;
-    struct cl_type  **clts;
-};
-
-#endif
-
 
 //
 // Globals
@@ -165,16 +152,10 @@ static struct type_ptr_db {
     int                    last_base_type_uid;
     struct typen_data      *type_db;
     struct ptr_db_arr      ptr_db;
-#if 0
-    struct tracked_clt_db  clt_db;
-#endif
 } type_ptr_db = {
     .last_base_type_uid = 0,  //**< to prevent free of non-heap based types
     .type_db = NULL,
     .ptr_db = { .alloc_size = 0, .last = 0, .heads = NULL },
-#if 0
-    .clt_db = { .alloc_size = 0, .last = 0, .clts = NULL },
-#endif
 };
 typedef struct type_ptr_db *type_ptr_db_t;
 
@@ -517,14 +498,6 @@ type_ptr_db_destroy(type_ptr_db_t db)
         }
     }
     free(ptr_db->heads);
-
-#if 0
-    // destroy tracked cl types
-    struct tracked_clt_db *clt_db = &db->clt_db;
-    for (i = 0; i < clt_db->last; i++)
-        free_clt(clt_db->clts[i]);
-    free(clt_db->clts);
-#endif
 }
 
 static bool
@@ -822,20 +795,6 @@ tracked_deref_clt(struct cl_type *orig_clt)
     }
 
     return prev->next->clt;
-
-#if 0
-#define CLTDBARR_SIZE  (32)
-    struct tracked_clt_db *clt_db = &type_ptr_db.clt_db;
-    if (!(clt_db->alloc_size - clt_db->last)) {
-        clt_db->alloc_size += CLTDBARR_SIZE;
-        clt_db->clts = MEM_RESIZE_ARR(clt_db->clts, clt_db->alloc_size);
-        if (!clt_db->clts)
-            die("MEM_RESIZE_ARR failed");
-    }
-    clt_db->clts[clt_db->last++] = clt;
-
-    return clt;
-#endif
 }
 
 static inline struct cl_type *
