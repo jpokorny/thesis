@@ -128,6 +128,7 @@ struct ptr_db_item {
     struct ptr_db_item  *next;
     size_t              arr_cnt;
     struct arr_db_item  **arr;
+    bool                free_clt;
 };
 
 struct ptr_db_arr {
@@ -137,6 +138,7 @@ struct ptr_db_arr {
 };
 
 
+#if 0
 //
 // cl types tracked outside the hash table
 //
@@ -146,6 +148,8 @@ struct tracked_clt_db {
     size_t          last;
     struct cl_type  **clts;
 };
+
+#endif
 
 
 //
@@ -161,12 +165,16 @@ static struct type_ptr_db {
     int                    last_base_type_uid;
     struct typen_data      *type_db;
     struct ptr_db_arr      ptr_db;
+#if 0
     struct tracked_clt_db  clt_db;
+#endif
 } type_ptr_db = {
     .last_base_type_uid = 0,  //**< to prevent free of non-heap based types
     .type_db = NULL,
     .ptr_db = { .alloc_size = 0, .last = 0, .heads = NULL },
+#if 0
     .clt_db = { .alloc_size = 0, .last = 0, .clts = NULL },
+#endif
 };
 typedef struct type_ptr_db *type_ptr_db_t;
 
@@ -484,7 +492,9 @@ type_ptr_db_destroy(type_ptr_db_t db)
     for (i = 0; i < ptr_db->last; i++) {
         item = &ptr_db->heads[i];
 
-        /* item->clt (skipped) */
+        /* item->clt (skipped, except for those explicitly flagged) */
+        if (item->free_clt)
+            free_clt(item->clt);
 
         /* item->arr */
         int j;
@@ -498,7 +508,9 @@ type_ptr_db_destroy(type_ptr_db_t db)
         while (item) {
             item_next = item->next;
 
-            /* item->clt (skipped) */
+            /* item->clt (skipped, except for those explicitly flagged) */
+            if (item->free_clt)
+                free_clt(item->clt);
 
             free(item);
             item = item_next;
@@ -506,11 +518,13 @@ type_ptr_db_destroy(type_ptr_db_t db)
     }
     free(ptr_db->heads);
 
+#if 0
     // destroy tracked cl types
     struct tracked_clt_db *clt_db = &db->clt_db;
     for (i = 0; i < clt_db->last; i++)
         free_clt(clt_db->clts[i]);
     free(clt_db->clts);
+#endif
 }
 
 static bool
@@ -776,13 +790,42 @@ populate_with_base_types(type_ptr_db_t db)
 static struct cl_type *
 add_type_if_needed(const struct symbol *type, struct ptr_db_item **ptr);
 
+static struct ptr_db_item *
+new_ptr_db_item(void)
+{
+    struct ptr_db_item *retval = MEM_NEW(struct ptr_db_item);
+    if (!retval)
+        die("MEM_NEW");
+
+    retval->clt = NULL;
+    retval->next = NULL;
+    retval->arr_cnt = 0;
+    retval->arr = NULL;
+    retval->free_clt = false;
+
+    // guaranteed not to return NULL
+    return retval;
+}
 
 static struct cl_type *
-track_cl_type(struct cl_type *clt)
-#define CLTDBARR_SIZE  (32)
+tracked_deref_clt(struct cl_type *orig_clt)
 {
-    struct tracked_clt_db *clt_db = &type_ptr_db.clt_db;
+    struct ptr_db_arr *ptr_db = &type_ptr_db.ptr_db;
 
+    struct ptr_db_item *prev;
+    prev = type_ptr_db_lookup_ptr(ptr_db, orig_clt);
+
+    if (!prev->next) {
+        prev->next = new_ptr_db_item();
+        prev->next->clt = deref_cl_type(orig_clt);
+        prev->next->free_clt = true;
+    }
+
+    return prev->next->clt;
+
+#if 0
+#define CLTDBARR_SIZE  (32)
+    struct tracked_clt_db *clt_db = &type_ptr_db.clt_db;
     if (!(clt_db->alloc_size - clt_db->last)) {
         clt_db->alloc_size += CLTDBARR_SIZE;
         clt_db->clts = MEM_RESIZE_ARR(clt_db->clts, clt_db->alloc_size);
@@ -792,6 +835,7 @@ track_cl_type(struct cl_type *clt)
     clt_db->clts[clt_db->last++] = clt;
 
     return clt;
+#endif
 }
 
 static inline struct cl_type *
@@ -1040,22 +1084,6 @@ type_ptr_db_lookup_item(type_ptr_db_t db, const struct symbol *type,
         *ptr = type_ptr_db_lookup_ptr(&db->ptr_db, clt);
 
     return clt;
-}
-
-static struct ptr_db_item *
-new_ptr_db_item(void)
-{
-    struct ptr_db_item *retval = MEM_NEW(struct ptr_db_item);
-    if (!retval)
-        die("MEM_NEW");
-
-    retval->clt = NULL;
-    retval->next = NULL;
-    retval->arr_cnt = 0;
-    retval->arr = NULL;
-
-    // guaranteed not to return NULL
-    return retval;
 }
 
 static inline struct cl_type **
@@ -1411,12 +1439,15 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
         }
         MAP_ACCESSOR(ac->code, TYPE_PTR, ACCESSOR_DEREF) {
             if (insn_offset /* && op->type->items->type->size*/) {
-                // convert into another accessor then predestined (ptr -> arr)
-                ac->code = CL_ACCESSOR_DEREF_ARRAY;
+                // convert into another accessor then predestined (ptr->arr),
+                // but only if resulting index would be 1+
                 div_t indexes = div(insn_offset, op->type->items->type->size);
-                ac->data.array.index = build_cst_int(new_cl_operand(),
-                                                     indexes.quot);
-                // the remainder serves for next index-based-dereferencing rounds
+                if (indexes.quot) {
+                    ac->code = CL_ACCESSOR_DEREF_ARRAY;
+                    ac->data.array.index = build_cst_int(new_cl_operand(),
+                                                         indexes.quot);
+                }
+                // the remainder serves for next index-based-deref. rounds
                 retval = indexes.rem;
             }
             break;
@@ -1760,40 +1791,44 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
     if (rhs_access) {
         const struct cl_type *resulting_type = add_type_if_needed(type, NULL);
         int insn_offset = insn->offset;
-        if (insn->opcode == OP_STORE && rhs->type == PSEUDO_SYM) {
-            // remove one level of indirection of target type
+        if (insn->opcode == OP_STORE) {
+            // remove one level of indirection of both target and operand type
             // (will be compensated by adding reference to rhs operand)
-            resulting_type = resulting_type->items[0].type;
+            resulting_type = resulting_type->items->type;
             insn_offset = 0;
+            read_insn_op_access(&op_rhs, insn_offset);
         }
         adjust_cl_operand_accessors(&op_rhs, resulting_type, insn_offset);
     }
 
     if (insn->opcode == OP_STORE || insn->opcode == OP_PTRCAST) {
         // add promised reference
-        if (insn->opcode == OP_PTRCAST || rhs->type == PSEUDO_SYM) {
+        if (insn->opcode == OP_PTRCAST || rhs_access) {
             // accessor only when operand is variable
             struct cl_accessor *ac = build_trailing_accessor(&op_rhs);
             ac->code = CL_ACCESSOR_REF;
             ac->type = op_rhs.type;
+            // NOTE: should be the same as `add_type_if_needed(type, NULL)'
+            op_rhs.type = tracked_deref_clt(op_rhs.type);
+        } else {
+            op_rhs.type = add_type_if_needed(type, NULL);
         }
-        op_rhs.type = add_type_if_needed(type, NULL);
     }
 
     /* prepare LHS */
 
     read_pseudo(&op_lhs, lhs);
 
-    if (lhs_access) {
-        const struct cl_type *resulting_type = add_type_if_needed(type, NULL);
-        if (insn->opcode == OP_STORE
-            && (lhs->type == PSEUDO_VAL || lhs->type == PSEUDO_REG)) {
+    if (insn->opcode == OP_STORE) {
+        struct cl_type *resulting_type = add_type_if_needed(type, NULL);
+        if (lhs->type != PSEUDO_SYM && lhs->type != PSEUDO_ARG) {
             op_lhs.type = (struct cl_type*) resulting_type;
             struct cl_accessor *ac = build_trailing_accessor(&op_lhs);
             ac->code = CL_ACCESSOR_DEREF;
-            ac->type = track_cl_type(deref_cl_type(resulting_type));
-        }
-        adjust_cl_operand_accessors(&op_lhs, resulting_type, insn->offset);
+            // NOTE: no such one easily accessible (contrary to previous usage)
+            ac->type = tracked_deref_clt(resulting_type);
+        } else
+            adjust_cl_operand_accessors(&op_lhs, resulting_type, insn->offset);
     }
 
     // FIXME SPARSE?:
@@ -1838,7 +1873,7 @@ handle_insn_store(struct cl_insn *cli, const struct instruction *insn)
     //CL_TRAP;
     return insn_assignment_base(cli, insn,
         insn->symbol,  /* := */  insn->target,
-        true /*(insn->symbol->type != PSEUDO_REG)*/, (insn->target->type != PSEUDO_VAL)
+        true /*(insn->symbol->type != PSEUDO_REG)*/, (insn->target->type == PSEUDO_SYM || insn->target->type == PSEUDO_ARG)
     );
 }
 
