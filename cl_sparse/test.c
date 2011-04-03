@@ -52,6 +52,7 @@
 
 // compile options
 #define DO_FORK                     1  // "1" recommended
+#define DO_EXTRA_CHECKS             1
 
 #define DO_PROCEED_INTERNAL         0
 #define DO_EXPAND_SYMBOL            1
@@ -590,6 +591,10 @@ static inline bool is_pseudo(pseudo_t pseudo)
     return pseudo && pseudo != VOID;
 }
 
+static inline bool is_immediate_pseudo(pseudo_t pseudo)
+{
+    return pseudo->type != PSEUDO_SYM && pseudo->type != PSEUDO_ARG;
+}
 
 
 //
@@ -781,7 +786,7 @@ new_ptr_db_item(void)
 }
 
 static struct cl_type *
-tracked_deref_clt(struct cl_type *orig_clt)
+build_deref_clt(struct cl_type *orig_clt)
 {
     struct ptr_db_arr *ptr_db = &type_ptr_db.ptr_db;
 
@@ -1722,77 +1727,147 @@ handle_insn_ret(struct cl_insn *cli, const struct instruction *insn)
     return true;
 }
 
+enum ops_type {
+    TYPE_LHS_KEEP        = (1 << 0),
+    TYPE_RHS_KEEP        = (1 << 1),
+
+    /* LHS */
+
+    // to obtain final operand type, either dig into original one and find
+    // the expected inner type item (for "non-immediate" PSEUDO_SYM
+    // and PSEUDO_ARG) or keep it and add a dereference accessor
+    // (for "immediate" PSEUDO_VAL and PSEUDO_REG);
+    //
+    // usage: INSN_STORE
+    TYPE_LHS_DIG         = (1 << 2),
+
+    /* RHS */
+
+    // to obtain operand type, dig into original one and find the expected
+    // inner type item; when combined with TYPE_RHS_DIG_ALL, this applies
+    // for any pseudo type, for "non-immediate" PSEUDO_SYM and PSEUDO_ARG only
+    // otherwise
+    //
+    // usage: all assign instructions except for INSN_COPY
+    TYPE_RHS_DIG         = (1 << 3),
+    TYPE_RHS_DIG_ANY     = (1 << 4),
+
+    // to obtain operand type, add a level of pointer indirection
+    // (i.e., dereference the current one + add a reference accessor);
+    // with INSN_STORE (that uses also TYPE_RHS_DIG), this has a special
+    // meaning telling that this will be done only after a level
+    // of indirection has been successfully removed first (so it
+    // is effectively returned back)
+    //
+    // usage: INSN_STORE, INSN_PTR_CAST
+    TYPE_RHS_DEREFERENCE = (1 << 5),
+};
+
+
+static void
+insn_assignment_mod_rhs(struct cl_operand *op_rhs, pseudo_t rhs,
+                        const struct instruction *insn,
+                        enum ops_type ops_handling)
+{
+    if (ops_handling & TYPE_RHS_KEEP)
+        return;
+
+    int offset = insn->offset;
+    bool use_rhs_dereference = true;
+    struct cl_type *type = (insn->opcode == OP_PTRCAST)
+                               ? add_type_if_needed(insn->orig_type, NULL)
+                               : add_type_if_needed(insn->type, NULL);
+
+    // dig rhs (when applicable)
+    if (ops_handling & TYPE_RHS_DIG) {
+        if (ops_handling & TYPE_RHS_DIG_ANY || !is_immediate_pseudo(rhs)) {
+            const struct cl_type *adjust_type = type;
+
+            if (ops_handling & TYPE_RHS_DEREFERENCE) {
+                // remove one level of indirection of both resulting_type
+                // and operand type (to be compensated by adding one back
+                // in "dereference rhs" part)
+                offset = 0;
+                if (!same_type(op_rhs->type, adjust_type)) {
+                    adjust_type = adjust_type->items->type;
+                    // XXX: this is not necessary but tests/struct/rs1-03
+                    //      yields better result
+                    read_insn_op_access(op_rhs, offset);
+                } else
+                    use_rhs_dereference = false;
+            }
+            adjust_cl_operand_accessors(op_rhs, adjust_type, offset);
+
+        } else if (ops_handling & TYPE_RHS_DEREFERENCE) {
+            // OP_STORE with PSEUDO_VAL rhs (e.g., value can be pointer)
+            if (rhs->type == PSEUDO_VAL)
+                op_rhs->type = type;  // probably no other choice
+#if DO_EXTRA_CHECKS
+            else if (!same_type(op_rhs->type, type))
+                CL_TRAP;  // should be the same type
+#endif
+            use_rhs_dereference = false;
+        }
+    }
+
+    // dereference rhs (when applicable)
+    if (ops_handling & TYPE_RHS_DEREFERENCE && use_rhs_dereference) {
+        // OP_PTRCAST, OP_STORE (for PSEUDO_SYM and PSEUDO_ARG only
+        //                       and only when returning level of indirection)
+        struct cl_accessor *ac = build_trailing_accessor(op_rhs);
+        ac->code = CL_ACCESSOR_REF;
+        ac->type = op_rhs->type;
+        op_rhs->type = build_deref_clt(op_rhs->type);
+#if DO_EXTRA_CHECKS
+        if (!same_type(op_rhs->type, type))
+            CL_TRAP;  // should be the same type
+#endif
+    }
+}
+
 static bool
 insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
-                     pseudo_t lhs,     /* := */  pseudo_t rhs,
-                     bool lhs_access,            bool rhs_access
-)
+                     pseudo_t lhs, pseudo_t rhs, enum ops_type ops_handling)
 {/* Synopsis -- input:
-  * insn->type ... type of value to assign (XXX: may be missing?)
+  * insn->type (not for INSN_COPY) ... type of final assigned value
+  * insn->orig_type (INSN_PTRCAST, ...only)
+  *                                ... original type of value to assign
+  *
+  * Synopsis -- output:
+  * CL_INSN_UNOP : CL_UNOP_ASSIGN
   *
   * Problems:
-  * 1. One-element struct -- how to represent return value correctly?
-  * S. Use insn->type to deduce the right one.  We can compare
-  *    struct cl_type pointers directly and keep accessing the original type
-  *    until we get the same as a resulting one
-  *    (see `adjust_cl_operand_accessors()').
-  *    The same apply for multi-pointers (?).
+  * 1. PSEUDO_VAL and PSEUDO_REG operands are not holding type information
+  * S. Try to use insn->type, pseudo->def->type for PSEUDO_REG, ...
   */
     struct cl_operand op_lhs, op_rhs;
-    struct symbol *type = (insn->opcode == OP_PTRCAST)
-        ? insn->orig_type
-        : insn->type;
 
-    /* prepare RHS */
+
+    /* prepare RHS (quite complicated compared to LHS) */
 
     read_pseudo(&op_rhs, rhs);
+    insn_assignment_mod_rhs(&op_rhs, rhs, insn, ops_handling);
 
-    if (rhs_access) {
-        const struct cl_type *resulting_type = add_type_if_needed(type, NULL);
-        int insn_offset = insn->offset;
-        if (insn->opcode == OP_STORE) {
-            // remove one level of indirection of both target and operand type
-            // (will be compensated by adding reference to rhs operand)
-            resulting_type = resulting_type->items->type;
-            insn_offset = 0;
-            read_insn_op_access(&op_rhs, insn_offset);
-        }
-        adjust_cl_operand_accessors(&op_rhs, resulting_type, insn_offset);
-    }
-
-    if (insn->opcode == OP_STORE || insn->opcode == OP_PTRCAST) {
-        // add promised reference
-        if (insn->opcode == OP_PTRCAST || rhs_access) {
-            // accessor only when operand is variable
-            struct cl_accessor *ac = build_trailing_accessor(&op_rhs);
-            ac->code = CL_ACCESSOR_REF;
-            ac->type = op_rhs.type;
-            // NOTE: should be the same as `add_type_if_needed(type, NULL)'
-            op_rhs.type = tracked_deref_clt(op_rhs.type);
-        } else {
-            op_rhs.type = add_type_if_needed(type, NULL);
-        }
-    }
 
     /* prepare LHS */
 
     read_pseudo(&op_lhs, lhs);
 
-    if (insn->opcode == OP_STORE) {
-        struct cl_type *resulting_type = add_type_if_needed(type, NULL);
-        if (lhs->type != PSEUDO_SYM && lhs->type != PSEUDO_ARG) {
-            op_lhs.type = (struct cl_type*) resulting_type;
+    // dig lhs (when applicable)
+    if (ops_handling & TYPE_LHS_DIG) {
+        struct cl_type *type = add_type_if_needed(insn->type, NULL);
+        if (is_immediate_pseudo(lhs)) {
             struct cl_accessor *ac = build_trailing_accessor(&op_lhs);
             ac->code = CL_ACCESSOR_DEREF;
-            // NOTE: no such one easily accessible (contrary to previous usage)
-            ac->type = tracked_deref_clt(resulting_type);
+            // note: no such clt easily accessible (contrary to previous case)
+            ac->type = build_deref_clt(type);
+            op_lhs.type = type;
         } else
-            adjust_cl_operand_accessors(&op_lhs, resulting_type, insn->offset);
+            adjust_cl_operand_accessors(&op_lhs, type, insn->offset);
     }
 
-    // FIXME SPARSE?:
-    // hack because sparse generates extra instruction
-    // e.g. store %arg1 -> 0[in], in case of "in" == "%arg1"
+    // FIXME (SPARSE?):  sparse generates (due to execution model?) extra
+    // instruction, e.g. "store %arg1 -> 0[num]" in case of "num == %arg1"
 #if FIX_SPARSE_EXTRA_ARG_TO_MEM
     if (lhs->type != PSEUDO_SYM || rhs->type != PSEUDO_ARG
          || op_lhs.data.var->uid != op_rhs.data.var->uid) {
@@ -1817,22 +1892,17 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
 static inline bool
 handle_insn_store(struct cl_insn *cli, const struct instruction *insn)
 {/* Synopsis -- input:
-  * insn->symbol ... mem. address where to assign value
-  * insn->target ... source value
+  * insn->symbol ... target memory address (pointer to what is being assigned)
+  * insn->target ... source of assignment
   * insn->type   ... type of value to be assigned
   *
   * Synopsis -- output:
-  * CL_INSN_UNOP
-  *     CL_UNOP_ASSIGN
-  *
-  * Problems:
-  * 1. Register is not immediately connected with type information
-  * S. Use insn->type
+  * CL_INSN_UNOP : CL_UNOP_ASSIGN
   */
     //CL_TRAP;
     return insn_assignment_base(cli, insn,
         insn->symbol,  /* := */  insn->target,
-        true /*(insn->symbol->type != PSEUDO_REG)*/, (insn->target->type == PSEUDO_SYM || insn->target->type == PSEUDO_ARG)
+        TYPE_LHS_DIG       |     (TYPE_RHS_DIG | TYPE_RHS_DEREFERENCE)
     );
 }
 
@@ -1844,34 +1914,43 @@ handle_insn_load(struct cl_insn *cli, const struct instruction *insn)
   * insn->type   ... type of value to be assigned
   *
   * Synopsis -- output:
-  * CL_INSN_UNOP
-  *     CL_UNOP_ASSIGN
-  *
-  * Problems:
-  * 1. Register is not immediately connected with type information
-  * S. Use insn->type
+  * CL_INSN_UNOP : CL_UNOP_ASSIGN
   */
     return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
-        false,                   true
+        TYPE_LHS_KEEP      |     (TYPE_RHS_DIG | TYPE_RHS_DIG_ANY)
     );
 }
 
 static inline bool
 handle_insn_copy(struct cl_insn *cli, const struct instruction *insn)
-{
+{/* Synopsis -- input:
+  * insn->target
+  * insn->src
+  * insn->type
+  *
+  * Synopsis -- output:
+  * CL_INSN_UNOP : CL_UNOP_ASSIGN
+  */
     return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
-        false,                   false
+        TYPE_LHS_KEEP      |     TYPE_RHS_KEEP
     );
 }
 
 static inline bool
 handle_insn_ptrcast(struct cl_insn *cli, const struct instruction *insn)
-{
+{/* Synopsis -- input:
+  * insn->target
+  * insn->src
+  * insn->orig_type
+  *
+  * Synopsis -- output:
+  * CL_INSN_UNOP : CL_UNOP_ASSIGN
+  */
     return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
-        false,                   false
+        TYPE_LHS_KEEP      |     TYPE_RHS_DEREFERENCE
     );
 }
 
