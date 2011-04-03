@@ -1752,7 +1752,7 @@ handle_insn_ret(struct cl_insn *cli, const struct instruction *insn)
     return true;
 }
 
-enum ops_type {
+enum ops_type_handling {
     TYPE_LHS_KEEP        = (1 << 0),
     TYPE_RHS_KEEP        = (1 << 1),
 
@@ -1792,7 +1792,7 @@ enum ops_type {
 static void
 insn_assignment_mod_rhs(struct cl_operand *op_rhs, pseudo_t rhs,
                         const struct instruction *insn,
-                        enum ops_type ops_handling)
+                        enum ops_type_handling ops_handling)
 {
     if (ops_handling & TYPE_RHS_KEEP)
         return;
@@ -1852,7 +1852,8 @@ insn_assignment_mod_rhs(struct cl_operand *op_rhs, pseudo_t rhs,
 
 static bool
 insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
-                     pseudo_t lhs, pseudo_t rhs, enum ops_type ops_handling)
+                     pseudo_t lhs,    /* := */    pseudo_t rhs,
+                     enum ops_type_handling ops_handling)
 {/* Synopsis -- input:
   * insn->type (not for INSN_COPY) ... type of final assigned value
   * insn->orig_type (INSN_PTRCAST, ...only)
@@ -1920,9 +1921,6 @@ handle_insn_store(struct cl_insn *cli, const struct instruction *insn)
   * insn->symbol ... target memory address (pointer to what is being assigned)
   * insn->target ... source of assignment
   * insn->type   ... type of value to be assigned
-  *
-  * Synopsis -- output:
-  * CL_INSN_UNOP : CL_UNOP_ASSIGN
   */
     //CL_TRAP;
     return insn_assignment_base(cli, insn,
@@ -1937,9 +1935,6 @@ handle_insn_load(struct cl_insn *cli, const struct instruction *insn)
   * insn->target ... register (XXX: only?) to be assigned
   * insn->src    ... mem. address containing source value
   * insn->type   ... type of value to be assigned
-  *
-  * Synopsis -- output:
-  * CL_INSN_UNOP : CL_UNOP_ASSIGN
   */
     return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
@@ -1953,9 +1948,6 @@ handle_insn_copy(struct cl_insn *cli, const struct instruction *insn)
   * insn->target
   * insn->src
   * insn->type
-  *
-  * Synopsis -- output:
-  * CL_INSN_UNOP : CL_UNOP_ASSIGN
   */
     return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
@@ -1969,9 +1961,6 @@ handle_insn_ptrcast(struct cl_insn *cli, const struct instruction *insn)
   * insn->target
   * insn->src
   * insn->orig_type
-  *
-  * Synopsis -- output:
-  * CL_INSN_UNOP : CL_UNOP_ASSIGN
   */
     return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
