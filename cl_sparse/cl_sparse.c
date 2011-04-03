@@ -198,11 +198,34 @@ static const struct cl_type pristine_cl_type = {
     //.array_size = 0,
 };
 
+// verbosity
 static int cl_verbose = 0;
-#define CL_VERBOSE_LOCATION     (1 << 1)
-#define CL_VERBOSE_INSTRUCTION  (1 << 2)
-#define CL_VERBOSE_TYPE         (1 << 3)
-#define CL_VERBOSE_INSERT_TYPE  (1 << 4)
+
+#define MACRO_STRING(arg)  #arg
+#define mask_bitmask(suffix)  (1 << E_VERBOSE_##suffix)
+#define mask_message(suffix, desc)  \
+    [E_VERBOSE_##suffix] = "(" MACRO_STRING(VERBOSE_##suffix) ")\t" desc,
+enum verbose_mask {
+    E_VERBOSE_LOCATION,
+    E_VERBOSE_INSTRUCTION,
+    E_VERBOSE_TYPE,
+    E_VERBOSE_INSERT_TYPE,
+    E_VERBOSE_LAST
+};
+static const char *verbose_mask_str[E_VERBOSE_LAST] = {
+#define  VERBOSE_LOCATION \
+    mask_bitmask(LOCATION)
+    mask_message(LOCATION,    "keep printing location continuously")
+#define  VERBOSE_INSTRUCTION \
+    mask_bitmask(INSTRUCTION)
+    mask_message(INSTRUCTION, "print instruction being processed")
+#define  VERBOSE_TYPE \
+    mask_bitmask(TYPE)
+    mask_message(TYPE,        "print type being processed")
+#define  VERBOSE_INSERT_TYPE \
+    mask_bitmask(INSERT_TYPE)
+    mask_message(INSERT_TYPE, "print type being insert into type DB")
+};
 
 
 
@@ -655,7 +678,7 @@ type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
                    const struct symbol *type, struct ptr_db_item **ptr)
 #define PTRDBARR_SIZE  (128)
 {
-    if (cl_verbose & CL_VERBOSE_INSERT_TYPE) {
+    if (VERBOSE_INSERT_TYPE & cl_verbose) {
         NOTE("add type (uid = %d, clt = %p): %p", clt->uid, clt, type);
         show_symbol((struct symbol *) type);
         NOTE("---");
@@ -972,7 +995,7 @@ read_type(struct cl_type *clt, const struct symbol *raw_symbol,
 
     const struct type_transformer *transformer;
 
-    if (cl_verbose & CL_VERBOSE_TYPE) {
+    if (VERBOSE_TYPE & cl_verbose) {
         NOTE("\t%d: type to be processed:", type->pos.line);
         show_symbol((struct symbol *) type);
     }
@@ -2126,7 +2149,7 @@ handle_insn(struct instruction *insn)
     struct cl_insn cli;
     const struct insn_transformer *transformer;
 
-    if (cl_verbose & CL_VERBOSE_INSTRUCTION)
+    if (VERBOSE_INSTRUCTION & cl_verbose)
         NOTE("\t%d: instruction to be processed: %s", insn->pos.line,
                                                       show_instruction(insn));
 
@@ -2411,6 +2434,10 @@ _("-cl-gen-dot[=MAIN_FILE]  Generate control flow graphs"                    )
 _("-cl-type-dot[=OUT_FILE]  Generate type graphs"                            )
 #undef __
 #undef _
+    int i;
+    printf("\nMASK:\n");
+    for (i = 0; i < E_VERBOSE_LAST; i++)
+        printf("\t%d %s\n", 1 << i, verbose_mask_str[i]);
 }
 
 struct cl_plug_options {
@@ -2523,7 +2550,7 @@ create_cl_chain(const struct cl_plug_options *opt)
         // error message already emitted
         return NULL;
 
-    if (CL_VERBOSE_LOCATION & cl_verbose) {
+    if (VERBOSE_LOCATION & cl_verbose) {
         if (!cl_append_listener(chain, "listener=\"locator\""))
             return NULL;
     }
@@ -2684,14 +2711,13 @@ master_loop(int read_fd, pid_t pid)
 
 int main(int argc, char *argv[])
 {
-    int retval;
+    // handle arguments specific for this code listener frontend
     struct cl_plug_options opt;
+    int retval = handle_cl_args(argc, argv, &opt);
+    if (retval)
+        return retval;
 
     real_stderr = stderr; // use this if you need "unfaked" stderr
-
-    // handle this code listener frontend specific arguments
-    if (retval = handle_cl_args(argc, argv, &opt))
-        return retval;
 
 #if DO_FORK
     // set up pipe
