@@ -1472,6 +1472,19 @@ same_type(const struct cl_type *t1, const struct cl_type *t2)
 
 }
 
+static inline bool
+is_of_accessable_type(const struct cl_operand *op)
+{
+    switch (op->type->code) {
+        case CL_TYPE_STRUCT:
+        case CL_TYPE_ARRAY:
+        case CL_TYPE_PTR:
+            return true;
+        default:
+            return false;
+    }
+}
+
 static inline void
 adjust_cl_operand_accessors(struct cl_operand *op,
                             const struct cl_type *expected_type,
@@ -1479,9 +1492,10 @@ adjust_cl_operand_accessors(struct cl_operand *op,
 {
     unsigned offset = first_offset;
 
-    if (op->code == CL_OPERAND_VOID)
-        // there is no operand (TODO: will we get ever here?)
+#if 0
+    if (!is_of_accessable_type(op))
         return;
+#endif
 
     while (!same_type(op->type, expected_type))
         offset = read_insn_op_access(op, offset);
@@ -1742,8 +1756,10 @@ handle_insn_ret(struct cl_insn *cli, const struct instruction *insn)
     const struct cl_type *resulting_type;
 
     cli->data.insn_ret.src = read_pseudo(&op, insn->src);
-    resulting_type = add_type_if_needed(insn->type, NULL);
-    adjust_cl_operand_accessors(&op, resulting_type, insn->offset);
+    if (is_of_accessable_type(&op)) {
+        resulting_type = add_type_if_needed(insn->type, NULL);
+        adjust_cl_operand_accessors(&op, resulting_type, insn->offset);
+    }
     //i>
     cl->insn(cl, cli);
     //i>
