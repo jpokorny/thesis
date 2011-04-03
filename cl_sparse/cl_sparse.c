@@ -48,6 +48,7 @@
 //#include "sparse/flow.h"
 //#include "sparse/parse.h"
 //#include "sparse/symbol.h"
+//#include "sparse/target.h"
 //#include "sparse/token.h"
 
 
@@ -634,7 +635,7 @@ static inline struct cl_type* deref_cl_type(const struct cl_type* orig_type)
     retval->uid = type_ptr_db.last_base_type_uid+1;
     retval->code = CL_TYPE_PTR;
     retval->name = NULL;
-    retval->size = 4; //FIXME!!!
+    retval->size = sizeof_from_bits(bits_in_pointer);
     retval->item_cnt = 1;
     retval->items = MEM_NEW(struct cl_type_item);
     if (!retval->items)
