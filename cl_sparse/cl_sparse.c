@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 Kamil Dudka <kdudka@redhat.com>
+ * Copyright (C) 2011 Jan Pokorny <xpokor04@stud.fit.vutbr.cz>
  *
  * This file is part of predator.
  *

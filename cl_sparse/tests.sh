@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# Prerequisities:
+# * python (2.6+ perhaps)
+# * NetworkX (http://networkx.lanl.gov/)
 
 TESTSUITE_DIR=tests
 
@@ -13,7 +17,7 @@ ISOMORPHISM_TESTER="$PWD"/isomorphic
 SIMILARITY_TESTER="$PWD"/simdiff
 DIFF=colordiff
 
-CL_SPARSE="$PWD"/test
+CL_SPARSE="$PWD"/cl_sparse
 CL_GCC=gcc
 CL_GCC_PLUGIN=libcl_test
 

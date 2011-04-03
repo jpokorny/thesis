@@ -12,7 +12,7 @@ SPARSE_LIB = $(SPARSE_DIR)/lib$(SPARSE).a
 
 PROGRAM_LDFLAGS = -L$(SPARSE_DIR) -l$(SPARSE) -L$(CL_DIR) -l$(CL)
 
-PROGRAM = test
+PROGRAM = cl_sparse
 MAIN_SRC = $(PROGRAM).c
 SRCS = hash_table.c type_enumerator.c
 
