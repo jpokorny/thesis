@@ -2015,6 +2015,25 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
 }
 
 static bool
+handle_insn_unop(struct cl_insn *cli, const struct instruction *insn)
+{/* Synopsis -- input (OP_NOT, OP_NEG):
+  * insn->src1   ... source
+  * insn->target ... destination
+  */
+    struct cl_operand dst, src;
+
+    cli->data.insn_unop.dst = read_pseudo(&dst, insn->target);
+    cli->data.insn_unop.src = read_pseudo(&src, insn->src   );
+    //i>
+    cl->insn(cl, cli);
+    //i>
+    free_cl_operand(&dst);
+    free_cl_operand(&src);
+
+    return true;
+}
+
+static bool
 handle_insn(struct instruction *insn)
 {
     typedef bool (*insn_handler)(struct cl_insn *, const struct instruction *);
@@ -2082,7 +2101,7 @@ handle_insn(struct instruction *insn)
         /* Logical */
         INSN_BIN( AND             , BIT_AND             , handle_insn_binop  ),
         INSN_BIN( OR              , BIT_IOR             , handle_insn_binop  ),
-        INSN_IGN( XOR             ,                     ,                    ),
+        INSN_BIN( XOR             , BIT_XOR             , handle_insn_binop  ),
         INSN_BIN( AND_BOOL        , TRUTH_AND           , handle_insn_binop  ),
         INSN_BIN( OR_BOOL         , TRUTH_OR            , handle_insn_binop  ),
         // OP_BINARY_END = OP_OR_BOOL
@@ -2102,8 +2121,8 @@ handle_insn(struct instruction *insn)
         // OP_BINCMP_END = OP_SET_AE,
 
         /* Uni */
-        INSN_IGN( NOT             ,                     ,                    ),
-        INSN_IGN( NEG             ,                     ,                    ),
+        INSN_UNI( NOT             , BIT_NOT             , handle_insn_unop   ),
+        INSN_UNI( NEG             , TRUTH_NOT           , handle_insn_unop   ),
 
         /* Select - three input values */
         INSN_STD( SEL             , NOP /*COND*/        , handle_insn_sel    ),
@@ -2411,6 +2430,7 @@ static void clean_up_symbols(struct symbol_list *list)
 //
 // Options/arguments handling
 //
+
 
 struct cl_plug_options {
     bool        dump_types;
