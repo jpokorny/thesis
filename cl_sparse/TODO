@@ -7,12 +7,15 @@ others:
 
 priority
 --------
-double deref as with hash_table.c: 82 (cl_pp is dying)
+finish union
+bring the signals back (as it sometimes ends without printing sparse messages)
 
 
 not to forget
 -------------
-type recursion for (typedef'd) functions?
+type recursion
+-- with (typedef'd) functions?
+-- during adjust_cl_operand_accessors?
 
 
 
@@ -28,3 +31,4 @@ code listener:
 * accessors with CL_OPERAND_CST
 * type->items for CL_TYPE_FNC ([0] = return value, [1+] = args, why one extra
                                expected?)
+* CL_TYPE_REAL with `cl_pp'
