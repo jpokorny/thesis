@@ -924,12 +924,12 @@ static inline void
 read_type_union(struct cl_type *clt, const struct symbol *raw_symbol,
                 const struct symbol *type)
 {
-    CL_TRAP;
+    //CL_TRAP;
     clt->name     = read_ident(type->ident);
     //TODO:
-    //add_subtypes(clt, type->symbol_list);
-    clt->item_cnt = /* TODO */ 0;
-    clt->items    = /* TODO */ NULL;
+    add_subtypes(clt, type->symbol_list);
+    //clt->item_cnt = /* TODO */ 0;
+    //clt->items    = /* TODO */ NULL;
 }
 
 static inline void
@@ -1412,6 +1412,14 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
     #define MAP_ACCESSOR(var, type, acc) case CL_##type: var = CL_##acc;
     switch (op->type->code) {
         MAP_ACCESSOR(ac->code, TYPE_STRUCT, ACCESSOR_ITEM) {
+            for (i = 0; i < op->type->item_cnt; i++)
+                if (op->type->items[i].offset == insn_offset)
+                    break;
+            ac->data.item.id = i;
+            retval = 0;
+            break;
+        }
+        MAP_ACCESSOR(ac->code, TYPE_UNION, ACCESSOR_ITEM) {
             for (i = 0; i < op->type->item_cnt; i++)
                 if (op->type->items[i].offset == insn_offset)
                     break;
