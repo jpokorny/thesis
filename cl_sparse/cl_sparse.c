@@ -605,10 +605,34 @@ is_immediate_pseudo(pseudo_t pseudo)
 }
 
 
+
 //
 // Sparse types
 //
 
+
+static inline struct ptr_db_item *
+empty_ptr_db_item(struct ptr_db_item *item, struct cl_type *clt)
+{
+    item->clt      = clt;
+    item->next     = NULL;
+    item->arr_cnt  = 0;
+    item->arr      = NULL;
+    item->free_clt = false;
+
+    return item;
+}
+
+static struct ptr_db_item *
+new_ptr_db_item(void)
+{
+    struct ptr_db_item *retval = MEM_NEW(struct ptr_db_item);
+    if (!retval)
+        die("MEM_NEW");
+
+    // guaranteed not to return NULL
+    return empty_ptr_db_item(retval, NULL);
+}
 
 static inline int
 sizeof_from_bits(int bits)
@@ -689,12 +713,7 @@ type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
             if (!ptr_db->heads)
                 die("MEM_RESIZE_ARR failed");
         }
-        // TODO: nicer?
-        ptr_db->heads[ptr_db->last].clt = clt;
-        ptr_db->heads[ptr_db->last].next = NULL;
-        ptr_db->heads[ptr_db->last].arr_cnt = 0;
-        ptr_db->heads[ptr_db->last].arr = NULL;
-        ptr_db->heads[ptr_db->last].free_clt = false;
+        empty_ptr_db_item(&ptr_db->heads[ptr_db->last], clt);
 
         if (ptr)
             *ptr = &ptr_db->heads[ptr_db->last];
@@ -780,23 +799,6 @@ populate_with_base_types(type_ptr_db_t db)
 
 static struct cl_type *add_type_if_needed(const struct symbol *type,
                                           struct ptr_db_item **ptr);
-
-static struct ptr_db_item *
-new_ptr_db_item(void)
-{
-    struct ptr_db_item *retval = MEM_NEW(struct ptr_db_item);
-    if (!retval)
-        die("MEM_NEW");
-
-    retval->clt = NULL;
-    retval->next = NULL;
-    retval->arr_cnt = 0;
-    retval->arr = NULL;
-    retval->free_clt = false;
-
-    // guaranteed not to return NULL
-    return retval;
-}
 
 static struct cl_type *
 build_deref_clt(struct cl_type *orig_clt)
