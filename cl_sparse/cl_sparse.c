@@ -391,7 +391,7 @@ free_op_initializers(struct cl_initializer *initial)
 // Note: *op expected NOT (contrary to nested items) to be heap-based
 //       (most common usage)
 static void
-free_cl_operand(struct cl_operand *op)
+free_op_data(struct cl_operand *op)
 {
     if (op->code == CL_OPERAND_VOID)
         return;
@@ -442,7 +442,7 @@ free_cl_operand(struct cl_operand *op)
 static inline void
 free_cl_operand_heap(struct cl_operand *op)
 {
-    free_cl_operand(op);
+    free_op_data(op);
 
     /* op (heap!) */
     free(op);
@@ -1307,7 +1307,7 @@ read_sym_initializer(struct cl_operand *op, struct expression *expr)
 }
 
 static struct cl_operand *
-read_pseudo_sym_base(struct cl_operand *op, struct symbol *sym)
+op_from_symbol_base(struct cl_operand *op, struct symbol *sym)
 {
     read_scope(&op->scope, sym->scope);
 
@@ -1336,14 +1336,14 @@ read_pseudo_sym_base(struct cl_operand *op, struct symbol *sym)
 }
 
 static inline struct cl_operand *
-read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
+op_from_symbol(struct cl_operand *op, struct symbol *sym)
 {
     read_location(&op->loc, sym->pos);
-    return read_pseudo_sym_base(op, sym);
+    return op_from_symbol_base(op, sym);
 }
 
 static inline struct cl_operand *
-read_pseudo_arg(struct cl_operand *op, const pseudo_t pseudo)
+op_from_fn_argument(struct cl_operand *op, const pseudo_t pseudo)
 {
     struct symbol *arg_sym;
 
@@ -1353,12 +1353,12 @@ read_pseudo_arg(struct cl_operand *op, const pseudo_t pseudo)
 
     // XXX: op->scope       = CL_SCOPE_FUNCTION;
     read_location(&op->loc, arg_sym->pos);  // TODO: better!!!
-    return read_pseudo_sym_base(op, arg_sym);
+    return op_from_symbol_base(op, arg_sym);
 }
 
 static struct cl_operand *
-read_pseudo_reg(struct cl_operand *op, const struct instruction *insn,
-                const pseudo_t pseudo)
+op_from_register(struct cl_operand *op, const struct instruction *insn,
+                 const pseudo_t pseudo)
 {/* Synopsis:
   * pseudo->def
   *
@@ -1372,16 +1372,15 @@ read_pseudo_reg(struct cl_operand *op, const struct instruction *insn,
 }
 
 static inline struct cl_operand *
-read_pseudo_val(struct cl_operand *op, const struct instruction *insn,
-                int value)
+op_from_value(struct cl_operand *op, const struct instruction *insn, int value)
 {
     read_location(&op->loc, insn->pos);
     return build_cst_int(op, value);
 }
 
 static inline struct cl_operand *
-read_pseudo(struct cl_operand *op, const struct instruction *insn,
-            const pseudo_t pseudo)
+op_from_pseudo(struct cl_operand *op, const struct instruction *insn,
+               const pseudo_t pseudo)
 {/* Synopsis:
   * sparse/linearize.h
   */
@@ -1392,13 +1391,13 @@ read_pseudo(struct cl_operand *op, const struct instruction *insn,
 
         /* real variables/literals (everything important accessible [?]) */
 
-        case PSEUDO_SYM: return read_pseudo_sym(op, pseudo->sym);
-        case PSEUDO_ARG: return read_pseudo_arg(op, pseudo);
+        case PSEUDO_SYM: return op_from_symbol(op, pseudo->sym);
+        case PSEUDO_ARG: return op_from_fn_argument(op, pseudo);
 
         /* immediate values (important information may not be accessible) */
 
-        case PSEUDO_REG: return read_pseudo_reg(op, insn, pseudo);
-        case PSEUDO_VAL: return read_pseudo_val(op, insn, (int) pseudo->value);
+        case PSEUDO_REG: return op_from_register(op, insn, pseudo);
+        case PSEUDO_VAL: return op_from_value(op, insn, (int) pseudo->value);
 #if 0
         case PSEUDO_PHI:
             WARN_UNHANDLED(insn->pos, "PSEUDO_PHI");
@@ -1636,9 +1635,9 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
 
     /* cond instruction */
 
-    read_pseudo(&op_cond, insn, insn->src1);
+    op_from_pseudo(&op_cond, insn, insn->src1);
     emit_insn_cond(cli, &op_cond, bb_label_true, bb_label_false);
-    free_cl_operand(&op_cond);
+    free_op_data(&op_cond);
 
     /* first BB ("then" branch) with assignment and jump to merging BB */
 
@@ -1676,22 +1675,22 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
 
     /* open call */
 
-    read_pseudo(&dst, insn, insn->target);
-    read_pseudo(&fnc, insn, insn->func);
+    op_from_pseudo(&dst, insn, insn->target);
+    op_from_pseudo(&fnc, insn, insn->func);
     //
     cl->insn_call_open(cl, &cli->loc, &dst, &fnc);
     //
-    free_cl_operand(&dst);
-    free_cl_operand(&fnc);
+    free_op_data(&dst);
+    free_op_data(&fnc);
 
     /* emit arguments */
 
     FOR_EACH_PTR(insn->arguments, arg) {
-        read_pseudo(&arg_op, insn, arg);
+        op_from_pseudo(&arg_op, insn, arg);
         //
         cl->insn_call_arg(cl, ++cnt, &arg_op);
         //
-        free_cl_operand(&arg_op);
+        free_op_data(&arg_op);
     } END_FOR_EACH_PTR(arg);
 
     /* close call */
@@ -1734,11 +1733,11 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
     if (asprintf(&bb_name_false, "%p", insn->bb_false) < 0)
         die("asprintf failed");
 
-    read_pseudo(&op, insn, insn->cond);
+    op_from_pseudo(&op, insn, insn->cond);
 
     emit_insn_cond(cli, &op, bb_name_true, bb_name_false);
 
-    free_cl_operand(&op);
+    free_op_data(&op);
     free(bb_name_true);
     free(bb_name_false);
 
@@ -1763,7 +1762,7 @@ handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
 
     /* open switch */
 
-    read_pseudo(&op, insn, insn->target);
+    op_from_pseudo(&op, insn, insn->target);
     cl->insn_switch_open(cl, &cli->loc, &op);
 
     /* emit cases */
@@ -1774,12 +1773,12 @@ handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
 
         if (jmp->begin <= jmp->end) {
             // non-default
-            read_pseudo_val(&val_lo, insn, jmp->begin);
+            op_from_value(&val_lo, insn, jmp->begin);
             val_lo.type = op.type;
 
             if (jmp->begin != jmp->end) {
                 // range
-                read_pseudo_val(&val_hi, insn, jmp->end);
+                op_from_value(&val_hi, insn, jmp->end);
                 val_hi.type = op.type;
                 val_hi_ptr = &val_hi;
             }
@@ -1793,7 +1792,7 @@ handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
         free(label);
     } END_FOR_EACH_PTR(jmp);
 
-    free_cl_operand(&op);
+    free_op_data(&op);
 
     /* close switch */
 
@@ -1819,7 +1818,7 @@ handle_insn_ret(struct cl_insn *cli, const struct instruction *insn)
     struct cl_operand op;
     const struct cl_type *resulting_type;
 
-    cli->data.insn_ret.src = read_pseudo(&op, insn, insn->src);
+    cli->data.insn_ret.src = op_from_pseudo(&op, insn, insn->src);
     if (is_of_accessable_type(&op)) {
         resulting_type = add_type_if_needed(insn->type, NULL);
         adjust_cl_operand_accessors(&op, resulting_type, insn->offset);
@@ -1827,7 +1826,7 @@ handle_insn_ret(struct cl_insn *cli, const struct instruction *insn)
     //
     cl->insn(cl, cli);
     //
-    free_cl_operand(&op);
+    free_op_data(&op);
 
     return true;
 }
@@ -1914,13 +1913,13 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
 
     /* prepare RHS (quite complicated compared to LHS) */
 
-    cli->data.insn_unop.src = read_pseudo(&op_rhs, insn, rhs);
+    cli->data.insn_unop.src = op_from_pseudo(&op_rhs, insn, rhs);
     insn_assignment_mod_rhs(&op_rhs, rhs, insn, ops_handling);
 
 
     /* prepare LHS */
 
-    cli->data.insn_unop.dst = read_pseudo(&op_lhs, insn, lhs);
+    cli->data.insn_unop.dst = op_from_pseudo(&op_lhs, insn, lhs);
 
     // dig lhs (when applicable)
     if (ops_handling & TYPE_LHS_DIG) {
@@ -1948,8 +1947,8 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
                 show_instruction((struct instruction *) insn));
 #endif
 
-    free_cl_operand(&op_lhs);
-    free_cl_operand(&op_rhs);
+    free_op_data(&op_lhs);
+    free_op_data(&op_rhs);
 
     return true;
 }
@@ -2016,9 +2015,9 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
   */
     struct cl_operand dst, src1, src2;
 
-    cli->data.insn_binop.dst  = read_pseudo(&dst,  insn, insn->target);
-    cli->data.insn_binop.src1 = read_pseudo(&src1, insn, insn->src1  );
-    cli->data.insn_binop.src2 = read_pseudo(&src2, insn, insn->src2  );
+    cli->data.insn_binop.dst  = op_from_pseudo(&dst,  insn, insn->target);
+    cli->data.insn_binop.src1 = op_from_pseudo(&src1, insn, insn->src1  );
+    cli->data.insn_binop.src2 = op_from_pseudo(&src2, insn, insn->src2  );
 
     // for pointer arithmetics, rewrite binary operation
     if (src1.type->code == CL_TYPE_ARRAY || src2.type->code == CL_TYPE_ARRAY
@@ -2036,9 +2035,9 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
 
     cl->insn(cl, cli);
 
-    free_cl_operand(&dst);
-    free_cl_operand(&src1);
-    free_cl_operand(&src2);
+    free_op_data(&dst);
+    free_op_data(&src1);
+    free_op_data(&src2);
 
     return true;
 }
@@ -2051,13 +2050,13 @@ handle_insn_unop(struct cl_insn *cli, const struct instruction *insn)
   */
     struct cl_operand dst, src;
 
-    cli->data.insn_unop.dst = read_pseudo(&dst, insn, insn->target);
-    cli->data.insn_unop.src = read_pseudo(&src, insn, insn->src   );
+    cli->data.insn_unop.dst = op_from_pseudo(&dst, insn, insn->target);
+    cli->data.insn_unop.src = op_from_pseudo(&src, insn, insn->src   );
     //
     cl->insn(cl, cli);
     //
-    free_cl_operand(&dst);
-    free_cl_operand(&src);
+    free_op_data(&dst);
+    free_op_data(&src);
 
     return true;
 }
@@ -2351,11 +2350,11 @@ static void handle_fnc_arg_list(struct symbol_list *arg_list)
     struct cl_operand arg_op;
 
     FOR_EACH_PTR(arg_list, arg) {
-        read_pseudo_sym(&arg_op, arg);
+        op_from_symbol(&arg_op, arg);
         //
         cl->fnc_arg_decl(cl, ++argc, &arg_op);
         //
-        free_cl_operand(&arg_op);
+        free_op_data(&arg_op);
     } END_FOR_EACH_PTR(arg);
 }
 
@@ -2363,11 +2362,11 @@ static void handle_fnc_def(struct symbol *sym)
 {
     struct cl_operand fnc;
 
-    read_pseudo_sym(&fnc, sym);
+    op_from_symbol(&fnc, sym);
     //
     cl->fnc_open(cl, &fnc);
     //
-    free_cl_operand(&fnc);
+    free_op_data(&fnc);
 
     // dump argument list
     handle_fnc_arg_list(sym->ctype.base_type->arguments);
