@@ -1970,7 +1970,8 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
     cli->data.insn_binop.src2 = read_pseudo(&src2, insn->src2  );
 
     // for pointer arithmetics, rewrite binary operation
-    if (src1.type->code == CL_TYPE_PTR || src2.type->code == CL_TYPE_PTR) {
+    if (src1.type->code == CL_TYPE_ARRAY || src2.type->code == CL_TYPE_ARRAY
+        || src1.type->code == CL_TYPE_PTR || src2.type->code == CL_TYPE_PTR) {
         switch (cli->data.insn_binop.code) {
             case CL_BINOP_PLUS:
                 cli->data.insn_binop.code = CL_BINOP_POINTER_PLUS;

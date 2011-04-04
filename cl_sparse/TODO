@@ -9,7 +9,6 @@ priority
 --------
 finish union
 bring the signals back (as it sometimes ends without printing sparse messages)
-tests/string/str-01.c -- plus should be in pointer arithmetics
 
 
 not to forget
