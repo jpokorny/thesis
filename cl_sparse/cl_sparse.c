@@ -694,6 +694,7 @@ type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
         ptr_db->heads[ptr_db->last].next = NULL;
         ptr_db->heads[ptr_db->last].arr_cnt = 0;
         ptr_db->heads[ptr_db->last].arr = NULL;
+        ptr_db->heads[ptr_db->last].free_clt = false;
 
         if (ptr)
             *ptr = &ptr_db->heads[ptr_db->last];
