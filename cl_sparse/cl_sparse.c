@@ -33,7 +33,6 @@
 #include <sys/wait.h>
 #include <assert.h>
 
-
 #define USE_INT3_AS_BRK
 #include "trap.h"
 #include "code_listener.h"
@@ -52,21 +51,25 @@
 //#include "sparse/token.h"
 
 
-// compile options
 
-/* general */
-#define DO_FORK                     1  // "1" recommended
-#define DO_EXTRA_CHECKS             1
-#define USE_EXTENDED_TYPE_CMP       0
-#define SHOW_PSEUDO_INSNS           0
+//
+// Compile options
+//
 
-/* sparse */
-#define DO_PROCEED_INTERNAL         0
-#define DO_EXPAND_SYMBOL            1
-#define DO_PER_EP_UNSAA             1
-#define DO_PER_EP_SET_UP_STORAGE    1
-#define DO_SPARSE_FREE              1
-#define FIX_SPARSE_EXTRA_ARG_TO_MEM 1
+
+// general
+#define DO_FORK                      1  // "1" recommended
+#define DO_EXTRA_CHECKS              1
+#define USE_EXTENDED_TYPE_CMP        0
+#define SHOW_PSEUDO_INSNS            0
+
+// sparse
+#define DO_PROCEED_INTERNAL          0
+#define DO_EXPAND_SYMBOL             1
+#define DO_PER_EP_UNSAA              1
+#define DO_PER_EP_SET_UP_STORAGE     1
+#define DO_SPARSE_FREE               1
+#define FIX_SPARSE_EXTRA_ARG_TO_MEM  1
 
 
 
@@ -77,48 +80,19 @@
 
 #define PARTIALLY_ORDERED(a, b, c)  (a <= b && b <= c)
 
-#define MEM_NEW(type) \
-    malloc(sizeof(type))
-
-#define MEM_NEW_ARR(arr, num) \
-    malloc(sizeof(*arr) * num)
-
-#if VERBOSE_RESIZE
-#define MEM_RESIZE_ARR(arr, newnum) \
-    (printf("%d, realloc " #arr "\n", __LINE__), realloc(arr, sizeof(*arr) * (newnum)))
-#else
-#define MEM_RESIZE_ARR(arr, newnum) \
-    realloc(arr, sizeof(*arr) * (newnum))
-#endif
+#define MEM_NEW(type)                malloc(sizeof(type))
+#define MEM_NEW_ARR(arr, num)        malloc(sizeof(*arr) * num)
+#define MEM_RESIZE_ARR(arr, newnum)  realloc(arr, sizeof(*arr) * (newnum))
 
 #ifndef STREQ
 #   define STREQ(s1, s2)  (0 == strcmp(s1, s2))
 #endif
 
-#define OPTPREFIX_SHORT  "-"
-#define OPTPREFIX_LONG   "--"
-#define OPTPREFIX_CL     "-cl-"
-
-#define _OPTPREFIXEQ(check, const_prefix, optprefix) \
-    (strncmp(check, optprefix const_prefix, strlen(optprefix const_prefix)) \
-    ? NULL : &check[strlen(optprefix const_prefix)])
-
-#define OPTPREFIXEQ_SHORT(check, const_prefix) \
-    _OPTPREFIXEQ(check, const_prefix, OPTPREFIX_SHORT)
-
-#define OPTPREFIXEQ_LONG(check, const_prefix) \
-    _OPTPREFIXEQ(check, const_prefix, OPTPREFIX_LONG)
-
-#define OPTPREFIXEQ_CL(check, const_prefix) \
-    _OPTPREFIXEQ(check, const_prefix, OPTPREFIX_CL)
-
-#define OPTVALUE(str) \
-    ((*str == '=' && *str++ != '\0') ? str : NULL)
 
 
 //
-// ptr_db, for building pointer* hierarchy in order to prevent
-// having two semantically same pointers as two different types
+// ptr_db, for building pointer* hierarchy in order to prevent having
+// two semantically same pointers/arrays as two different types
 //
 
 
@@ -132,7 +106,7 @@ struct ptr_db_item {
     struct ptr_db_item  *next;
     size_t              arr_cnt;
     struct arr_db_item  **arr;
-    bool                free_clt;
+    bool                free_clt;  //**< whether we are responsible for clt
 };
 
 struct ptr_db_arr {
@@ -153,13 +127,13 @@ const char *GIT_SHA1 = "someversion";
 static struct cl_code_listener *cl;
 
 static struct type_ptr_db {
-    int                    last_base_type_uid;
-    struct typen_data      *type_db;
-    struct ptr_db_arr      ptr_db;
+    int                 last_base_type_uid;
+    struct typen_data   *type_db;
+    struct ptr_db_arr   ptr_db;
 } type_ptr_db = {
-    .last_base_type_uid = 0,  //**< to prevent free of non-heap based types
-    .type_db = NULL,
-    .ptr_db = { .alloc_size = 0, .last = 0, .heads = NULL },
+    .last_base_type_uid = 0,  // to prevent free of non-heap based types
+    .type_db            = NULL,
+    .ptr_db             = { .alloc_size = 0, .last = 0, .heads = NULL },
 };
 typedef struct type_ptr_db *type_ptr_db_t;
 
@@ -199,13 +173,19 @@ static const struct cl_type pristine_cl_type = {
     //.array_size = 0,
 };
 
-// verbosity
+
+
+//
+// Verbosity levels
+//
+
+
 static int cl_verbose = 0;
 
 #define MACRO_STRING(arg)  #arg
 #define mask_bitmask(suffix)  (1 << E_VERBOSE_##suffix)
 #define mask_message(suffix, desc)  \
-    [E_VERBOSE_##suffix] = "(" MACRO_STRING(VERBOSE_##suffix) ")\t" desc,
+    [E_VERBOSE_##suffix] = "(" MACRO_STRING(VERBOSE_##suffix) ")\t\t" desc,
 enum verbose_mask {
     E_VERBOSE_LOCATION,
     E_VERBOSE_INSTRUCTION,
@@ -225,7 +205,7 @@ static const char *verbose_mask_str[E_VERBOSE_LAST] = {
     mask_message(TYPE,        "print type being processed")
 #define  VERBOSE_INSERT_TYPE \
     mask_bitmask(INSERT_TYPE)
-    mask_message(INSERT_TYPE, "print type being insert into type DB")
+    mask_message(INSERT_TYPE, "print type being inserted into type DB")
 };
 
 
@@ -305,23 +285,27 @@ warn(struct position pos, const char *fmt, ...)
 static int cnt_errors = 0;
 static int cnt_warnings = 0;
 
-static void dummy_printer(const char *msg)
+static void
+dummy_printer(const char *msg)
 {
     (void) msg;
 }
 
-static void trivial_printer(const char *msg)
+static void
+trivial_printer(const char *msg)
 {
     fprintf(real_stderr, "%s\n", msg);
 }
 
-static void cl_warn(const char *msg)
+static void
+cl_warn(const char *msg)
 {
     trivial_printer(msg);
     ++cnt_warnings;
 }
 
-static void cl_error(const char *msg)
+static void
+cl_error(const char *msg)
 {
     trivial_printer(msg);
     ++cnt_errors;
@@ -349,7 +333,6 @@ static void cl_error(const char *msg)
     }
 
 
-// Note: *clt (as well as nested items) expected to be heap-based
 static void
 free_clt(struct cl_type *clt)
 {
@@ -383,10 +366,8 @@ free_clt(struct cl_type *clt)
     }
 }
 
-static void
-free_cl_operand_heap(struct cl_operand *op);
+static void free_cl_operand_heap(struct cl_operand *op);
 
-// Note: *initial (as well as nested items) expected to be heap-based
 static void
 free_op_initializers(struct cl_initializer *initial)
 {
@@ -474,8 +455,7 @@ free_cl_operand_heap(struct cl_operand *op)
 //
 
 
-static void
-populate_with_base_types(type_ptr_db_t db);
+static void populate_with_base_types(type_ptr_db_t db);
 
 static void
 type_ptr_db_init(type_ptr_db_t db)
@@ -612,12 +592,14 @@ get_arg_at_pos(struct symbol *fn, int pos)
     return retval;
 }
 
-static inline bool is_pseudo(pseudo_t pseudo)
+static inline bool
+is_pseudo(pseudo_t pseudo)
 {
     return pseudo && pseudo != VOID;
 }
 
-static inline bool is_immediate_pseudo(pseudo_t pseudo)
+static inline bool
+is_immediate_pseudo(pseudo_t pseudo)
 {
     return pseudo->type != PSEUDO_SYM && pseudo->type != PSEUDO_ARG;
 }
@@ -628,18 +610,21 @@ static inline bool is_immediate_pseudo(pseudo_t pseudo)
 //
 
 
-static inline int sizeof_from_bits(int bits)
+static inline int
+sizeof_from_bits(int bits)
 {
 	return (bits >= 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
 }
 
-static inline struct cl_type* empty_cl_type(struct cl_type* clt)
+static inline struct cl_type *
+empty_cl_type(struct cl_type* clt)
 {
     *clt = pristine_cl_type;
     return clt;
 }
 
-static inline struct cl_type* new_cl_type(void)
+static inline struct cl_type *
+new_cl_type(void)
 {
     struct cl_type *retval = MEM_NEW(struct cl_type);
     if (!retval)
@@ -649,7 +634,8 @@ static inline struct cl_type* new_cl_type(void)
     return empty_cl_type(retval);
 }
 
-static inline struct cl_type* deref_cl_type(const struct cl_type* orig_type)
+static inline struct cl_type *
+deref_cl_type(const struct cl_type* orig_type)
 {
     struct cl_type *retval = MEM_NEW(struct cl_type);
     if (!retval)
@@ -671,8 +657,8 @@ static inline struct cl_type* deref_cl_type(const struct cl_type* orig_type)
     return retval;
 }
 
-static struct ptr_db_item *
-type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db, const struct cl_type *clt);
+static struct ptr_db_item *type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db,
+                                                  const struct cl_type *clt);
 
 static struct cl_type *
 type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
@@ -724,7 +710,6 @@ type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
 
 static void
 populate_with_base_types(type_ptr_db_t db)
-#define TYPE(sym, clt)  { &sym##_clt, &sym##_ctype, CL_TYPE_##clt, #sym }
 {
     const struct {
         struct cl_type  *ref;
@@ -742,6 +727,7 @@ populate_with_base_types(type_ptr_db_t db)
      * Note:
      * `lllong' represents non-standard "extra long" at specific platforms [?]
      */
+    #define TYPE(sym, clt)  { &sym##_clt, &sym##_ctype, CL_TYPE_##clt, #sym }
         /* CL_TYPE_VOID */
         TYPE(void, VOID),
 
@@ -766,6 +752,7 @@ populate_with_base_types(type_ptr_db_t db)
         TYPE(float,   REAL),
         TYPE(double,  REAL),
         TYPE(ldouble, REAL),
+    #undef TYPE
     };
 
     struct symbol *ctype;
@@ -788,11 +775,10 @@ populate_with_base_types(type_ptr_db_t db)
 
     // set uid of the last type inserted so we can skip the freeing for these
     db->last_base_type_uid = clt->uid;
-#undef TYPE
 }
 
-static struct cl_type *
-add_type_if_needed(const struct symbol *type, struct ptr_db_item **ptr);
+static struct cl_type *add_type_if_needed(const struct symbol *type,
+                                          struct ptr_db_item **ptr);
 
 static struct ptr_db_item *
 new_ptr_db_item(void)
@@ -940,18 +926,13 @@ read_type_enum(struct cl_type *clt, const struct symbol *raw_symbol,
     clt->name = read_ident(type->ident);
 }
 
-// Note: not to be called directly, but via add_type_if_needed
 static struct cl_type *
 read_type(struct cl_type *clt, const struct symbol *raw_symbol,
           const struct symbol *type)
-#define TYPE_STD(spt, clt, hnd) \
-    [SYM_##spt]={ .type_code=CL_TYPE_##clt, .prop.handler=hnd }
-#define TYPE_IGN(spt, _, __) \
-    [SYM_##spt]={ .type_code=CL_TYPE_UNKNOWN, .prop.string="SYM_"#spt }
 {
     typedef void (*type_handler)(struct cl_type *,
-                                 const struct symbol * /* raw_symbol */,
-                                 const struct symbol * /* type */);
+                                 const struct symbol * /*raw_symbol*/,
+                                 const struct symbol * /*type*/);
     const struct type_transformer {
         enum cl_type_e    type_code;
         union {
@@ -965,6 +946,11 @@ read_type(struct cl_type *clt, const struct symbol *raw_symbol,
      * Note:
      * Unhandled types are denoted with CL_TYPE_UNKNOWN.
      */
+    #define TYPE_STD(spt, clt, hnd) \
+        [SYM_##spt]={ .type_code=CL_TYPE_##clt, .prop.handler=hnd }
+    #define TYPE_IGN(spt, _, __) \
+        [SYM_##spt]={ .type_code=CL_TYPE_UNKNOWN, .prop.string="SYM_"#spt }
+
         // how? | sparse type   | clt    | handler               |
         // -----+---------------+--------+-----------------------|
 
@@ -2030,17 +2016,6 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
 
 static bool
 handle_insn(struct instruction *insn)
-#define INSN_STD(spi, cli, hnd) \
-    [OP_##spi]={ .insn_code=CL_INSN_##cli,\
-                 .prop.handler=hnd }
-#define INSN_UNI(spi, unop_code, hnd) \
-    [OP_##spi]={ .insn_code=CL_INSN_UNOP, .code.unop=CL_UNOP_##unop_code,\
-                 .prop.handler=hnd }
-#define INSN_BIN(spi, binop_code, hnd) \
-    [OP_##spi]={ .insn_code=CL_INSN_BINOP, .code.binop=CL_BINOP_##binop_code,\
-                 .prop.handler=hnd }
-#define INSN_IGN(spi, _, __) \
-    [OP_##spi] = { .insn_code=CL_INSN_ABORT, .prop.string = "OP_" #spi }
 {
     typedef bool (*insn_handler)(struct cl_insn *, const struct instruction *);
     const struct insn_transformer {
@@ -2061,6 +2036,17 @@ handle_insn(struct instruction *insn)
      * Instructions with more complicated rules (more instructions are emitted
      * per the single original one) are denoted with NOP, unhandled with ABORT.
      */
+    #define INSN_STD(spi, cli, hnd) \
+        [OP_##spi]={ .insn_code=CL_INSN_##cli, .prop.handler=hnd }
+    #define INSN_UNI(spi, unop_code, hnd) \
+        [OP_##spi]={ .insn_code=CL_INSN_UNOP, \
+                     .code.unop=CL_UNOP_##unop_code, .prop.handler=hnd }
+    #define INSN_BIN(spi, binop_code, hnd) \
+        [OP_##spi]={ .insn_code=CL_INSN_BINOP, \
+                     .code.binop=CL_BINOP_##binop_code, .prop.handler=hnd }
+    #define INSN_IGN(spi, _, __) \
+        [OP_##spi] = { .insn_code=CL_INSN_ABORT, .prop.string = "OP_" #spi }
+
         // how? | sparse insn.    | cl insn. (+uni/bin) | handler            |
         //------+-----------------+---------------------+--------------------|
 
@@ -2423,36 +2409,8 @@ static void clean_up_symbols(struct symbol_list *list)
 
 
 //
-// Code listener setup and related helpers
+// Options/arguments handling
 //
-
-
-static void print_help(const char *cmd)
-#define _(...) printf(__VA_ARGS__); printf("\n");
-#define __ _(" ");
-{
-_("sparse-based code listener frontend"                                      )
-__
-_("usage: %s (cl frontend args | sparse args)*"                          ,cmd)
-__
-_("For `sparse args', see sparse documentation; these args are generally"    )
-_("compatible with those for gcc and unrecognized ones are ignored anyway."  )
-__
-_("This code listener fronted also defines few args/options on its own:"     )
-__
-_("-h, --help               Prints this help text"                           )
-_("-cl-verbose[=MASK]       Be verbose (selectively if MASK provided)"       )
-_("-cl-dump-pp              Dump pretty-printed linearized code"             )
-_("-cl-dump-types           Add type information to such pretty-printed code")
-_("-cl-gen-dot[=MAIN_FILE]  Generate control flow graphs"                    )
-_("-cl-type-dot[=OUT_FILE]  Generate type graphs"                            )
-#undef __
-#undef _
-    int i;
-    printf("\nMASK:\n");
-    for (i = 0; i < E_VERBOSE_LAST; i++)
-        printf("\t%d %s\n", 1 << i, verbose_mask_str[i]);
-}
 
 struct cl_plug_options {
     bool        dump_types;
@@ -2463,6 +2421,60 @@ struct cl_plug_options {
     const char  *pp_out_file;
     const char  *type_dot_file;
 };
+
+#define OPTPREFIX_SHORT  "-"
+#define OPTPREFIX_LONG   "--"
+#define OPTPREFIX_CL     "-cl-"
+
+#define _OPTPREFIXEQ(check, const_prefix, optprefix) \
+    (strncmp(check, optprefix const_prefix, strlen(optprefix const_prefix)) \
+    ? NULL : &check[strlen(optprefix const_prefix)])
+
+#define OPTPREFIXEQ_SHORT(check, const_prefix) \
+    _OPTPREFIXEQ(check, const_prefix, OPTPREFIX_SHORT)
+
+#define OPTPREFIXEQ_LONG(check, const_prefix) \
+    _OPTPREFIXEQ(check, const_prefix, OPTPREFIX_LONG)
+
+#define OPTPREFIXEQ_CL(check, const_prefix) \
+    _OPTPREFIXEQ(check, const_prefix, OPTPREFIX_CL)
+
+#define OPTVALUE(str) \
+    ((*str == '=' && *str++ != '\0') ? str : NULL)
+
+static void print_help(const char *cmd)
+{
+#define _(...)     printf(__VA_ARGS__); printf("\n");
+#define __         printf("\n");
+#define L(l, ...)  printf("%-32s", OPTPREFIX_LONG l); _(__VA_ARGS__)
+#define B(s, l, ...) \
+    printf("%-32s", OPTPREFIX_SHORT s ", " OPTPREFIX_LONG l); _(__VA_ARGS__)
+#define C(o, ...)  printf("%-32s", OPTPREFIX_CL o); _(__VA_ARGS__)
+    _("sparse-based code listener frontend"                                    )
+    __
+    _("usage: %s (cl frontend args | sparse args)*"                        ,cmd)
+    __
+    _("For `sparse args', see sparse documentation; these args are generally"  )
+    _("compatible with those for gcc and unrecognized ones are ignored anyway.")
+    __
+    _("This code listener fronted also defines few args/options on its own:"   )
+    __
+    B("h", "help"          , "Prints this help text"                           )
+    L("verbose[=MASK]"     , "Be verbose (selectively if MASK provided)"       )
+    C("dump-pp"            , "Dump pretty-printed linearized code"             )
+    C("dump-types"         , "Add type information to such pretty-printed code")
+    C("gen-dot[=MAIN_FILE]", "Generate control flow graphs"                    )
+    C("type-dot[=OUT_FILE]", "Generate type graphs"                            )
+#undef C
+#undef B
+#undef L
+#undef __
+#undef _
+    int i;
+    printf("\nMASK:\n");
+    for (i = 0; i < E_VERBOSE_LAST; i++)
+        printf("%d %s\n", 1 << i, verbose_mask_str[i]);
+}
 
 static int
 handle_cl_args(int argc, char *argv[], struct cl_plug_options *opt)
@@ -2518,6 +2530,13 @@ handle_cl_args(int argc, char *argv[], struct cl_plug_options *opt)
 
     return EXIT_SUCCESS;
 }
+
+
+
+//
+// Code listener setup and related helpers
+//
+
 
 static bool
 cl_append_listener(struct cl_code_listener *chain, const char *fmt, ...)
