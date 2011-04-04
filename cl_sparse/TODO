@@ -9,6 +9,7 @@ priority
 --------
 finish union
 bring the signals back (as it sometimes ends without printing sparse messages)
+tests/string/str-01.c -- plus should be in pointer arithmetics
 
 
 not to forget
@@ -23,6 +24,7 @@ sparse:
 =======
 * does not complain about nonsensical recursive type (see tests/struct/rs1-01.c.bad)
 * generates phi instruction after unssa (hash_table.c: 85)
+* generates unnecessary copy instruction before ret (unssa?)
 
 
 code listener:

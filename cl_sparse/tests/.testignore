@@ -1,29 +1,46 @@
+# gcc    = gcc cl frontend
+# sparse = sparse cl frontend
+
 #array
-array/a-01.c.type.dot        ;sparse treats with arrays as with pointers (-> extra pointer type)
+array/a-01.c.type.dot                    ;gcc misses respective array types (even if it works with it); these types used locally but globally typedef'd
+array/a-02.c.type.dot                    ;gcc misses respective array types (even if it works with it); these types used locally but globally typedef'd
+array/a-03.c.type.dot                    ;gcc misses respective array types (even if it works with it); these types used locally but globally typedef'd
+array/a-04.c.type.dot                    ;gcc misses respective array types (even if it works with it); these types used locally but globally typedef'd
+array/a-10.c.type.dot                    ;gcc generates duplicated int
+array/as-01.c.type.dot                   ;gcc generates duplicated int + "struct as_01 []"->"struct as_01" is not named (compared to sparse)
+array/as-02.c.type.dot                   ;gcc generates duplicated int + "struct as_01 []"->"struct as_01" is not named (compared to sparse)
+array/as-10.c.type.dot                   ;gcc generates duplicated int
 
 #bool
-bool/b-01.c.type.dot         ;gcc generates (second) extra bool
-bool/b-01.c.dot              ;gcc splits bool expression into bbs (high CFG granularity)
-bool/b-01.c-f01.dot          ;gcc splits bool expression into bbs (high CFG granularity)
+bool/b-01.c.type.dot                     ;gcc generates duplicated bool (#-1 ?)
+bool/b-01.c.dot                          ;gcc splits bool expression into bbs (high CFG granularity)
+bool/b-01.c-f01.dot                      ;gcc splits bool expression into bbs (high CFG granularity)
 
 #fwnull
-fwnull/fwn-02.c.type.dot     ;gcc generates extra bool
-fwnull/fwn-02.c-test1.dot    ;gcc splits non-bool test into bool generation and test itself (extra instruction)
+fwnull/fwn-02.c.type.dot                 ;gcc generates extra bool (comes from comparison done by sparse straightforwardly)
+fwnull/fwn-02.c-test1.dot                ;gcc splits non-bool test into bool generation and test itself (extra instruction)
 
-fwnull/fwn-03.c.type.dot     ;gcc generates extra bool
+fwnull/fwn-03.c.type.dot                 ;gcc generates extra bool (comes from comparison done by sparse straightforwardly)
 
-fwnull/fwn-04.c.type.dot     ;gcc generates extra bool
-fwnull/fwn-04.c.dot          ;gcc has much more local jumps (merges two branches *only* to jump further)
-fwnull/fwn-04.c-test3.dot    ;gcc has much more local jumps (merges two branches *only* to jump further)
+fwnull/fwn-04.c.type.dot                 ;gcc generates extra bool (comes from comparison done by sparse straightforwardly)
+fwnull/fwn-04.c.dot                      ;gcc has much more local jumps (merges two branches *only* to jump further)
+fwnull/fwn-04.c-test3.dot                ;gcc has much more local jumps (merges two branches *only* to jump further)
 
-fwnull/fwn-05.c.type.dot     ;gcc generates extra bool
-fwnull/fwn-05.c-test4.dot    ;gcc splits non-bool test into bool generation and test itself (extra instruction), extra ending instruction with sparse is bug(?)
+fwnull/fwn-05.c.type.dot                 ;gcc generates extra bool (comes from comparison done by sparse straightforwardly)
+fwnull/fwn-05.c-test4.dot                ;gcc splits non-bool test into bool generation and test itself (extra instruction) + sparse's instruction before ret
 
 #stdprgs
-stdprgs/fact.c.type.dot      ;gcc treats with chars as with ints
-stdprgs/fact.c-factorial.dot ;gcc splits non-bool test into bool generation and test itself (extra instruction), extra ending instruction with sparse is bug(?)
-stdprgs/fact.c-factorial_from_string.dot ;gcc splits non-bool test into bool generation and test itself (extra instruction), extra ending instruction with sparse is bug(?)
-#stdprgs/fact.c-main.dot      ;extra ending instruction with sparse is bug(?)
+stdprgs/fact.c.type.dot                  ;gcc treats chars as ints (but there is much more, TODO: why so much arrays)
+stdprgs/fact.c-factorial.dot             ;gcc splits non-bool test into bool generation and test itself (extra instruction) + sparse's instruction before ret
+stdprgs/fact.c-factorial_from_string.dot ;gcc splits non-bool test into bool generation and test itself (extra instruction) + sparse's instruction before ret
+stdprgs/fact.c-main.dot                  ;sparse generates extra instruction (connected with unssa)
+
+#string
+string/str-01.c.type.dot                 ;gcc treats chars as ints + sparse does not do direct index-based access, but pointer arithmetics
 
 #struct
-struct/s-01.c-f01.dot        ;sparse is more direct wrt accessing structures
+struct/s-01.c-return_struct.dot          ;sparse is more direct wrt accessing/handling structures
+struct/s-02.c-return_int.dot             ;sparse is more direct wrt accessing/handling structures
+struct/ss-01.c-return_sstruct.dot        ;sparse is more direct wrt accessing/handling structures
+struct/ss-02.c-return_struct.dot         ;sparse is more direct wrt accessing/handling structures
+struct/ss-03.c-return_int.dot            ;sparse is more direct wrt accessing/handling structures
