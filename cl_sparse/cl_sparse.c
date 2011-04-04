@@ -53,19 +53,20 @@
 
 
 // compile options
+
+/* general */
 #define DO_FORK                     1  // "1" recommended
 #define DO_EXTRA_CHECKS             1
+#define USE_EXTENDED_TYPE_CMP       0
+#define SHOW_PSEUDO_INSNS           0
 
+/* sparse */
 #define DO_PROCEED_INTERNAL         0
 #define DO_EXPAND_SYMBOL            1
 #define DO_PER_EP_UNSAA             1
 #define DO_PER_EP_SET_UP_STORAGE    1
-#define DO_USE_EXTENDED_CMP         0
-
-#define FIX_SPARSE_EXTRA_ARG_TO_MEM 1
 #define DO_SPARSE_FREE              1
-
-#define SHOW_PSEUDO_INSNS           0
+#define FIX_SPARSE_EXTRA_ARG_TO_MEM 1
 
 
 
@@ -1465,7 +1466,7 @@ same_type(const struct cl_type *t1, const struct cl_type *t2)
     if (t1 == t2)
         return true;
 
-#if DO_USE_EXTENDED_CMP
+#if USE_EXTENDED_TYPE_CMP
     if (t1->code == t2->code && t1->item_cnt == t2->item_cnt
         && t1->item_cnt > 0) {
         int i;
