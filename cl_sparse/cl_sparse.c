@@ -1172,8 +1172,9 @@ add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
 
 #define VAR(op)      (op->data.var)
 
+// Note: this is not easily extendable as everything else is uninitialized
 static inline struct cl_operand *
-empty_cl_operand(struct cl_operand* op)
+void_cl_operand(struct cl_operand* op)
 {
     op->code = CL_OPERAND_VOID;
     return op;
@@ -1290,8 +1291,10 @@ build_trailing_accessor(struct cl_operand *op)
 static struct cl_operand *
 read_sym_initializer(struct cl_operand *op, struct expression *expr)
 {
-    if (!expr)
+    if (!expr) {
+        CL_TRAP;
         return op;
+    }
 
     //CL_TRAP;
     switch (expr->type) {
@@ -1304,10 +1307,8 @@ read_sym_initializer(struct cl_operand *op, struct expression *expr)
 }
 
 static struct cl_operand *
-read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
+read_pseudo_sym_base(struct cl_operand *op, struct symbol *sym)
 {
-    // read symbol location and scope
-    read_location(&op->loc, sym->pos);
     read_scope(&op->scope, sym->scope);
 
     if (sym->bb_target || sym->type != SYM_NODE)
@@ -1317,17 +1318,28 @@ read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
     if (sym->ctype.base_type->type == SYM_FN)
         return build_cst_fnc(op, sym);
 
-    // string
+    // string literal
     if (!sym->ident)
         return read_sym_initializer(op, sym->initializer);
 
     op->type = add_type_if_needed(sym, NULL);
 
     struct cl_var *var = build_var(op);
-    var->uid  = (int)(long) sym;
-    var->name = read_ident(sym->ident);
+    var->uid        = (int)(long) sym;
+    var->name       = read_ident(sym->ident);
+    var->artificial = false;
+#if DO_EXTRA_CHECKS
+    assert(var->name);
+#endif
 
     return op;
+}
+
+static inline struct cl_operand *
+read_pseudo_sym(struct cl_operand *op, struct symbol *sym)
+{
+    read_location(&op->loc, sym->pos);
+    return read_pseudo_sym_base(op, sym);
 }
 
 static inline struct cl_operand *
@@ -1340,12 +1352,13 @@ read_pseudo_arg(struct cl_operand *op, const pseudo_t pseudo)
         CL_TRAP;
 
     // XXX: op->scope       = CL_SCOPE_FUNCTION;
-    // XXX: var->artificial = false;
-    return read_pseudo_sym(op, arg_sym);
+    read_location(&op->loc, arg_sym->pos);  // TODO: better!!!
+    return read_pseudo_sym_base(op, arg_sym);
 }
 
 static struct cl_operand *
-read_pseudo_reg(struct cl_operand *op, const pseudo_t pseudo)
+read_pseudo_reg(struct cl_operand *op, const struct instruction *insn,
+                const pseudo_t pseudo)
 {/* Synopsis:
   * pseudo->def
   *
@@ -1359,18 +1372,33 @@ read_pseudo_reg(struct cl_operand *op, const pseudo_t pseudo)
 }
 
 static inline struct cl_operand *
-read_pseudo(struct cl_operand *op, const pseudo_t pseudo)
+read_pseudo_val(struct cl_operand *op, const struct instruction *insn,
+                int value)
+{
+    read_location(&op->loc, insn->pos);
+    return build_cst_int(op, value);
+}
+
+static inline struct cl_operand *
+read_pseudo(struct cl_operand *op, const struct instruction *insn,
+            const pseudo_t pseudo)
 {/* Synopsis:
   * sparse/linearize.h
   */
     if (!is_pseudo(pseudo))
-        return empty_cl_operand(op);
+        return void_cl_operand(op);
 
     switch (pseudo->type) {
-        case PSEUDO_REG: return read_pseudo_reg(op, pseudo);
+
+        /* real variables/literals (everything important accessible [?]) */
+
         case PSEUDO_SYM: return read_pseudo_sym(op, pseudo->sym);
-        case PSEUDO_VAL: return build_cst_int(op, pseudo->value);
         case PSEUDO_ARG: return read_pseudo_arg(op, pseudo);
+
+        /* immediate values (important information may not be accessible) */
+
+        case PSEUDO_REG: return read_pseudo_reg(op, insn, pseudo);
+        case PSEUDO_VAL: return read_pseudo_val(op, insn, (int) pseudo->value);
 #if 0
         case PSEUDO_PHI:
             WARN_UNHANDLED(insn->pos, "PSEUDO_PHI");
@@ -1381,6 +1409,16 @@ read_pseudo(struct cl_operand *op, const pseudo_t pseudo)
             CL_TRAP;
             return op;
     }
+}
+
+static inline void
+set_array_accessor_index(struct cl_operand *op, struct cl_accessor *ac,
+                         int index)
+{
+    ac->code = CL_ACCESSOR_DEREF_ARRAY;
+    struct cl_operand *index_op = build_cst_int(new_cl_operand(), index);
+    index_op->loc = op->loc;
+    ac->data.array.index = index_op;
 }
 
 static int
@@ -1419,7 +1457,7 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
         }
         MAP_ACCESSOR(ac->code, TYPE_ARRAY, ACCESSOR_DEREF_ARRAY) {
             div_t indexes = div(insn_offset, op->type->size/op->type->array_size);
-            ac->data.array.index = build_cst_int(new_cl_operand(), indexes.quot);
+            set_array_accessor_index(op, ac, indexes.quot);
             // the remainder serves for next index-based-dereferencing rounds
             retval = indexes.rem;
             break;
@@ -1429,11 +1467,8 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
                 // convert into another accessor then predestined (ptr->arr),
                 // but only if resulting index would be 1+
                 div_t indexes = div(insn_offset, op->type->items->type->size);
-                if (indexes.quot) {
-                    ac->code = CL_ACCESSOR_DEREF_ARRAY;
-                    ac->data.array.index = build_cst_int(new_cl_operand(),
-                                                         indexes.quot);
-                }
+                if (indexes.quot)
+                    set_array_accessor_index(op, ac, indexes.quot);
                 // the remainder serves for next index-based-deref. rounds
                 retval = indexes.rem;
             }
@@ -1557,27 +1592,24 @@ emit_insn_jmp(struct cl_insn *cli, const char *label)
 }
 
 static inline void
-emit_insn_cond(struct cl_insn *cli, pseudo_t cond, const char *then_label,
-               const char *else_label)
+emit_insn_cond(struct cl_insn *cli, struct cl_operand *op_cond,
+               const char *then_label, const char *else_label)
 {
-    struct cl_operand op_cond;
-
     cli->code                      = CL_INSN_COND;
-    cli->data.insn_cond.src        = read_pseudo(&op_cond, cond);
+    cli->data.insn_cond.src        = op_cond;
     cli->data.insn_cond.then_label = then_label;
     cli->data.insn_cond.else_label = else_label;
-    //
+
     cl->insn(cl, cli);
-    //
-    free_cl_operand(&op_cond);
 }
 
 static inline void
-emit_insn_copy(struct cl_insn *cli, pseudo_t lhs, pseudo_t rhs)
+emit_insn_copy(struct cl_insn *cli, const struct instruction *insn,
+               pseudo_t lhs, pseudo_t rhs)
 {
     cli->code                = CL_INSN_UNOP;
     cli->data.insn_unop.code = CL_UNOP_ASSIGN;
-    insn_assignment_base(cli, NULL,
+    insn_assignment_base(cli, insn,
         lhs,           /* := */  rhs,
         TYPE_LHS_KEEP      |     TYPE_RHS_KEEP
     );
@@ -1594,6 +1626,7 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
   *       insn has size of 4+ and char 1
   */
     char *bb_label_true, *bb_label_false, *bb_label_merge;
+    struct cl_operand op_cond;
 
     // BB labels
     if (   asprintf(&bb_label_true,  "%p", ((char *) insn) + 1) < 0
@@ -1603,14 +1636,16 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
 
     /* cond instruction */
 
-    emit_insn_cond(cli, insn->src1, bb_label_true, bb_label_false);
+    read_pseudo(&op_cond, insn, insn->src1);
+    emit_insn_cond(cli, &op_cond, bb_label_true, bb_label_false);
+    free_cl_operand(&op_cond);
 
     /* first BB ("then" branch) with assignment and jump to merging BB */
 
     cl->bb_open(cl, bb_label_true);
     free(bb_label_true);
 
-    emit_insn_copy(cli, insn->target,  /* := */  insn->src2);
+    emit_insn_copy(cli, insn, insn->target,  /* := */  insn->src2);
     emit_insn_jmp(cli, bb_label_merge);
 
     /* second BB ("else" branch) with assignment and jump to merging BB */
@@ -1618,7 +1653,7 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
     cl->bb_open(cl, bb_label_false);
     free(bb_label_false);
 
-    emit_insn_copy(cli, insn->target,  /* := */  insn->src3);
+    emit_insn_copy(cli, insn, insn->target,  /* := */  insn->src3);
     emit_insn_jmp(cli, bb_label_merge);
 
     /* merging BB */
@@ -1641,8 +1676,8 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
 
     /* open call */
 
-    read_pseudo(&dst, insn->target);
-    read_pseudo(&fnc, insn->func);
+    read_pseudo(&dst, insn, insn->target);
+    read_pseudo(&fnc, insn, insn->func);
     //
     cl->insn_call_open(cl, &cli->loc, &dst, &fnc);
     //
@@ -1652,7 +1687,7 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
     /* emit arguments */
 
     FOR_EACH_PTR(insn->arguments, arg) {
-        read_pseudo(&arg_op, arg);
+        read_pseudo(&arg_op, insn, arg);
         //
         cl->insn_call_arg(cl, ++cnt, &arg_op);
         //
@@ -1680,6 +1715,7 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
   *
   * Problems:
   */
+    struct cl_operand op;
     char *bb_name_true, *bb_name_false;
 
     if (asprintf(&bb_name_true, "%p", insn->bb_true) < 0)
@@ -1698,7 +1734,11 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
     if (asprintf(&bb_name_false, "%p", insn->bb_false) < 0)
         die("asprintf failed");
 
-    emit_insn_cond(cli, insn->cond, bb_name_true, bb_name_false);
+    read_pseudo(&op, insn, insn->cond);
+
+    emit_insn_cond(cli, &op, bb_name_true, bb_name_false);
+
+    free_cl_operand(&op);
     free(bb_name_true);
     free(bb_name_false);
 
@@ -1707,45 +1747,53 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
 
 static bool
 handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
-{/* Synopsis:
-  *
-  * Problems:
+{/* Synopsis -- input:
+  * insn->target        ... selection source
+  * insn->multijmp_list ... list of branches/cases
+  * - for one item `jmp':
+  *   jmp->begin == jmp->end ... single value selection
+  *   jmp->begin < jmp->end  ... range selection
+  *   jmp->begin > jmp->end  ... default case
+  *   ---
+  *   jmp->target       ... respective basic block
   */
-    struct cl_operand op;
+    char *label;
+    struct cl_operand op, val_lo, val_hi, *val_hi_ptr = &val_lo;
     struct multijmp *jmp;
 
     /* open switch */
 
-    read_pseudo(&op, insn->target);
-    //
+    read_pseudo(&op, insn, insn->target);
     cl->insn_switch_open(cl, &cli->loc, &op);
-    //
-    free_cl_operand(&op);
 
     /* emit cases */
 
     FOR_EACH_PTR(insn->multijmp_list, jmp) {
-        char *label;
-        struct cl_operand val_lo = { .code = CL_OPERAND_VOID };
-        struct cl_operand val_hi = { .code = CL_OPERAND_VOID };
-
         if (asprintf(&label, "%p", jmp->target) < 0)
             die("asprintf failed");
 
-        // if true, it's case; default otherwise
         if (jmp->begin <= jmp->end) {
-            // TODO: read types
-            build_cst_int(&val_lo, jmp->begin);
-            build_cst_int(&val_hi, jmp->end);
-        }
+            // non-default
+            read_pseudo_val(&val_lo, insn, jmp->begin);
+            val_lo.type = op.type;
+
+            if (jmp->begin != jmp->end) {
+                // range
+                read_pseudo_val(&val_hi, insn, jmp->end);
+                val_hi.type = op.type;
+                val_hi_ptr = &val_hi;
+            }
+        } else
+            // default case
+            void_cl_operand(&val_lo);
 
         // FIXME: not enough accurate location info from SPARSE for switch/case
-        cl->insn_switch_case(cl, &cli->loc, &val_lo, &val_hi, label);
+        cl->insn_switch_case(cl, &cli->loc, &val_lo, val_hi_ptr, label);
 
-        free_cl_operand(&val_lo);
-        free_cl_operand(&val_hi);
         free(label);
     } END_FOR_EACH_PTR(jmp);
+
+    free_cl_operand(&op);
 
     /* close switch */
 
@@ -1771,7 +1819,7 @@ handle_insn_ret(struct cl_insn *cli, const struct instruction *insn)
     struct cl_operand op;
     const struct cl_type *resulting_type;
 
-    cli->data.insn_ret.src = read_pseudo(&op, insn->src);
+    cli->data.insn_ret.src = read_pseudo(&op, insn, insn->src);
     if (is_of_accessable_type(&op)) {
         resulting_type = add_type_if_needed(insn->type, NULL);
         adjust_cl_operand_accessors(&op, resulting_type, insn->offset);
@@ -1866,13 +1914,13 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
 
     /* prepare RHS (quite complicated compared to LHS) */
 
-    cli->data.insn_unop.src = read_pseudo(&op_rhs, rhs);
+    cli->data.insn_unop.src = read_pseudo(&op_rhs, insn, rhs);
     insn_assignment_mod_rhs(&op_rhs, rhs, insn, ops_handling);
 
 
     /* prepare LHS */
 
-    cli->data.insn_unop.dst = read_pseudo(&op_lhs, lhs);
+    cli->data.insn_unop.dst = read_pseudo(&op_lhs, insn, lhs);
 
     // dig lhs (when applicable)
     if (ops_handling & TYPE_LHS_DIG) {
@@ -1940,7 +1988,7 @@ handle_insn_copy(struct cl_insn *cli, const struct instruction *insn)
   * insn->src
   * insn->type
   */
-    return insn_assignment_base(cli, NULL /*insn*/,
+    return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
         TYPE_LHS_KEEP      |     TYPE_RHS_KEEP
     );
@@ -1968,9 +2016,9 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
   */
     struct cl_operand dst, src1, src2;
 
-    cli->data.insn_binop.dst  = read_pseudo(&dst,  insn->target);
-    cli->data.insn_binop.src1 = read_pseudo(&src1, insn->src1  );
-    cli->data.insn_binop.src2 = read_pseudo(&src2, insn->src2  );
+    cli->data.insn_binop.dst  = read_pseudo(&dst,  insn, insn->target);
+    cli->data.insn_binop.src1 = read_pseudo(&src1, insn, insn->src1  );
+    cli->data.insn_binop.src2 = read_pseudo(&src2, insn, insn->src2  );
 
     // for pointer arithmetics, rewrite binary operation
     if (src1.type->code == CL_TYPE_ARRAY || src2.type->code == CL_TYPE_ARRAY
@@ -2003,8 +2051,8 @@ handle_insn_unop(struct cl_insn *cli, const struct instruction *insn)
   */
     struct cl_operand dst, src;
 
-    cli->data.insn_unop.dst = read_pseudo(&dst, insn->target);
-    cli->data.insn_unop.src = read_pseudo(&src, insn->src   );
+    cli->data.insn_unop.dst = read_pseudo(&dst, insn, insn->target);
+    cli->data.insn_unop.src = read_pseudo(&src, insn, insn->src   );
     //
     cl->insn(cl, cli);
     //
@@ -2407,6 +2455,7 @@ static void clean_up_symbols(struct symbol_list *list)
 
 struct cl_plug_options {
     bool        dump_types;
+    bool        dump_keep_switch;
     bool        use_dotgen;
     bool        use_pp;
     bool        use_typedot;
@@ -2455,7 +2504,8 @@ static void print_help(const char *cmd)
     B("h", "help"          , "Prints this help text"                           )
     L("verbose[=MASK]"     , "Be verbose (selectively if MASK provided)"       )
     C("dump-pp"            , "Dump pretty-printed linearized code"             )
-    C("dump-types"         , "Add type information to such pretty-printed code")
+    C("dump-types"         , "Add type information to pretty-printed code"     )
+    C("dump-keep-switch"   , "Keep switch statement \"as is\" (no unfolding)"  )
     C("gen-dot[=MAIN_FILE]", "Generate control flow graphs"                    )
     C("type-dot[=OUT_FILE]", "Generate type graphs"                            )
 #undef C
@@ -2496,14 +2546,15 @@ handle_cl_args(int argc, char *argv[], struct cl_plug_options *opt)
         /* args affecting code listener behaviour */
 
         } else if ((value = OPTPREFIXEQ_CL(argv[i],  "dump-pp"))) {
-            opt->use_pp         = true;
-            opt->pp_out_file    = OPTVALUE(value);
+            opt->use_pp           = true;
+            opt->pp_out_file      = OPTVALUE(value);
         } else if (OPTPREFIXEQ_CL(argv[i],           "dump-types")) {
-            opt->dump_types     = true;
-            // TODO: warn about ignoring extra value?
+            opt->dump_types       = true; // XXX: ignoring extra value
+        } else if (OPTPREFIXEQ_CL(argv[i],           "dump-keep-switch")) {
+            opt->dump_keep_switch = true; // XXX: ignoring extra value
         } else if ((value = OPTPREFIXEQ_CL(argv[i],  "gen-dot"))) {
-            opt->use_dotgen     = true;
-            opt->gl_dot_file    = OPTVALUE(value);
+            opt->use_dotgen       = true;
+            opt->gl_dot_file      = OPTVALUE(value);
         } else if ((value = OPTPREFIXEQ_CL(argv[i],  "type-dot"))) {
             if (OPTVALUE(value)) {
                 opt->use_typedot    = true;
@@ -2557,11 +2608,13 @@ cl_append_listener(struct cl_code_listener *chain, const char *fmt, ...)
 
 static bool
 cl_append_def_listener(struct cl_code_listener *chain, const char *listener,
-                       const char *args, const struct cl_plug_options *opt)
+                       const char *args, const char *clf,
+                       const struct cl_plug_options *opt)
 {
-    const char *clf = (/*opt->use_peer*/ true)
-        ? "unfold_switch,unify_labels_gl"
-        : "unify_labels_fnc";
+    if (!clf)
+        clf = (/*opt->use_peer*/ true)
+            ? "unfold_switch,unify_labels_gl"
+            : "unify_labels_fnc";
 
     return cl_append_listener(chain,
             "listener=\"%s\" listener_args=\"%s\" clf=\"%s\"",
@@ -2590,7 +2643,11 @@ create_cl_chain(const struct cl_plug_options *opt)
             ? opt->pp_out_file
             : "";
 
-        if (!cl_append_def_listener(chain, use_listener, out, opt))
+        const char *clf = (opt->dump_keep_switch)
+            ? "unify_labels_gl"
+            : "unfold_switch,unify_labels_gl";
+
+        if (!cl_append_def_listener(chain, use_listener, out, clf, opt))
             return NULL;
     }
 
@@ -2598,12 +2655,13 @@ create_cl_chain(const struct cl_plug_options *opt)
         const char *gl_dot = (opt->gl_dot_file)
             ? opt->gl_dot_file
             : "";
-        if (!cl_append_def_listener(chain, "dotgen", gl_dot, opt))
+        if (!cl_append_def_listener(chain, "dotgen", gl_dot, NULL, opt))
             return NULL;
     }
 
     if (opt->use_typedot
-            && !cl_append_def_listener(chain, "typedot", opt->type_dot_file, opt))
+        && !cl_append_def_listener(chain, "typedot", opt->type_dot_file, NULL,
+                                   opt))
         return NULL;
 
     /*if (opt->use_peer
