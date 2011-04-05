@@ -88,11 +88,25 @@
 #   define STREQ(s1, s2)  (0 == strcmp(s1, s2))
 #endif
 
+// macro language brings wholly new dimensions to the C world, FWIW
+#define OR  : case
+#define IN(choices)  , choices
+#define COND_WHICH(cond, which) \
+    switch (cond) {             \
+        case which:
+#define BEGIN_WHEN(cond_which)  \
+        COND_WHICH(cond_which)
+#define END_WHEN                \
+            ; break;            \
+        default:                \
+            break;              \
+    }
+
 
 
 //
-// ptr_db, for building pointer* hierarchy in order to prevent having
-// two semantically same pointers/arrays as two different types
+// Pointer and array DB, for building pointer* and array hierarchy in order to
+// prevent having two semantically same pointers/arrays as two different types
 //
 
 
@@ -106,7 +120,7 @@ struct ptr_db_item {
     struct ptr_db_item  *next;
     size_t              arr_cnt;
     struct arr_db_item  **arr;
-    bool                free_clt;  //**< whether we are responsible for clt
+    bool                free_type;  //**< whether we are responsible for clt
 };
 
 struct ptr_db_arr {
@@ -140,25 +154,13 @@ typedef struct type_ptr_db *type_ptr_db_t;
 FILE *real_stderr = NULL; /**< used to access "unfaked" stderr */
 
 
-// associated with respective base types in `populate_with_base_types()'
-static struct cl_type
-    void_clt,
-    incomplete_clt,
-    bad_clt,
-    int_clt,  sint_clt,  uint_clt,     short_clt, sshort_clt, ushort_clt,
-    long_clt, slong_clt, ulong_clt,    llong_clt, sllong_clt, ullong_clt,
-    // lllong_clt, slllong_clt, ulllong_clt
-    char_clt, schar_clt, uchar_clt,
-    bool_clt,
-    float_clt, double_clt, ldouble_clt;
-
-
 
 //
 // Empty composite values
 //
 
 
+// TODO: cl_loc_unknown
 #define EMPTY_LOC  { .file = NULL, .line = -1, .column = -1, .sysp = false }
 
 static const struct cl_type pristine_cl_type = {
@@ -277,27 +279,169 @@ warn(struct position pos, const char *fmt, ...)
 
 
 //
-// Freeing resources helper functions
+// Mostly sparse related helper functions
 //
 
 
-// macro language brings wholly new dimensions to the C world, FWIW
-#define OR  : case
-#define IN(choices)  , choices
-#define COND_WHICH(cond, which) \
-    switch (cond) {             \
-        case which:
-#define BEGIN_WHEN(cond_which)  \
-        COND_WHICH(cond_which)
-#define END_WHEN                \
-            ; break;            \
-        default:                \
-            break;              \
-    }
-
+// Note: `bits_in_char' defined by sparse
+static inline int
+sizeof_from_bits(int bits)
+{
+	return (bits >= 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
+}
 
 static void
-free_clt(struct cl_type *clt)
+sparse_location(struct cl_loc *cl_loc, struct position pos)
+{
+    cl_loc->file   = stream_name(pos.stream);
+    cl_loc->line   = pos.line;
+    cl_loc->column = pos.pos;
+    cl_loc->sysp   = /* not used by SPARSE */ false;
+}
+
+static void
+sparse_scope(enum cl_scope_e *cl_scope, struct scope *scope)
+{
+    if (!scope || scope == global_scope)
+        *cl_scope = CL_SCOPE_GLOBAL;
+    else if (scope == file_scope)
+        *cl_scope = CL_SCOPE_STATIC;
+    else if (scope == function_scope)
+        CL_TRAP;
+    else if (scope == block_scope)
+        CL_TRAP;
+    else
+        // FIXME
+        *cl_scope = CL_SCOPE_FUNCTION;
+}
+
+static inline const char *
+sparse_string(const struct string *str)
+{/* Alternative:
+  * show_string (sparse/token.h)
+  *     - cons: character escaping, is verbose about empty string
+  */
+    return (str->length) ? strndup(str->data, str->length) : NULL;
+}
+
+static inline const char *
+sparse_ident(const struct ident *ident)
+{/* Alternative:
+  * show_ident (sparse/token.h)
+  *     - cons: is verbose about empty identifier string
+  */
+    return (ident && ident->len) ? strndup(ident->name, ident->len) : NULL;
+}
+
+static struct symbol *
+sparse_fn_arg_at(struct symbol *fn, int pos)
+{
+    struct symbol *sym, *retval = NULL;
+
+    if (pos <= 0)
+        return NULL;
+
+    // FIXME: lot of possible but missing checks
+    // alternative: use also symbol->arg_count on SYM_FN
+    FOR_EACH_PTR(fn->ctype.base_type->arguments, sym) {
+        if (!--pos)
+            retval = sym;
+    } END_FOR_EACH_PTR(sym);
+    return retval;
+}
+
+
+
+//
+// Types handling
+//
+
+
+/* sparse - code listener types mapping */
+
+// associated with respective base types in `populate_with_base_types()'
+static struct cl_type
+    void_clt,
+    incomplete_clt,
+    bad_clt,
+    int_clt,  sint_clt,  uint_clt,     short_clt, sshort_clt, ushort_clt,
+    long_clt, slong_clt, ulong_clt,    llong_clt, sllong_clt, ullong_clt,
+    // lllong_clt, slllong_clt, ulllong_clt
+    char_clt, schar_clt, uchar_clt,
+    bool_clt,
+    float_clt, double_clt, ldouble_clt;
+
+
+static const struct {
+    struct cl_type  *ref;
+    struct symbol   *ctype;
+    enum cl_type_e  cl_type;
+    const char      *name;
+} base_types[] = {
+/* Synopsis:
+ * sparse/symbol.c (ctype_declaration) + sparse/symbol.h
+ *
+ * Omitted:
+ * - type_ctype
+ * - string_ctype..lazy_ptr_type (should not be present at all [?])
+ *
+ * Note:
+ * `lllong' represents non-standard "extra long" at specific platforms [?]
+ */
+#define TYPE(sym, clt)  { &sym##_clt, &sym##_ctype, CL_TYPE_##clt, #sym }
+    /* CL_TYPE_VOID */
+    TYPE(void, VOID),
+
+    /* CL_TYPE_UNKNOWN */
+    TYPE(incomplete, UNKNOWN),
+    TYPE(bad,        UNKNOWN),
+
+    /* CL_TYPE_INT */
+    TYPE(int,    INT),   TYPE(sint,    INT),   TYPE(uint,    INT),
+    TYPE(short,  INT),   TYPE(sshort,  INT),   TYPE(ushort,  INT),
+    TYPE(long,   INT),   TYPE(slong,   INT),   TYPE(ulong,   INT),
+    TYPE(llong,  INT),   TYPE(sllong,  INT),   TYPE(ullong,  INT),
+    //TYPE(lllong, INT),   TYPE(slllong, INT),   TYPE(ulllong, INT),
+
+    /* CL_TYPE_CHAR */
+    TYPE(char,   CHAR),  TYPE(schar,   CHAR),  TYPE(uchar,  CHAR),
+
+    /* CL_TYPE_BOOL */
+    TYPE(bool, BOOL),
+
+    /* CL_TYPE_REAL */
+    TYPE(float,   REAL),
+    TYPE(double,  REAL),
+    TYPE(ldouble, REAL),
+#undef TYPE
+};
+
+
+/* type "constructor" */
+
+static inline struct cl_type *
+empty_type(struct cl_type* clt)
+{
+    *clt = pristine_cl_type;
+    return clt;
+}
+
+static inline struct cl_type *
+new_type(void)
+{
+    struct cl_type *retval = MEM_NEW(struct cl_type);
+    if (!retval)
+        die("MEM_NEW failed");
+
+    // guaranteed not to return NULL
+    return empty_type(retval);
+}
+
+
+/* freeing resources connected with type */
+
+static void
+free_type(struct cl_type *clt)
 {
     // skip base types that are not on heap
     if (clt->uid > type_ptr_db.last_base_type_uid) {
@@ -329,259 +473,237 @@ free_clt(struct cl_type *clt)
     }
 }
 
-static void free_cl_operand_heap(struct cl_operand *op);
 
-static void
-free_op_initializers(struct cl_initializer *initial)
-{
-    /* initial->type (skipped) */
+/* various helpers */
 
-    if (!initial->type->item_cnt) {
-        /* initial->data.value (heap-based!) */
-        free_cl_operand_heap(initial->data.value);
-    } else {
-        /* initial->data.nested_initials */
-        int i;
-        for (i = 0; i < initial->type->item_cnt; i++)
-            if (initial->data.nested_initials[i])
-                free_op_initializers(initial->data.nested_initials[i]);
-    }
-
-    /* initial (heap!) */
-    free(initial);
-}
-
-// Note: *op expected NOT (contrary to nested items) to be heap-based
-//       (most common usage)
-static void
-free_op_data(struct cl_operand *op)
-{
-    if (op->code == CL_OPERAND_VOID)
-        return;
-
-    /* op->type (skipped) */
-
-    /* op->accessor */
-    // XXX: cl_pp says that accessor is not expected for CL_OPERAND_CST
-    struct cl_accessor *ac_next, *ac = op->accessor;
-    while (ac) {
-        ac_next = ac->next;
-        /* ac->type (skipped) */
-        /* ac->next (in the next round) */
-        if (ac->code == CL_ACCESSOR_DEREF_ARRAY){
-            /* ac->data.array.index (heap-based!) */
-            free_cl_operand_heap(ac->data.array.index);
-        }
-        // free current and go to the next one in the chain
-        free(ac);
-        ac = ac_next;
-    }
-
-    if (op->code == CL_OPERAND_CST) {
-        /* op->data.cst... */
-        switch (op->data.cst.code) {
-            case CL_TYPE_FNC:
-                free((char *) op->data.cst.data.cst_fnc.name);
-                break;
-            case CL_TYPE_STRING:
-                free((char *) op->data.cst.data.cst_string.value);
-                break;
-            default:
-                break;
-        }
-    } else if (op->code == CL_OPERAND_VAR) {
-        /* op->data.var->name */
-        free((char *) op->data.var->name);
-        /* op->data.var->initial... */
-        if (op->data.var->initial)
-            free_op_initializers(op->data.var->initial);
-
-        /* op->data.var */
-        free(op->data.var);
-    }
-}
-
-// Note: *op expected to be heap-based
-static inline void
-free_cl_operand_heap(struct cl_operand *op)
-{
-    free_op_data(op);
-
-    /* op (heap!) */
-    free(op);
-}
-
-
-
-//
-// Auxiliary helper functions
-//
-
-
-static void populate_with_base_types(type_ptr_db_t db);
-
-static void
-type_ptr_db_init(type_ptr_db_t db)
-{
-    db->type_db = typen_create(free_clt);
-    if (!db->type_db)
-        die("ht_create() failed");
-
-    // fill with base types
-    populate_with_base_types(db);
-}
-
-static void
-type_ptr_db_destroy(type_ptr_db_t db)
-{
-    typen_destroy(db->type_db);
-
-    // destroy pointer hierarchy
-    struct ptr_db_arr *ptr_db = &db->ptr_db;
-    struct ptr_db_item *item, *item_next;
-    int i;
-    for (i = 0; i < ptr_db->last; i++) {
-        item = &ptr_db->heads[i];
-
-        /* item->clt (skipped, except for those explicitly flagged) */
-        if (item->free_clt)
-            free_clt(item->clt);
-
-        /* item->arr */
-        int j;
-        for (j = 0; j < item->arr_cnt; j++)
-            free(item->arr[j]);
-        free(item->arr);
-
-        // move onto next items, this one captured by `free(db->ptr_db.heads)'
-        item = item->next;
-
-        while (item) {
-            item_next = item->next;
-
-            /* item->clt (skipped, except for those explicitly flagged) */
-            if (item->free_clt)
-                free_clt(item->clt);
-
-            free(item);
-            item = item_next;
-        }
-    }
-    free(ptr_db->heads);
-}
-
-static bool
-redefine_stderr(int target_fd, FILE **backup_stderr)
-{
-    if (backup_stderr) {
-        *backup_stderr = fopen("/dev/stderr", "w");
-        if (!*backup_stderr)
-            return false;
-        else
-        setbuf(*backup_stderr, NULL);
-    }
-
-    if (close(STDERR_FILENO) == -1
-        || dup2(target_fd, STDERR_FILENO) == -1)
-        return false;
-    else
-        return true;
-}
-
-
-
-//
-// Sparse generic helper functions
-//
-
-
-static void
-read_location(struct cl_loc *cl_loc, struct position pos)
-{
-    cl_loc->file   = stream_name(pos.stream);
-    cl_loc->line   = pos.line;
-    cl_loc->column = pos.pos;
-    cl_loc->sysp   = /* not used by SPARSE */ false;
-}
-
-static void
-read_scope(enum cl_scope_e *cl_scope, struct scope *scope)
-{
-    if (!scope || scope == global_scope)
-        *cl_scope = CL_SCOPE_GLOBAL;
-    else if (scope == file_scope)
-        *cl_scope = CL_SCOPE_STATIC;
-    else if (scope == function_scope)
-        CL_TRAP;
-    else if (scope == block_scope)
-        CL_TRAP;
-    else
-        // FIXME
-        *cl_scope = CL_SCOPE_FUNCTION;
-}
-
-static inline const char *
-read_string(const struct string *str)
-{/* Alternative:
-  * show_string (sparse/token.h)
-  *     - cons: character escaping, is verbose about empty string
+static inline const struct symbol *
+type_unwrap(const struct symbol *raw_type)
+{/* See also:
+  * sparse/symbol.h: get_sym_type()
   */
-    return (str->length) ? strndup(str->data, str->length) : NULL;
-}
+    if (!raw_type)
+        CL_TRAP;
 
-static inline const char *
-read_ident(const struct ident *ident)
-{/* Alternative:
-  * show_ident (sparse/token.h)
-  *     - cons: is verbose about empty identifier string
-  */
-    return (ident && ident->len) ? strndup(ident->name, ident->len) : NULL;
-}
+    const struct symbol *retval = raw_type;
+    while (retval->type == SYM_NODE || retval->type == SYM_BITFIELD
+           /*retval->type == SYM_ENUM */)
+        retval = retval->ctype.base_type;
 
-static struct symbol *
-get_arg_at_pos(struct symbol *fn, int pos)
-{
-    struct symbol *sym, *retval = NULL;
-
-    if (pos <= 0)
-        return NULL;
-
-    // FIXME: lot of possible but missing checks
-    // alternative: use also symbol->arg_count on SYM_FN
-    FOR_EACH_PTR(fn->ctype.base_type->arguments, sym) {
-        if (!--pos)
-            retval = sym;
-    } END_FOR_EACH_PTR(sym);
     return retval;
 }
 
 static inline bool
-is_pseudo(pseudo_t pseudo)
+type_match(const struct cl_type *t1, const struct cl_type *t2)
 {
-    return pseudo && pseudo != VOID;
+    if (t1 == t2)
+        return true;
+
+#if USE_EXTENDED_TYPE_CMP
+    if (t1->code == t2->code && t1->item_cnt == t2->item_cnt
+        && t1->item_cnt > 0) {
+        int i;
+        for (i = 0; i < t1->item_cnt; i++)
+            if (!type_match(t1->items[i].type, t2->items[i].type))
+                return false;
+        return  true;
+    }
+#else
+    return false;
+#endif
 }
 
-static inline bool
-is_immediate_pseudo(pseudo_t pseudo)
+
+/* read composite types */
+
+static struct cl_type *type_from_symbol(const struct symbol *type,
+                                          struct ptr_db_item **ptr);
+
+static struct cl_type_item *
+add_subtype(struct cl_type *clt, struct symbol *subtype)
 {
-    return pseudo->type != PSEUDO_SYM && pseudo->type != PSEUDO_ARG;
+    assert(clt->item_cnt >= 0);
+
+    struct cl_type_item *subtype_item;
+
+    clt->items = MEM_RESIZE_ARR(clt->items, ++clt->item_cnt);
+    if (!clt->items)
+        die("MEM_RESIZE_ARR failed");
+
+    subtype_item = &clt->items[clt->item_cnt-1];
+    subtype_item->type = type_from_symbol(subtype, NULL);
+    subtype_item->name = sparse_ident(subtype->ident);
+    if (clt->code == CL_TYPE_STRUCT || clt->code == CL_TYPE_UNION)
+        subtype_item->offset = subtype->offset;
+
+    return subtype_item;
+}
+
+static void
+add_subtypes(struct cl_type *clt, struct symbol_list *subtypes)
+{
+    struct symbol *subtype;
+
+    FOR_EACH_PTR(subtypes, subtype) {
+        add_subtype(clt, subtype);
+    } END_FOR_EACH_PTR(subtype);
+}
+
+static inline void
+read_type_fnc(struct cl_type *clt, const struct symbol *raw_symbol,
+              const struct symbol *type)
+{
+    add_subtype(clt, type->ctype.base_type);
+    add_subtypes(clt, type->arguments);
+    // XXX: probably convention in cl?
+    add_subtype(clt, &void_ctype);
+}
+
+static inline void
+read_type_array(struct cl_type *clt, const struct symbol *raw_symbol,
+                const struct symbol *type)
+{
+    //CL_TRAP;
+    //clt->name = sparse_ident(type->ident);
+    //
+    //
+
+    if (raw_symbol->type == SYM_NODE)
+        // normalize size of the "outer" dimension as well as missing size
+        clt->size = sizeof_from_bits(raw_symbol->bit_size);
+    int subtype_size = add_subtype(clt, type->ctype.base_type)->type->size;
+    clt->array_size = clt->size/subtype_size;
+                      // clt->size/clt->items[0].type->size
+}
+
+static inline void
+read_type_struct(struct cl_type *clt, const struct symbol *raw_symbol,
+                 const struct symbol *type)
+{
+    clt->name = sparse_ident(type->ident);
+    add_subtypes(clt, type->symbol_list);
+}
+
+static inline void
+read_type_union(struct cl_type *clt, const struct symbol *raw_symbol,
+                const struct symbol *type)
+{
+    //CL_TRAP;
+    clt->name     = sparse_ident(type->ident);
+    //TODO:
+    add_subtypes(clt, type->symbol_list);
+    //clt->item_cnt = /* TODO */ 0;
+    //clt->items    = /* TODO */ NULL;
+}
+
+static inline void
+read_type_enum(struct cl_type *clt, const struct symbol *raw_symbol,
+               const struct symbol *type)
+{
+    clt->name = sparse_ident(type->ident);
+}
+
+static struct cl_type *
+read_type(struct cl_type *clt, const struct symbol *raw_symbol,
+          const struct symbol *type)
+{
+    typedef void (*type_converter)(struct cl_type *,
+                                   const struct symbol * /*raw_symbol*/,
+                                   const struct symbol * /*type*/);
+    const struct type_conversion {
+        enum cl_type_e      type_code;
+        union {
+            type_converter  converter;
+            const char      *string;
+        } prop;
+    } type_conversions[] = {
+    /* Synopsis:
+     * sparse/symbol.h
+     *
+     * Note:
+     * Unhandled types are denoted with CL_TYPE_UNKNOWN.
+     */
+    #define TYPE_STD(spt, clt, conv) \
+        [SYM_##spt]={ .type_code=CL_TYPE_##clt, .prop.converter=conv }
+    #define TYPE_IGN(spt, _, __) \
+        [SYM_##spt]={ .type_code=CL_TYPE_UNKNOWN, .prop.string="SYM_"#spt }
+
+        // how? | sparse type   | clt    | handler               |
+        // -----+---------------+--------+-----------------------|
+
+        /* these should not get there (?) */
+        TYPE_IGN( UNINITIALIZED ,        ,                       ),
+        TYPE_IGN( PREPROCESSOR  ,        ,                       ),
+        TYPE_IGN( BASETYPE      ,        ,                       ),
+        TYPE_IGN( NODE          ,        , /*unexpected in type*/),
+
+        /* ready to handle */
+        TYPE_STD( PTR           , PTR    , NULL /*set code only*/),
+        TYPE_STD( FN            , FNC    , read_type_fnc         ),
+        TYPE_STD( ARRAY         , ARRAY  , read_type_array       ),
+        TYPE_STD( STRUCT        , STRUCT , read_type_struct      ),
+        TYPE_STD( UNION         , UNION  , read_type_union       ),
+        TYPE_STD( ENUM          , ENUM   , read_type_enum        ),
+
+        /* what about these? */
+        TYPE_IGN( TYPEDEF       ,        ,                       ),
+        TYPE_IGN( TYPEOF        ,        ,                       ),
+        TYPE_IGN( MEMBER        ,        ,                       ),
+        TYPE_IGN( BITFIELD      ,        ,                       ),
+        TYPE_IGN( LABEL         ,        ,                       ),
+        TYPE_IGN( RESTRICT      ,        ,                       ),
+        TYPE_IGN( FOULED        ,        ,                       ),
+        TYPE_IGN( KEYWORD       ,        ,                       ),
+        TYPE_IGN( BAD           ,        ,                       ),
+    };
+
+    const struct type_conversion *conversion;
+
+    if (VERBOSE_TYPE & cl_verbose) {
+        NOTE("\t%d: type to be processed:", type->pos.line);
+        show_symbol((struct symbol *) type);
+    }
+
+    //assert(PARTIALLY_ORDERED( SYM_UNINITIALIZED , symbol->type , SYM_BAD ));
+    conversion = &type_conversions[type->type];
+
+    // TODO: raw symbol?
+    sparse_location(&clt->loc, type->pos);
+    sparse_scope(&clt->scope, type->scope);
+
+    clt->code = conversion->type_code;
+    // TODO: raw_symbol?
+    clt->size = sizeof_from_bits(type->bit_size);
+
+    switch (conversion->type_code) {
+        case CL_TYPE_UNKNOWN:
+            CL_TRAP;
+            WARN_UNHANDLED(type->pos, conversion->prop.string);
+            clt->name = strdup(show_typename((struct symbol *)type));
+            return clt;
+        default:
+            break;
+    }
+
+    if (conversion->prop.converter)
+        conversion->prop.converter(clt, raw_symbol, type);
+
+    return clt;
 }
 
 
+/* pointer and array DB */
 
-//
-// Sparse types
-//
-
+static struct ptr_db_item *type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db,
+                                                  const struct cl_type *clt);
 
 static inline struct ptr_db_item *
 empty_ptr_db_item(struct ptr_db_item *item, struct cl_type *clt)
 {
-    item->clt      = clt;
-    item->next     = NULL;
-    item->arr_cnt  = 0;
-    item->arr      = NULL;
-    item->free_clt = false;
+    item->clt       = clt;
+    item->next      = NULL;
+    item->arr_cnt   = 0;
+    item->arr       = NULL;
+    item->free_type = false;
 
     return item;
 }
@@ -597,32 +719,9 @@ new_ptr_db_item(void)
     return empty_ptr_db_item(retval, NULL);
 }
 
-static inline int
-sizeof_from_bits(int bits)
-{
-	return (bits >= 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
-}
-
+// Note: use `build_referenced_type' when possible
 static inline struct cl_type *
-empty_cl_type(struct cl_type* clt)
-{
-    *clt = pristine_cl_type;
-    return clt;
-}
-
-static inline struct cl_type *
-new_cl_type(void)
-{
-    struct cl_type *retval = MEM_NEW(struct cl_type);
-    if (!retval)
-        die("MEM_NEW failed");
-
-    // guaranteed not to return NULL
-    return empty_cl_type(retval);
-}
-
-static inline struct cl_type *
-deref_cl_type(const struct cl_type* orig_type)
+referenced_type(const struct cl_type* orig_type)
 {
     struct cl_type *retval = MEM_NEW(struct cl_type);
     if (!retval)
@@ -644,8 +743,57 @@ deref_cl_type(const struct cl_type* orig_type)
     return retval;
 }
 
-static struct ptr_db_item *type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db,
-                                                  const struct cl_type *clt);
+static struct cl_type *
+build_referenced_type(struct cl_type *orig_clt)
+{
+    struct ptr_db_arr *ptr_db = &type_ptr_db.ptr_db;
+
+    struct ptr_db_item *prev;
+    prev = type_ptr_db_lookup_ptr(ptr_db, orig_clt);
+
+    if (!prev->next) {
+        prev->next = new_ptr_db_item();
+        prev->next->clt = referenced_type(orig_clt);
+        prev->next->free_type = true;
+    }
+
+    return prev->next->clt;
+}
+
+
+// for given type "clt", return respective item from pointer hieararchy;
+// it is called only when we know such item will be there (already added)
+static struct ptr_db_item *
+type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db, const struct cl_type *clt)
+{
+    if (clt->code == CL_TYPE_PTR)
+        return type_ptr_db_lookup_ptr(ptr_db, clt->items->type)->next;
+
+    int i;
+    for (i = 0; i < ptr_db->last; i++)
+        if (ptr_db->heads[i].clt == clt)
+            break;
+
+    if (i < ptr_db->last)
+        return &ptr_db->heads[i];
+
+    // not found ... should not happen
+    CL_TRAP;
+    return NULL;
+}
+
+static inline struct cl_type *
+type_ptr_db_lookup_item(type_ptr_db_t db, const struct symbol *type,
+                        struct ptr_db_item **ptr)
+{
+    struct cl_type *clt = typen_get_by_key(db->type_db, (void *) type);
+    if (clt && ptr)
+        *ptr = type_ptr_db_lookup_ptr(&db->ptr_db, clt);
+
+    return clt;
+}
+
+
 
 static struct cl_type *
 type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
@@ -691,343 +839,6 @@ type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
     return retval;
 }
 
-static void
-populate_with_base_types(type_ptr_db_t db)
-{
-    const struct {
-        struct cl_type  *ref;
-        struct symbol   *ctype;
-        enum cl_type_e  cl_type;
-        const char      *name;
-    } base_types[] = {
-    /* Synopsis:
-     * sparse/symbol.c (ctype_declaration) + sparse/symbol.h
-     *
-     * Omitted:
-     * - type_ctype
-     * - string_ctype..lazy_ptr_type (should not be present at all [?])
-     *
-     * Note:
-     * `lllong' represents non-standard "extra long" at specific platforms [?]
-     */
-    #define TYPE(sym, clt)  { &sym##_clt, &sym##_ctype, CL_TYPE_##clt, #sym }
-        /* CL_TYPE_VOID */
-        TYPE(void, VOID),
-
-        /* CL_TYPE_UNKNOWN */
-        TYPE(incomplete, UNKNOWN),
-        TYPE(bad,        UNKNOWN),
-
-        /* CL_TYPE_INT */
-        TYPE(int,    INT),   TYPE(sint,    INT),   TYPE(uint,    INT),
-        TYPE(short,  INT),   TYPE(sshort,  INT),   TYPE(ushort,  INT),
-        TYPE(long,   INT),   TYPE(slong,   INT),   TYPE(ulong,   INT),
-        TYPE(llong,  INT),   TYPE(sllong,  INT),   TYPE(ullong,  INT),
-        //TYPE(lllong, INT),   TYPE(slllong, INT),   TYPE(ulllong, INT),
-
-        /* CL_TYPE_CHAR */
-        TYPE(char,   CHAR),  TYPE(schar,   CHAR),  TYPE(uchar,  CHAR),
-
-        /* CL_TYPE_BOOL */
-        TYPE(bool, BOOL),
-
-        /* CL_TYPE_REAL */
-        TYPE(float,   REAL),
-        TYPE(double,  REAL),
-        TYPE(ldouble, REAL),
-    #undef TYPE
-    };
-
-    struct symbol *ctype;
-    struct cl_type *clt;
-    int i;
-    for (i = 0; i < ARRAY_SIZE(base_types); i++) {
-        clt = base_types[i].ref;
-        empty_cl_type(clt);
-
-        ctype = base_types[i].ctype;
-
-        clt->code  = base_types[i].cl_type;
-        clt->scope = CL_SCOPE_GLOBAL;
-        clt->name  = base_types[i].name;
-        clt->size  = sizeof_from_bits(ctype->bit_size);
-
-        // insert into hash table + pointer hierarchy (at base level)
-        type_ptr_db_insert(db, clt, ctype, NULL);
-    }
-
-    // set uid of the last type inserted so we can skip the freeing for these
-    db->last_base_type_uid = clt->uid;
-}
-
-static struct cl_type *add_type_if_needed(const struct symbol *type,
-                                          struct ptr_db_item **ptr);
-
-static struct cl_type *
-build_deref_clt(struct cl_type *orig_clt)
-{
-    struct ptr_db_arr *ptr_db = &type_ptr_db.ptr_db;
-
-    struct ptr_db_item *prev;
-    prev = type_ptr_db_lookup_ptr(ptr_db, orig_clt);
-
-    if (!prev->next) {
-        prev->next = new_ptr_db_item();
-        prev->next->clt = deref_cl_type(orig_clt);
-        prev->next->free_clt = true;
-    }
-
-    return prev->next->clt;
-}
-
-static inline struct cl_type *
-get_instruction_type(struct instruction *insn)
-{
-    // Note: pseudo->def == NULL for copy.32
-    if (insn && insn->type) {
-        switch (insn->opcode) {
-            case OP_BINCMP ... OP_BINCMP_END:
-                return &bool_clt;
-            case OP_CALL:
-                // NOTE: experimental, mainly for alloc et al.
-                // try to find immediatelly following OP_CAST
-                // (normally suppressed) and set the type respectively
-                if (ptr_list_size((struct ptr_list *) insn->target->users)) {
-                    struct pseudo_user *u;
-                    u = (struct pseudo_user *)PTR_ENTRY(insn->target->users,3);
-                    if (u->insn->opcode == OP_CAST)
-                        return add_type_if_needed(u->insn->type, NULL);
-                }
-                return add_type_if_needed(insn->type, NULL);
-                break;
-            default:
-                return add_type_if_needed(insn->type, NULL);
-        }
-    } else
-        // type fallback
-        return &int_clt;
-}
-
-static struct cl_type_item *
-add_subtype(struct cl_type *clt, struct symbol *subtype)
-{
-    assert(clt->item_cnt >= 0);
-
-    struct cl_type_item *subtype_item;
-
-    clt->items = MEM_RESIZE_ARR(clt->items, ++clt->item_cnt);
-    if (!clt->items)
-        die("MEM_RESIZE_ARR failed");
-
-    subtype_item = &clt->items[clt->item_cnt-1];
-    subtype_item->type = add_type_if_needed(subtype, NULL);
-    subtype_item->name = read_ident(subtype->ident);
-    if (clt->code == CL_TYPE_STRUCT || clt->code == CL_TYPE_UNION)
-        subtype_item->offset = subtype->offset;
-
-    return subtype_item;
-}
-
-static void
-add_subtypes(struct cl_type *clt, struct symbol_list *subtypes)
-{
-    struct symbol *subtype;
-
-    FOR_EACH_PTR(subtypes, subtype) {
-        add_subtype(clt, subtype);
-    } END_FOR_EACH_PTR(subtype);
-}
-
-static inline void
-read_type_fnc(struct cl_type *clt, const struct symbol *raw_symbol,
-              const struct symbol *type)
-{
-    add_subtype(clt, type->ctype.base_type);
-    add_subtypes(clt, type->arguments);
-    // XXX: probably convention in cl?
-    add_subtype(clt, &void_ctype);
-}
-
-static inline void
-read_type_array(struct cl_type *clt, const struct symbol *raw_symbol,
-                const struct symbol *type)
-{
-    //CL_TRAP;
-    //clt->name = read_ident(type->ident);
-    //
-    //
-
-    if (raw_symbol->type == SYM_NODE)
-        // normalize size of the "outer" dimension as well as missing size
-        clt->size = sizeof_from_bits(raw_symbol->bit_size);
-    int subtype_size = add_subtype(clt, type->ctype.base_type)->type->size;
-    clt->array_size = clt->size/subtype_size;
-                      // clt->size/clt->items[0].type->size
-}
-
-static inline void
-read_type_struct(struct cl_type *clt, const struct symbol *raw_symbol,
-                 const struct symbol *type)
-{
-    clt->name = read_ident(type->ident);
-    add_subtypes(clt, type->symbol_list);
-}
-
-static inline void
-read_type_union(struct cl_type *clt, const struct symbol *raw_symbol,
-                const struct symbol *type)
-{
-    //CL_TRAP;
-    clt->name     = read_ident(type->ident);
-    //TODO:
-    add_subtypes(clt, type->symbol_list);
-    //clt->item_cnt = /* TODO */ 0;
-    //clt->items    = /* TODO */ NULL;
-}
-
-static inline void
-read_type_enum(struct cl_type *clt, const struct symbol *raw_symbol,
-               const struct symbol *type)
-{
-    clt->name = read_ident(type->ident);
-}
-
-static struct cl_type *
-read_type(struct cl_type *clt, const struct symbol *raw_symbol,
-          const struct symbol *type)
-{
-    typedef void (*type_handler)(struct cl_type *,
-                                 const struct symbol * /*raw_symbol*/,
-                                 const struct symbol * /*type*/);
-    const struct type_transformer {
-        enum cl_type_e    type_code;
-        union {
-            type_handler  handler;
-            const char    *string;
-        } prop;
-    } type_transformers[] = {
-    /* Synopsis:
-     * sparse/symbol.h
-     *
-     * Note:
-     * Unhandled types are denoted with CL_TYPE_UNKNOWN.
-     */
-    #define TYPE_STD(spt, clt, hnd) \
-        [SYM_##spt]={ .type_code=CL_TYPE_##clt, .prop.handler=hnd }
-    #define TYPE_IGN(spt, _, __) \
-        [SYM_##spt]={ .type_code=CL_TYPE_UNKNOWN, .prop.string="SYM_"#spt }
-
-        // how? | sparse type   | clt    | handler               |
-        // -----+---------------+--------+-----------------------|
-
-        /* these should not get there (?) */
-        TYPE_IGN( UNINITIALIZED ,        ,                       ),
-        TYPE_IGN( PREPROCESSOR  ,        ,                       ),
-        TYPE_IGN( BASETYPE      ,        ,                       ),
-        TYPE_IGN( NODE          ,        , /*unexpected in type*/),
-
-        /* ready to handle */
-        TYPE_STD( PTR           , PTR    , NULL /*set code only*/),
-        TYPE_STD( FN            , FNC    , read_type_fnc         ),
-        TYPE_STD( ARRAY         , ARRAY  , read_type_array       ),
-        TYPE_STD( STRUCT        , STRUCT , read_type_struct      ),
-        TYPE_STD( UNION         , UNION  , read_type_union       ),
-        TYPE_STD( ENUM          , ENUM   , read_type_enum        ),
-
-        /* what about these? */
-        TYPE_IGN( TYPEDEF       ,        ,                       ),
-        TYPE_IGN( TYPEOF        ,        ,                       ),
-        TYPE_IGN( MEMBER        ,        ,                       ),
-        TYPE_IGN( BITFIELD      ,        ,                       ),
-        TYPE_IGN( LABEL         ,        ,                       ),
-        TYPE_IGN( RESTRICT      ,        ,                       ),
-        TYPE_IGN( FOULED        ,        ,                       ),
-        TYPE_IGN( KEYWORD       ,        ,                       ),
-        TYPE_IGN( BAD           ,        ,                       ),
-    };
-
-    const struct type_transformer *transformer;
-
-    if (VERBOSE_TYPE & cl_verbose) {
-        NOTE("\t%d: type to be processed:", type->pos.line);
-        show_symbol((struct symbol *) type);
-    }
-
-    //assert(PARTIALLY_ORDERED( SYM_UNINITIALIZED , symbol->type , SYM_BAD ));
-    transformer = &type_transformers[type->type];
-
-    // TODO: raw symbol?
-    read_location(&clt->loc, type->pos);
-    read_scope(&clt->scope, type->scope);
-
-    clt->code = transformer->type_code;
-    // TODO: raw_symbol?
-    clt->size = sizeof_from_bits(type->bit_size);
-
-    switch (transformer->type_code) {
-        case CL_TYPE_UNKNOWN:
-            CL_TRAP;
-            WARN_UNHANDLED(type->pos, transformer->prop.string);
-            clt->name = strdup(show_typename((struct symbol *)type));
-            return clt;
-        default:
-            break;
-    }
-
-    if (transformer->prop.handler)
-        transformer->prop.handler(clt, raw_symbol, type);
-
-    return clt;
-}
-
-static inline const struct symbol *
-type_unwrap(const struct symbol *raw_type)
-{/* See also:
-  * sparse/symbol.h: get_sym_type()
-  */
-    if (!raw_type)
-        CL_TRAP;
-
-    const struct symbol *retval = raw_type;
-    while (retval->type == SYM_NODE || retval->type == SYM_BITFIELD
-           /*retval->type == SYM_ENUM */)
-        retval = retval->ctype.base_type;
-
-    return retval;
-}
-
-// for given type "clt", return respective item from pointer hieararchy;
-// it is called only when we know such item will be there (already added)
-static struct ptr_db_item *
-type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db, const struct cl_type *clt)
-{
-    if (clt->code == CL_TYPE_PTR)
-        return type_ptr_db_lookup_ptr(ptr_db, clt->items->type)->next;
-
-    int i;
-    for (i = 0; i < ptr_db->last; i++)
-        if (ptr_db->heads[i].clt == clt)
-            break;
-
-    if (i < ptr_db->last)
-        return &ptr_db->heads[i];
-
-    // not found ... should not happen
-    CL_TRAP;
-    return NULL;
-}
-
-static inline struct cl_type *
-type_ptr_db_lookup_item(type_ptr_db_t db, const struct symbol *type,
-                        struct ptr_db_item **ptr)
-{
-    struct cl_type *clt = typen_get_by_key(db->type_db, (void *) type);
-    if (clt && ptr)
-        *ptr = type_ptr_db_lookup_ptr(&db->ptr_db, clt);
-
-    return clt;
-}
-
 static inline struct cl_type **
 prepare_type_array_ptr(const struct symbol *raw_symbol,
                        struct ptr_db_item **ptr)
@@ -1036,7 +847,7 @@ prepare_type_array_ptr(const struct symbol *raw_symbol,
     struct ptr_db_item *prev = NULL;
     const struct symbol *type = type_unwrap(raw_symbol);
 
-    ptr_type = add_type_if_needed(type->ctype.base_type, &prev);
+    ptr_type = type_from_symbol(type->ctype.base_type, &prev);
 
     if (type->type == SYM_PTR) {
         if (!prev->next)
@@ -1067,7 +878,7 @@ prepare_type_array_ptr(const struct symbol *raw_symbol,
 
     if (!*clt_ptr) {
         // new type to be read (no pointer/array alias found)
-        *clt_ptr = read_type(new_cl_type(), raw_symbol, type);
+        *clt_ptr = read_type(new_type(), raw_symbol, type);
 
         // finalize SYM_PTR (not in `read_type()' as we have needed info here)
         if (type->type == SYM_PTR) {
@@ -1086,7 +897,7 @@ prepare_type_array_ptr(const struct symbol *raw_symbol,
 
 // note: the only function that uses type_ptr_db global variable directly
 static struct cl_type *
-add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
+type_from_symbol(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
 {
     struct cl_type *clt, **clt_ptr;
     const struct symbol *type = type_unwrap(raw_symbol);
@@ -1106,7 +917,7 @@ add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
     bool is_new = (*clt_ptr == NULL);
     if (is_new)
         // any new type except for existing pointer/array alias
-        *clt_ptr = new_cl_type();
+        *clt_ptr = new_type();
 
     clt = type_ptr_db_insert(&type_ptr_db, *clt_ptr, type, ptr);
 
@@ -1121,10 +932,38 @@ add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
     return read_type(clt, raw_symbol, type);
 }
 
+static inline struct cl_type *
+type_from_instruction(struct instruction *insn)
+{
+    // Note: pseudo->def == NULL for copy.32
+    if (insn && insn->type) {
+        switch (insn->opcode) {
+            case OP_BINCMP ... OP_BINCMP_END:
+                return &bool_clt;
+            case OP_CALL:
+                // NOTE: experimental, mainly for alloc et al.
+                // try to find immediatelly following OP_CAST
+                // (normally suppressed) and set the type respectively
+                if (ptr_list_size((struct ptr_list *) insn->target->users)) {
+                    struct pseudo_user *u;
+                    u = (struct pseudo_user *)PTR_ENTRY(insn->target->users,3);
+                    if (u->insn->opcode == OP_CAST)
+                        return type_from_symbol(u->insn->type, NULL);
+                }
+                return type_from_symbol(insn->type, NULL);
+                break;
+            default:
+                return type_from_symbol(insn->type, NULL);
+        }
+    } else
+        // type fallback
+        return &int_clt;
+}
+
 
 
 //
-// Symbols/pseudos/operands handling
+// Operands handling
 //
 
 
@@ -1135,16 +974,26 @@ add_type_if_needed(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
 
 #define VAR(op)      (op->data.var)
 
-// Note: this is not easily extendable as everything else is uninitialized
-static inline struct cl_operand *
-void_cl_operand(struct cl_operand* op)
+
+/* Sparse operands = pseudos */
+
+static inline bool
+pseudo_futile(pseudo_t pseudo)
 {
-    op->code = CL_OPERAND_VOID;
-    return op;
+    return pseudo && pseudo != VOID;
 }
 
+static inline bool
+pseudo_immediate(pseudo_t pseudo)
+{
+    return pseudo->type != PSEUDO_SYM && pseudo->type != PSEUDO_ARG;
+}
+
+
+/* operand "constructor" */
+
 static inline struct cl_operand *
-new_cl_operand(void)
+new_op(void)
 {
     struct cl_operand *retval = MEM_NEW(struct cl_operand);
     if (!retval)
@@ -1154,9 +1003,106 @@ new_cl_operand(void)
     return retval;
 }
 
+
+/* freeing resources connected with operand */
+
+static inline void free_op(struct cl_operand *op);
+
+static void
+op_free_initializers(struct cl_initializer *initial)
+{
+    /* initial->type (skipped) */
+
+    if (!initial->type->item_cnt) {
+        /* initial->data.value (heap-based!) */
+        free_op(initial->data.value);
+    } else {
+        /* initial->data.nested_initials */
+        int i;
+        for (i = 0; i < initial->type->item_cnt; i++)
+            if (initial->data.nested_initials[i])
+                op_free_initializers(initial->data.nested_initials[i]);
+    }
+
+    /* initial (heap!) */
+    free(initial);
+}
+
+// Note: for freeing heap-based nested items only (see also `free_op')
+static void
+op_free_data(struct cl_operand *op)
+{
+    if (op->code == CL_OPERAND_VOID)
+        return;
+
+    /* op->type (skipped) */
+
+    /* op->accessor */
+    // XXX: cl_pp says that accessor is not expected for CL_OPERAND_CST
+    struct cl_accessor *ac_next, *ac = op->accessor;
+    while (ac) {
+        ac_next = ac->next;
+
+        /* ac->type (skipped) */
+        /* ac->next (in the next round) */
+
+        if (ac->code == CL_ACCESSOR_DEREF_ARRAY)
+            /* ac->data.array.index (heap-based!) */
+            free_op(ac->data.array.index);
+
+        // free current and go to the next one in the chain
+        free(ac);
+        ac = ac_next;
+    }
+
+    if (op->code == CL_OPERAND_CST) {
+        /* op->data.cst... */
+        switch (op->data.cst.code) {
+            case CL_TYPE_FNC:
+                free((char *) CST_FNC(op)->name);
+                break;
+            case CL_TYPE_STRING:
+                free((char *) CST_STR(op)->value);
+                break;
+            default:
+                break;
+        }
+    } else if (op->code == CL_OPERAND_VAR) {
+        /* op->data.var->name */
+        free((char *) VAR(op)->name);
+        /* op->data.var->initial... */
+        if (VAR(op)->initial)
+            op_free_initializers(VAR(op)->initial);
+
+        /* op->data.var */
+        free(VAR(op));
+    }
+}
+
+// Note: *op expected to be heap-based (rare!)
+static inline void
+free_op(struct cl_operand *op)
+{
+    op_free_data(op);
+
+    /* op (heap!) */
+    free(op);
+}
+
+
+/* operator modifiers depending on the usage */
+
+// Note: this is not easily extendable as everything else is uninitialized
+static inline struct cl_operand *
+op_make_void(struct cl_operand* op)
+{
+    op->code = CL_OPERAND_VOID;
+    return op;
+}
+
 // Note: not to be used directly
 static inline struct cl_operand *
-build_cst(struct cl_operand *op)
+op_make_cst(struct cl_operand *op)
 {
     op->code     = CL_OPERAND_CST;
     op->accessor = NULL;
@@ -1165,13 +1111,13 @@ build_cst(struct cl_operand *op)
 }
 
 static inline struct cl_operand *
-build_cst_fnc(struct cl_operand *op, const struct symbol *sym)
+op_make_cst_fnc(struct cl_operand *op, const struct symbol *sym)
 {
-    build_cst(op);
+    op_make_cst(op);
 
-    op->type               = add_type_if_needed(sym, NULL);
+    op->type               = type_from_symbol(sym, NULL);
     CST(op)->code          = CL_TYPE_FNC;
-    CST_FNC(op)->name      = read_ident(sym->ident);
+    CST_FNC(op)->name      = sparse_ident(sym->ident);
     CST_FNC(op)->is_extern = MOD_EXTERN & sym->ctype.modifiers;
     CST_FNC(op)->uid       = (int)(long) sym;
 
@@ -1179,9 +1125,9 @@ build_cst_fnc(struct cl_operand *op, const struct symbol *sym)
 }
 
 static inline struct cl_operand *
-build_cst_int(struct cl_operand *op, int value)
+op_make_cst_int(struct cl_operand *op, int value)
 {
-    build_cst(op);
+    op_make_cst(op);
 
     op->type           = &int_clt;
     CST(op)->code      = CL_TYPE_INT;
@@ -1192,20 +1138,20 @@ build_cst_int(struct cl_operand *op, int value)
 
 // TODO: make it accepting const char *
 static inline struct cl_operand *
-build_cst_string(struct cl_operand *op, struct expression *expr)
+op_make_cst_string(struct cl_operand *op, struct expression *expr)
 {
-    build_cst(op);
+    op_make_cst(op);
 
-    op->type           = add_type_if_needed(expr->ctype, NULL); //XXX
+    op->type           = type_from_symbol(expr->ctype, NULL); //XXX
     CST(op)->code      = CL_TYPE_STRING;
-    CST_STR(op)->value = read_string(expr->string);
+    CST_STR(op)->value = sparse_string(expr->string);
 
     return op;
 }
 
-// Note: type not (re)set; different semantics from `built_cst_*'
+// Note: type not (re)set; different semantics from `op_make_cst_*'
 static inline struct cl_var *
-build_var(struct cl_operand *op)
+op_make_var(struct cl_operand *op)
 {
     op->code     = CL_OPERAND_VAR;
     op->accessor = NULL;
@@ -1225,7 +1171,7 @@ build_var(struct cl_operand *op)
 }
 
 static struct cl_operand *
-read_sym_initializer(struct cl_operand *op, struct expression *expr)
+op_use_initializer(struct cl_operand *op, struct expression *expr)
 {
     if (!expr) {
         CL_TRAP;
@@ -1235,7 +1181,7 @@ read_sym_initializer(struct cl_operand *op, struct expression *expr)
     //CL_TRAP;
     switch (expr->type) {
         case EXPR_STRING:
-            return build_cst_string(op, expr);
+            return op_make_cst_string(op, expr);
         default:
             CL_TRAP;
             return op;
@@ -1245,24 +1191,24 @@ read_sym_initializer(struct cl_operand *op, struct expression *expr)
 static struct cl_operand *
 op_from_symbol_base(struct cl_operand *op, struct symbol *sym)
 {
-    read_scope(&op->scope, sym->scope);
+    sparse_scope(&op->scope, sym->scope);
 
     if (sym->bb_target || sym->type != SYM_NODE)
         CL_TRAP;
 
     // function not treated as a variable
     if (sym->ctype.base_type->type == SYM_FN)
-        return build_cst_fnc(op, sym);
+        return op_make_cst_fnc(op, sym);
 
     // string literal
     if (!sym->ident)
-        return read_sym_initializer(op, sym->initializer);
+        return op_use_initializer(op, sym->initializer);
 
-    op->type = add_type_if_needed(sym, NULL);
+    op->type = type_from_symbol(sym, NULL);
 
-    struct cl_var *var = build_var(op);
+    struct cl_var *var = op_make_var(op);
     var->uid        = (int)(long) sym;
-    var->name       = read_ident(sym->ident);
+    var->name       = sparse_ident(sym->ident);
     var->artificial = false;
 #if DO_EXTRA_CHECKS
     assert(var->name);
@@ -1274,7 +1220,7 @@ op_from_symbol_base(struct cl_operand *op, struct symbol *sym)
 static inline struct cl_operand *
 op_from_symbol(struct cl_operand *op, struct symbol *sym)
 {
-    read_location(&op->loc, sym->pos);
+    sparse_location(&op->loc, sym->pos);
     return op_from_symbol_base(op, sym);
 }
 
@@ -1283,12 +1229,12 @@ op_from_fn_argument(struct cl_operand *op, const pseudo_t pseudo)
 {
     struct symbol *arg_sym;
 
-    arg_sym = get_arg_at_pos(pseudo->def->bb->ep->name, pseudo->nr);
+    arg_sym = sparse_fn_arg_at(pseudo->def->bb->ep->name, pseudo->nr);
     if (!arg_sym)
         CL_TRAP;
 
     // XXX: op->scope       = CL_SCOPE_FUNCTION;
-    read_location(&op->loc, arg_sym->pos);  // TODO: better!!!
+    sparse_location(&op->loc, arg_sym->pos);  // TODO: better!!!
     return op_from_symbol_base(op, arg_sym);
 }
 
@@ -1299,9 +1245,9 @@ op_from_register(struct cl_operand *op, const struct instruction *insn,
   * pseudo->def
   *
   */
-    op->type = get_instruction_type(pseudo->def);
+    op->type = type_from_instruction(pseudo->def);
 
-    struct cl_var *var = build_var(op);
+    struct cl_var *var = op_make_var(op);
     var->uid  = (int)(long) pseudo;
 
     return op;
@@ -1310,8 +1256,8 @@ op_from_register(struct cl_operand *op, const struct instruction *insn,
 static inline struct cl_operand *
 op_from_value(struct cl_operand *op, const struct instruction *insn, int value)
 {
-    read_location(&op->loc, insn->pos);
-    return build_cst_int(op, value);
+    sparse_location(&op->loc, insn->pos);
+    return op_make_cst_int(op, value);
 }
 
 static inline struct cl_operand *
@@ -1319,9 +1265,13 @@ op_from_pseudo(struct cl_operand *op, const struct instruction *insn,
                const pseudo_t pseudo)
 {/* Synopsis:
   * sparse/linearize.h
+  *
+  * Problems/exceptions/notes:
+  * 1. PSEUDO_VAL and PSEUDO_REG operands are not holding type information
+  * S. Try to use insn->type, pseudo->def->type for PSEUDO_REG, ...
   */
-    if (!is_pseudo(pseudo))
-        return void_cl_operand(op);
+    if (!pseudo_futile(pseudo))
+        return op_make_void(op);
 
     switch (pseudo->type) {
 
@@ -1347,7 +1297,7 @@ op_from_pseudo(struct cl_operand *op, const struct instruction *insn,
 }
 
 static inline struct cl_accessor *
-build_trailing_accessor(struct cl_operand *op)
+op_append_accessor(struct cl_operand *op)
 {
     struct cl_accessor *ac_chain, **retval;
 
@@ -1365,23 +1315,21 @@ build_trailing_accessor(struct cl_operand *op)
         die("MEM_NEW failed");
 
     (*retval)->next = NULL;
-    // FIXME: should not be there
-    //(*retval)->data.array.index = NULL;
 
     // guaranteed not to return NULL
     return *retval;
 }
 
 static inline void
-set_array_accessor(struct cl_operand *op, struct cl_accessor *ac, int index)
+accessor_array_index(struct cl_accessor *ac, struct cl_loc loc, int index)
 {
     ac->code                  = CL_ACCESSOR_DEREF_ARRAY;
-    ac->data.array.index      = build_cst_int(new_cl_operand(), index);
-    ac->data.array.index->loc = op->loc;
+    ac->data.array.index      = op_make_cst_int(new_op(), index);
+    ac->data.array.index->loc = loc;
 }
 
 static int
-read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
+op_dig_step(struct cl_operand *op, unsigned insn_offset)
 {
     int i = 0;
     // `insn_offset' is consumed only by CL_TYPE_STRUCT or CL_TYPE_ARRAY;
@@ -1391,7 +1339,7 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
 
     struct cl_accessor *ac;
 
-    ac = build_trailing_accessor(op);
+    ac = op_append_accessor(op);
 
     // accessor's type is the operand's type (it itself is to be peeled off)
     ac->type = (struct cl_type *) op->type;
@@ -1416,7 +1364,7 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
         }
         MAP_ACCESSOR(ac->code, TYPE_ARRAY, ACCESSOR_DEREF_ARRAY) {
             div_t indexes = div(insn_offset, op->type->size/op->type->array_size);
-            set_array_accessor(op, ac, indexes.quot);
+            accessor_array_index(ac, op->loc, indexes.quot);
             // the remainder serves for next index-based-dereferencing rounds
             retval = indexes.rem;
             break;
@@ -1427,7 +1375,7 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
                 // but only if resulting index would be 1+
                 div_t indexes = div(insn_offset, op->type->items->type->size);
                 if (indexes.quot)
-                    set_array_accessor(op, ac, indexes.quot);
+                    accessor_array_index(ac, op->loc, indexes.quot);
                 // the remainder serves for next index-based-deref. rounds
                 retval = indexes.rem;
             }
@@ -1443,30 +1391,9 @@ read_insn_op_access(struct cl_operand *op, unsigned insn_offset)
     return retval;
 }
 
-static inline bool
-is_same_type(const struct cl_type *t1, const struct cl_type *t2)
-{
-    if (t1 == t2)
-        return true;
-
-#if USE_EXTENDED_TYPE_CMP
-    if (t1->code == t2->code && t1->item_cnt == t2->item_cnt
-        && t1->item_cnt > 0) {
-        int i;
-        for (i = 0; i < t1->item_cnt; i++)
-            if (!is_same_type(t1->items[i].type, t2->items[i].type))
-                return false;
-        return  true;
-    }
-#else
-    return false;
-#endif
-
-}
-
 // XXX: removal candidate
 static inline bool
-is_of_accessable_type(const struct cl_operand *op)
+op_accessible(const struct cl_operand *op)
 {
     switch (op->type->code) {
         case CL_TYPE_STRUCT:
@@ -1478,20 +1405,22 @@ is_of_accessable_type(const struct cl_operand *op)
     }
 }
 
-static inline void
-adjust_cl_operand_accessors(struct cl_operand *op,
-                            const struct cl_type *expected_type,
-                            unsigned first_offset)
+static inline unsigned
+op_dig_for_type_match(struct cl_operand *op,
+                           const struct cl_type *expected_type,
+                           unsigned initial_offset)
 {
-    unsigned offset = first_offset;
+    unsigned offset = initial_offset;
 
 #if 0
-    if (!is_of_accessable_type(op))
+    if (!op_accessible(op))
         return;
 #endif
 
-    while (!is_same_type(op->type, expected_type))
-        offset = read_insn_op_access(op, offset);
+    while (!type_match(op->type, expected_type))
+        offset = op_dig_step(op, offset);
+
+    return offset;
 }
 
 
@@ -1527,14 +1456,14 @@ enum assignment_ops_handling {
     TYPE_RHS_DIG_ANY     = (1 << 4),
 
     // to obtain operand "in a right form", add a level of pointer indirection
-    // (i.e., dereference the current one + add a reference accessor);
+    // (i.e., reference the current one, add a reference accessor);
     // with INSN_STORE (that uses also TYPE_RHS_DIG), this has a special
     // meaning telling that this will be done only after a level
     // of indirection has been successfully removed first (so it
     // is effectively returned back)
     //
     // usage: INSN_STORE, INSN_PTR_CAST
-    TYPE_RHS_DEREFERENCE = (1 << 5),
+    TYPE_RHS_REFERENCE = (1 << 5),
 };
 
 static bool insn_assignment_base(struct cl_insn *cli,
@@ -1583,58 +1512,59 @@ static void
 insn_assignment_mod_rhs(struct cl_operand *op_rhs, pseudo_t rhs,
                         const struct instruction *insn,
                         enum assignment_ops_handling ops_handling)
-{
+{/* Synopsis: see `insn_assignment_base' (the only caller)
+  */
     if (ops_handling & TYPE_RHS_KEEP)
         return;
 
     int offset = insn->offset;
     bool use_rhs_dereference = true;
     struct cl_type *type = (insn->opcode == OP_PTRCAST)
-                               ? add_type_if_needed(insn->orig_type, NULL)
-                               : add_type_if_needed(insn->type, NULL);
+                               ? type_from_symbol(insn->orig_type, NULL)
+                               : type_from_symbol(insn->type, NULL);
 
     // dig rhs (when applicable)
     if (ops_handling & TYPE_RHS_DIG) {
-        if (ops_handling & TYPE_RHS_DIG_ANY || !is_immediate_pseudo(rhs)) {
-            const struct cl_type *adjust_type = type;
+        if (ops_handling & TYPE_RHS_DIG_ANY || !pseudo_immediate(rhs)) {
+            const struct cl_type *expected_type = type;
 
-            if (ops_handling & TYPE_RHS_DEREFERENCE) {
+            if (ops_handling & TYPE_RHS_REFERENCE) {
                 // remove one level of indirection of both resulting_type
                 // and operand type (to be compensated by adding one back
                 // in "dereference rhs" part)
                 offset = 0;
-                if (!is_same_type(op_rhs->type, adjust_type)) {
-                    adjust_type = adjust_type->items->type;
+                if (!type_match(op_rhs->type, expected_type)) {
+                    expected_type = expected_type->items->type;
                     // XXX: this is not necessary but tests/struct/rs1-03
                     //      yields better result
-                    read_insn_op_access(op_rhs, offset);
+                    op_dig_step(op_rhs, offset);
                 } else
                     use_rhs_dereference = false;
             }
-            adjust_cl_operand_accessors(op_rhs, adjust_type, offset);
+            op_dig_for_type_match(op_rhs, expected_type, offset);
 
-        } else if (ops_handling & TYPE_RHS_DEREFERENCE) {
+        } else if (ops_handling & TYPE_RHS_REFERENCE) {
             // OP_STORE with PSEUDO_VAL rhs (e.g., value can be pointer)
             if (rhs->type == PSEUDO_VAL)
                 op_rhs->type = type;  // probably no other choice
 #if DO_EXTRA_CHECKS
-            else if (!is_same_type(op_rhs->type, type))
+            else if (!type_match(op_rhs->type, type))
                 CL_TRAP;  // should be the same type
 #endif
             use_rhs_dereference = false;
         }
     }
 
-    // dereference rhs (when applicable)
-    if (ops_handling & TYPE_RHS_DEREFERENCE && use_rhs_dereference) {
+    // reference rhs (when applicable)
+    if (ops_handling & TYPE_RHS_REFERENCE && use_rhs_dereference) {
         // OP_PTRCAST, OP_STORE (for PSEUDO_SYM and PSEUDO_ARG only
         //                       and only when returning level of indirection)
-        struct cl_accessor *ac = build_trailing_accessor(op_rhs);
+        struct cl_accessor *ac = op_append_accessor(op_rhs);
         ac->code = CL_ACCESSOR_REF;
         ac->type = op_rhs->type;
-        op_rhs->type = build_deref_clt(op_rhs->type);
+        op_rhs->type = build_referenced_type(op_rhs->type);
 #if DO_EXTRA_CHECKS
-        if (!is_same_type(op_rhs->type, type))
+        if (!type_match(op_rhs->type, type))
             CL_TRAP;  // should be the same type
 #endif
     }
@@ -1644,26 +1574,25 @@ static bool
 insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
                      pseudo_t lhs,    /* := */    pseudo_t rhs,
                      enum assignment_ops_handling ops_handling)
-{/* Synopsis -- input:
-  * insn->type (not for INSN_COPY) ... type of final assigned value
-  * insn->orig_type (INSN_PTRCAST, ...only)
-  *                                ... original type of value to assign
+{/* Synopsis (see also the callers):
+  * [input] OP_LOAD, OP_STORE, OP_COPY + casts (CAST, SCAST, FPCAST, PTRCAST)
+  *     insn->type (not for OP_COPY):       type of final assigned value
+  *     insn->orig_type (OP_PTRCAST only):  original type of value to assign
+  * [output] CL_INSN_UNOP (set by [transitive] caller, as with location)
+  *     data.insn_unop.code (CL_UNOP_ASSIGN, set by [transitive] caller)
+  *     data.insn_unop.dst ~ lhs
+  *     data.insn_unop.src ~ rhs
   *
-  * Synopsis -- output:
-  * CL_INSN_UNOP : CL_UNOP_ASSIGN
-  *
-  * Problems:
-  * 1. PSEUDO_VAL and PSEUDO_REG operands are not holding type information
-  * S. Try to use insn->type, pseudo->def->type for PSEUDO_REG, ...
+  * Problems/exceptions/notes:
+  * 1. Problem with a "right form" of both the operands (whether to consider
+  *    the whole struct or its first element, etc.); additionally, some
+  *    instructions requires (de)referencing of the operands explicitly.
+  * S. The way to obtain "right form" of both operands is driven by
+  *    `ops_handling' (see `enum assignment_ops_handling').
+  *    If appropriate, combine `op_dig_for_type_match' and `insn->type'
+  *    (`insn->orig_type') for this adjustment.
   */
     struct cl_operand op_lhs, op_rhs;
-
-
-    /* prepare RHS (quite complicated compared to LHS) */
-
-    cli->data.insn_unop.src = op_from_pseudo(&op_rhs, insn, rhs);
-    insn_assignment_mod_rhs(&op_rhs, rhs, insn, ops_handling);
-
 
     /* prepare LHS */
 
@@ -1671,16 +1600,23 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
 
     // dig lhs (when applicable)
     if (ops_handling & TYPE_LHS_DIG) {
-        struct cl_type *type = add_type_if_needed(insn->type, NULL);
-        if (is_immediate_pseudo(lhs)) {
-            struct cl_accessor *ac = build_trailing_accessor(&op_lhs);
+        struct cl_type *type = type_from_symbol(insn->type, NULL);
+        if (pseudo_immediate(lhs)) {
+            struct cl_accessor *ac = op_append_accessor(&op_lhs);
             ac->code = CL_ACCESSOR_DEREF;
             // note: no such clt easily accessible (contrary to previous case)
-            ac->type = build_deref_clt(type);
+            ac->type = build_referenced_type(type);
             op_lhs.type = type;
         } else
-            adjust_cl_operand_accessors(&op_lhs, type, insn->offset);
+            op_dig_for_type_match(&op_lhs, type, insn->offset);
     }
+
+    /* prepare RHS (quite complicated compared to LHS) */
+
+    cli->data.insn_unop.src = op_from_pseudo(&op_rhs, insn, rhs);
+    insn_assignment_mod_rhs(&op_rhs, rhs, insn, ops_handling);
+
+    /* emit assignment */
 
     // FIXME (SPARSE?):  sparse generates (due to execution model?) extra
     // instruction, e.g. "store %arg1 -> 0[num]" in case of "num == %arg1"
@@ -1695,32 +1631,40 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
                 show_instruction((struct instruction *) insn));
 #endif
 
-    free_op_data(&op_lhs);
-    free_op_data(&op_rhs);
+    op_free_data(&op_lhs);
+    op_free_data(&op_rhs);
 
     return true;
 }
 
 static inline bool
 handle_insn_store(struct cl_insn *cli, const struct instruction *insn)
-{/* Synopsis -- input:
-  * insn->symbol ... target memory address (pointer to what is being assigned)
-  * insn->target ... source of assignment
-  * insn->type   ... type of value to be assigned
+{/* Synopsis (see also `insn_assignment_base'):
+  * [input] OP_STORE
+  *     insn->src:    target memory address (pointer to what is being assigned)
+  *     insn->target: source of assignment
+  *     insn->type:   type of value to be assigned
+  *
+  * Problems/exceptions/notes:
+  * None.
   */
     //CL_TRAP;
     return insn_assignment_base(cli, insn,
-        insn->symbol,  /* := */  insn->target,
-        TYPE_LHS_DIG       |     (TYPE_RHS_DIG | TYPE_RHS_DEREFERENCE)
+        insn->src,     /* := */  insn->target,
+        TYPE_LHS_DIG       |     (TYPE_RHS_DIG | TYPE_RHS_REFERENCE)
     );
 }
 
 static inline bool
 handle_insn_load(struct cl_insn *cli, const struct instruction *insn)
-{/* Synopsis -- input:
-  * insn->target ... register (XXX: only?) to be assigned
-  * insn->src    ... mem. address containing source value
-  * insn->type   ... type of value to be assigned
+{/* Synopsis (see also `insn_assignment_base'):
+  * [input] OP_LOAD
+  *     insn->target ... register (XXX: only?) to be assigned
+  *     insn->src    ... mem. address containing source value
+  *     insn->type   ... type of value to be assigned
+  *
+  * Problems/exceptions/notes:
+  * None.
   */
     return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
@@ -1730,10 +1674,14 @@ handle_insn_load(struct cl_insn *cli, const struct instruction *insn)
 
 static inline bool
 handle_insn_copy(struct cl_insn *cli, const struct instruction *insn)
-{/* Synopsis -- input:
-  * insn->target
-  * insn->src
-  * insn->type
+{/* Synopsis (see also `insn_assignment_base'):
+  * [input] OP_COPY and cast operations except for OP_PTRCAST
+  *     insn->target
+  *     insn->src
+  *     insn->type
+  *
+  * Problems/exceptions/notes:
+  * FIXME: are cast operations OK?
   */
     return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
@@ -1744,14 +1692,18 @@ handle_insn_copy(struct cl_insn *cli, const struct instruction *insn)
 
 static inline bool
 handle_insn_ptrcast(struct cl_insn *cli, const struct instruction *insn)
-{/* Synopsis -- input:
-  * insn->target
-  * insn->src
-  * insn->orig_type
+{/* Synopsis (see also `insn_assignment_base'):
+  * [input] OP_PTRCAST
+  *     insn->target
+  *     insn->src
+  *     insn->orig_type
+  *
+  * Problems/exceptions/notes:
+  * None.
   */
     return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
-        TYPE_LHS_KEEP      |     TYPE_RHS_DEREFERENCE
+        TYPE_LHS_KEEP      |     TYPE_RHS_REFERENCE
     );
 }
 
@@ -1759,11 +1711,16 @@ handle_insn_ptrcast(struct cl_insn *cli, const struct instruction *insn)
 
 static bool
 handle_insn_unop(struct cl_insn *cli, const struct instruction *insn)
-{/* Synopsis -- input (OP_NOT, OP_NEG):
-  * insn->src1   ... source operand
-  * insn->target ... destination
+{/* Synopsis:
+  * [input] OP_NOT, OP_NEG (assignments handled separately)
+  *     insn->target: destination
+  *     insn->src1:   source
+  * [output] CL_INSN_UNOP (set by caller, as with location)
+  *     data.insn_unop.code (set by caller, rewrite in case of unary minus)
+  *     data.insn_unop.dst ~ insn->target
+  *     data.insn_unop.src ~ insn->src1
   *
-  * Problems:
+  * Problems/exceptions/notes:
   * 1. OP_NEG means "unary minus" when applied on int.
   */
     struct cl_operand dst, src;
@@ -1777,17 +1734,27 @@ handle_insn_unop(struct cl_insn *cli, const struct instruction *insn)
 
     cl->insn(cl, cli);
 
-    free_op_data(&dst);
-    free_op_data(&src);
+    op_free_data(&dst);
+    op_free_data(&src);
 
     return true;
 }
 
 static bool
 handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
-{/* Problems:
-  * 1. Binary arithmetics has to be installed ex post.
-  * S. CL_BINOP_PLUS -> CL_BINOP_POINTER_PLUS when suitable.
+{/* Synopsis:
+  * [input] (any arithmetic, shift, logical and explicit comparison operation)
+  *     insn->target:   destination
+  *     insn->src(1|2): operands
+  * [output] CL_INSN_BINOP (set by caller, as with location)
+  *     data.insn_binop.code (set by caller, rewrite for pointer arithmetics)
+  *     data.insn_binop.dst      ~ insn->target
+  *     data.insn_binop.src(1|2) ~ insn->src(1|2)
+  *
+  * Problems/exceptions/notes:
+  * 1. Binary arithmetics case has to be detected and imposed explicitly.
+  * S. If any of the operand is a pointer or an array, promote CL_BINOP_PLUS
+  *    to CL_BINOP_POINTER_PLUS (other operations not expected in this case).
   */
     struct cl_operand dst, op1, op2;
 
@@ -1810,9 +1777,9 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
 
     cl->insn(cl, cli);
 
-    free_op_data(&dst);
-    free_op_data(&op1);
-    free_op_data(&op2);
+    op_free_data(&dst);
+    op_free_data(&op1);
+    op_free_data(&op2);
 
     return true;
 }
@@ -1820,8 +1787,16 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
 static bool
 handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
 {/* Synopsis:
+  * [input] OP_CALL
+  *     insn->target
+  *     insn->func
+  *     insn->arguments
+  * [output] regex: insn_call_open (insn_call_arg)* insn_call_close
+  *          (location set by caller)
   *
-  * Problems:
+  * Problems/exceptions/notes:
+  * 1. Function can be non-returning.
+  * S. Emit CL_INSN_ABORT in such case.
   */
     struct cl_operand dst, fnc, arg_op;
     struct pseudo *arg;
@@ -1834,8 +1809,8 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
     //
     cl->insn_call_open(cl, &cli->loc, &dst, &fnc);
     //
-    free_op_data(&dst);
-    free_op_data(&fnc);
+    op_free_data(&dst);
+    op_free_data(&fnc);
 
     /* emit arguments */
 
@@ -1844,7 +1819,7 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
         //
         cl->insn_call_arg(cl, ++cnt, &arg_op);
         //
-        free_op_data(&arg_op);
+        op_free_data(&arg_op);
     } END_FOR_EACH_PTR(arg);
 
     /* close call */
@@ -1865,8 +1840,15 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
 static bool
 handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
 {/* Synopsis:
+  * [input] OP_BR
+  *     insn->cond
+  *     insn->bb_true
+  *     insn->bb_false
+  * [output] regex: CL_INSN_JMP or CL_INSN_COND (unconditional/cond. jump)
+  *          (location set by caller)
   *
-  * Problems:
+  * Problems/exceptions/notes:
+  * None.
   */
     struct cl_operand op;
     char *bb_name_true, *bb_name_false;
@@ -1876,7 +1858,7 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
 
     /* unconditional jump handling */
 
-    if (!is_pseudo(insn->cond)) {
+    if (!pseudo_futile(insn->cond)) {
         emit_insn_jmp(cli, bb_name_true);
         free(bb_name_true);
         return true;
@@ -1891,7 +1873,7 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
 
     emit_insn_cond(cli, &op, bb_name_true, bb_name_false);
 
-    free_op_data(&op);
+    op_free_data(&op);
     free(bb_name_true);
     free(bb_name_false);
 
@@ -1901,12 +1883,18 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
 static bool
 handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
 {/* Synopsis:
+  * [input] OP_SEL
+  *     insn->src1
+  *     insn->src2
+  *     insn->src3
+  *     insn->target
+  * [output] regex: CL_INSN_COND (bb_open "assign" CL_INSN_JUMP){2} bb_open
+  *          (location set by caller)
   *
-  * Note:
-  * at first, create and emit CL_INSN_COND, then create and emit respective BBs
-  *
-  * note: BB label uniqueness: addr(insn) + (1, 2 or 3), provided that
-  *       insn has size of 4+ and char 1
+  * Problems/exceptions/notes:
+  * 1. BB label uniqueness.
+  * S. Address of `insn' +1, +2 or +3, provided that insn has size of 4+
+  *    and char 1.
   */
     char *bb_label_true, *bb_label_false, *bb_label_merge;
     struct cl_operand op_cond;
@@ -1921,7 +1909,7 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
 
     op_from_pseudo(&op_cond, insn, insn->src1);
     emit_insn_cond(cli, &op_cond, bb_label_true, bb_label_false);
-    free_op_data(&op_cond);
+    op_free_data(&op_cond);
 
     /* first BB ("then" branch) with assignment and jump to merging BB */
 
@@ -1949,15 +1937,21 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
 
 static bool
 handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
-{/* Synopsis -- input:
-  * insn->target        ... selection source
-  * insn->multijmp_list ... list of branches/cases
-  * - for one item `jmp':
-  *   jmp->begin == jmp->end ... single value selection
-  *   jmp->begin < jmp->end  ... range selection
-  *   jmp->begin > jmp->end  ... default case
-  *   ---
-  *   jmp->target       ... respective basic block
+{/* Synopsis:
+  * [input] OP_SWITCH
+  *     insn->target:        selection source
+  *     insn->multijmp_list: list of branches/cases
+  *         jmp->target:               respective basic block
+  *         ---
+  *         jmp->begin == jmp->end ... single value selection
+  *         jmp->begin < jmp->end  ... range selection
+  *         jmp->begin > jmp->end  ... default case
+  *
+  * [output] regex: insn_switch_open (insn_switch_case)* insn_switch_close
+  *          (location set by caller)
+  *
+  * Problems/exceptions/notes:
+  * FIXME: not enough accurate location info from SPARSE for switch/case.
   */
     char *label;
     struct cl_operand op, val_lo, val_hi, *val_hi_ptr = &val_lo;
@@ -1976,26 +1970,23 @@ handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
 
         if (jmp->begin <= jmp->end) {
             // non-default
-            op_from_value(&val_lo, insn, jmp->begin);
-            val_lo.type = op.type;
+            op_from_value(&val_lo, insn, jmp->begin)->type = op.type;
 
             if (jmp->begin != jmp->end) {
                 // range
-                op_from_value(&val_hi, insn, jmp->end);
-                val_hi.type = op.type;
+                op_from_value(&val_hi, insn, jmp->end)->type = op.type;
                 val_hi_ptr = &val_hi;
             }
         } else
             // default case
-            void_cl_operand(&val_lo);
+            op_make_void(&val_lo);
 
-        // FIXME: not enough accurate location info from SPARSE for switch/case
         cl->insn_switch_case(cl, &cli->loc, &val_lo, val_hi_ptr, label);
 
         free(label);
     } END_FOR_EACH_PTR(jmp);
 
-    free_op_data(&op);
+    op_free_data(&op);
 
     /* close switch */
 
@@ -2006,30 +1997,31 @@ handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
 
 static bool
 handle_insn_ret(struct cl_insn *cli, const struct instruction *insn)
-{/* Synopsis -- input:
-  * insn->src  ... value to be used as a return value
-  * insn->type ... type of return value
-  *
-  * Synopsis -- output:
-  * CL_INSN_RET (already set from `handle_insn')
-  *     cl_insn.insn_ret.src ... cl_operand representing return value
+{/* Synopsis:
+  * [input] OP_RET
+  *     insn->src:  value to be used as a return value
+  *     insn->type: type of return value
+  * [output] CL_INSN_RET (set by caller, as with location)
+  *     cl_insn.insn_ret.src ~ insn->src
   *
   * Problems:
-  * 1. One-element struct -- how to represent return value correctly?
-  * S. See P1 for `handle_assignment_base' (`adjust_cl_operand_accessors').
+  * 1. Problem with a "right form" of the operand (whether to consider
+  *    the whole struct or its first element, etc.).
+  * S. Combine `op_dig_for_type_match' and `insn->type' for adjustment.
   */
     struct cl_operand op;
     const struct cl_type *resulting_type;
 
     cli->data.insn_ret.src = op_from_pseudo(&op, insn, insn->src);
-    if (is_of_accessable_type(&op)) {
-        resulting_type = add_type_if_needed(insn->type, NULL);
-        adjust_cl_operand_accessors(&op, resulting_type, insn->offset);
+    // TODO: decide according to the pseudo instead?
+    if (op_accessible(&op)) {
+        resulting_type = type_from_symbol(insn->type, NULL);
+        op_dig_for_type_match(&op, resulting_type, insn->offset);
     }
     //
     cl->insn(cl, cli);
     //
-    free_op_data(&op);
+    op_free_data(&op);
 
     return true;
 }
@@ -2038,7 +2030,7 @@ static bool
 handle_insn(struct instruction *insn)
 {
     typedef bool (*insn_handler)(struct cl_insn *, const struct instruction *);
-    const struct insn_transformer {
+    const struct insn_conversion {
         enum cl_insn_e       insn_code;
         union {
             enum cl_unop_e   unop;
@@ -2048,7 +2040,7 @@ handle_insn(struct instruction *insn)
             insn_handler     handler;
             const char       *string;
         } prop;
-    } insn_transformers[] = {
+    } insn_conversions[] = {
     /* Synopsis:
      * sparse/linearize.h
      *
@@ -2167,37 +2159,37 @@ handle_insn(struct instruction *insn)
     };
 
     struct cl_insn cli;
-    const struct insn_transformer *transformer;
+    const struct insn_conversion *conversion;
 
     if (VERBOSE_INSTRUCTION & cl_verbose)
         NOTE("\t%d: instruction to be processed: %s", insn->pos.line,
                                                       show_instruction(insn));
 
     //assert(PARTIALLY_ORDERED( OP_BADOP , insn->opcode , OP_COPY ));
-    transformer = &insn_transformers[insn->opcode];
+    conversion = &insn_conversions[insn->opcode];
 
-    read_location(&cli.loc, insn->pos);
-    cli.code = transformer->insn_code;
+    sparse_location(&cli.loc, insn->pos);
+    cli.code = conversion->insn_code;
 
-    switch (transformer->insn_code) {
+    switch (conversion->insn_code) {
         case CL_INSN_ABORT:
-            WARN_UNHANDLED(insn->pos, transformer->prop.string);
+            WARN_UNHANDLED(insn->pos, conversion->prop.string);
             return true;
         case CL_INSN_UNOP:
-            cli.data.insn_unop.code = transformer->code.unop;
+            cli.data.insn_unop.code = conversion->code.unop;
             break;
         case CL_INSN_BINOP:
-            cli.data.insn_binop.code = transformer->code.binop;
+            cli.data.insn_binop.code = conversion->code.binop;
             break;
         default:
             break;
     }
 
-    assert(transformer->prop.handler);
-    return transformer->prop.handler(&cli, insn);
+    assert(conversion->prop.handler);
+    return conversion->prop.handler(&cli, insn);
 }
 
-static bool is_insn_interesting(struct instruction *insn)
+static bool insn_interesting(struct instruction *insn)
 {
     // TODO: investigate
     switch (insn->opcode) {
@@ -2221,7 +2213,7 @@ static bool handle_bb_insn(struct instruction *insn)
         return true;
     }
 
-    if (!is_insn_interesting(insn))
+    if (!insn_interesting(insn))
         return true;
 
     return handle_insn(insn);
@@ -2270,7 +2262,7 @@ static void handle_fnc_ep(struct entrypoint *ep)
     if (asprintf(&entry_name, "%p", entry->bb) < 0)
         die("asprintf failed");
 
-    read_location(&cli.loc, entry->pos);
+    sparse_location(&cli.loc, entry->pos);
     emit_insn_jmp(&cli, entry_name);
     free(entry_name);
 
@@ -2319,7 +2311,7 @@ static void handle_fnc_arg_list(struct symbol_list *arg_list)
         //
         cl->fnc_arg_decl(cl, ++argc, &arg_op);
         //
-        free_op_data(&arg_op);
+        op_free_data(&arg_op);
     } END_FOR_EACH_PTR(arg);
 }
 
@@ -2331,7 +2323,7 @@ static void handle_fnc_def(struct symbol *sym)
     //
     cl->fnc_open(cl, &fnc);
     //
-    free_op_data(&fnc);
+    op_free_data(&fnc);
 
     // dump argument list
     handle_fnc_arg_list(sym->ctype.base_type->arguments);
@@ -2408,6 +2400,106 @@ static void clean_up_symbols(struct symbol_list *list)
 
         handle_top_level_sym(sym);
     } END_FOR_EACH_PTR(sym);
+}
+
+
+
+//
+// Initialization/deinitialization functions
+//
+
+
+static void
+populate_with_base_types(type_ptr_db_t db)
+{
+    struct symbol *ctype;
+    struct cl_type *clt;
+    int i;
+    for (i = 0; i < ARRAY_SIZE(base_types); i++) {
+        clt = base_types[i].ref;
+        empty_type(clt);
+
+        ctype = base_types[i].ctype;
+
+        clt->code  = base_types[i].cl_type;
+        clt->scope = CL_SCOPE_GLOBAL;
+        clt->name  = base_types[i].name;
+        clt->size  = sizeof_from_bits(ctype->bit_size);
+
+        // insert into hash table + pointer hierarchy (at base level)
+        type_ptr_db_insert(db, clt, ctype, NULL);
+    }
+
+    // set uid of the last type inserted so we can skip the freeing for these
+    db->last_base_type_uid = clt->uid;
+}
+
+static void
+type_ptr_db_init(type_ptr_db_t db)
+{
+    db->type_db = typen_create(free_type);
+    if (!db->type_db)
+        die("ht_create() failed");
+
+    // fill with base types
+    populate_with_base_types(db);
+}
+
+static void
+type_ptr_db_destroy(type_ptr_db_t db)
+{
+    typen_destroy(db->type_db);
+
+    // destroy pointer hierarchy
+    struct ptr_db_arr *ptr_db = &db->ptr_db;
+    struct ptr_db_item *item, *item_next;
+    int i;
+    for (i = 0; i < ptr_db->last; i++) {
+        item = &ptr_db->heads[i];
+
+        /* item->clt (skipped, except for those explicitly flagged) */
+        if (item->free_type)
+            free_type(item->clt);
+
+        /* item->arr */
+        int j;
+        for (j = 0; j < item->arr_cnt; j++)
+            free(item->arr[j]);
+        free(item->arr);
+
+        // move onto next items, this one captured by `free(db->ptr_db.heads)'
+        item = item->next;
+
+        while (item) {
+            item_next = item->next;
+
+            /* item->clt (skipped, except for those explicitly flagged) */
+            if (item->free_type)
+                free_type(item->clt);
+
+            free(item);
+            item = item_next;
+        }
+    }
+    free(ptr_db->heads);
+}
+
+static bool
+redefine_stderr(int target_fd, FILE **backup_stderr)
+{
+    if (backup_stderr) {
+        *backup_stderr = fopen("/dev/stderr", "w");
+        if (!*backup_stderr)
+            return false;
+        else
+        setbuf(*backup_stderr, NULL);
+    }
+
+    if (close(STDERR_FILENO) == -1
+        || dup2(target_fd, STDERR_FILENO) == -1)
+        return false;
+    else
+        return true;
 }
 
 
