@@ -512,6 +512,21 @@ type_match(const struct cl_type *t1, const struct cl_type *t2)
 #endif
 }
 
+// Note: clt->item_cnt can be uninitialized provided that clt->items is NULL
+static inline struct cl_type_item *
+type_append_item(struct cl_type *clt)
+{
+    if (!clt->items)
+        clt->item_cnt = 0;
+
+    clt->items = MEM_RESIZE_ARR(clt->items, ++clt->item_cnt);
+    if (!clt->items)
+        die("MEM_RESIZE_ARR failed");
+
+    // guaranteed not to return NULL
+    return &clt->items[clt->item_cnt-1];
+}
+
 
 /* read composite types */
 
@@ -519,19 +534,12 @@ static struct cl_type *type_from_symbol(const struct symbol *type,
                                           struct ptr_db_item **ptr);
 
 static struct cl_type_item *
-add_subtype(struct cl_type *clt, struct symbol *subtype)
+read_and_append_subtype(struct cl_type *clt, struct symbol *subtype)
 {
-    assert(clt->item_cnt >= 0);
-
-    struct cl_type_item *subtype_item;
-
-    clt->items = MEM_RESIZE_ARR(clt->items, ++clt->item_cnt);
-    if (!clt->items)
-        die("MEM_RESIZE_ARR failed");
-
-    subtype_item = &clt->items[clt->item_cnt-1];
+    struct cl_type_item *subtype_item = type_append_item(clt);
     subtype_item->type = type_from_symbol(subtype, NULL);
     subtype_item->name = sparse_ident(subtype->ident);
+
     if (clt->code == CL_TYPE_STRUCT || clt->code == CL_TYPE_UNION)
         subtype_item->offset = subtype->offset;
 
@@ -539,12 +547,12 @@ add_subtype(struct cl_type *clt, struct symbol *subtype)
 }
 
 static void
-add_subtypes(struct cl_type *clt, struct symbol_list *subtypes)
+read_and_append_subtypes(struct cl_type *clt, struct symbol_list *subtypes)
 {
     struct symbol *subtype;
 
     FOR_EACH_PTR(subtypes, subtype) {
-        add_subtype(clt, subtype);
+        read_and_append_subtype(clt, subtype);
     } END_FOR_EACH_PTR(subtype);
 }
 
@@ -552,26 +560,26 @@ static inline void
 read_type_fnc(struct cl_type *clt, const struct symbol *raw_symbol,
               const struct symbol *type)
 {
-    add_subtype(clt, type->ctype.base_type);
-    add_subtypes(clt, type->arguments);
+    read_and_append_subtype(clt, type->ctype.base_type);
+    read_and_append_subtypes(clt, type->arguments);
     // XXX: probably convention in cl?
-    add_subtype(clt, &void_ctype);
+    read_and_append_subtype(clt, &void_ctype);
 }
 
 static inline void
 read_type_array(struct cl_type *clt, const struct symbol *raw_symbol,
                 const struct symbol *type)
 {
+    int sub_size;
+
     //CL_TRAP;
     //clt->name = sparse_ident(type->ident);
-    //
-    //
 
     if (raw_symbol->type == SYM_NODE)
         // normalize size of the "outer" dimension as well as missing size
         clt->size = sizeof_from_bits(raw_symbol->bit_size);
-    int subtype_size = add_subtype(clt, type->ctype.base_type)->type->size;
-    clt->array_size = clt->size/subtype_size;
+    sub_size = read_and_append_subtype(clt, type->ctype.base_type)->type->size;
+    clt->array_size = clt->size/sub_size;
                       // clt->size/clt->items[0].type->size
 }
 
@@ -580,7 +588,7 @@ read_type_struct(struct cl_type *clt, const struct symbol *raw_symbol,
                  const struct symbol *type)
 {
     clt->name = sparse_ident(type->ident);
-    add_subtypes(clt, type->symbol_list);
+    read_and_append_subtypes(clt, type->symbol_list);
 }
 
 static inline void
@@ -590,7 +598,7 @@ read_type_union(struct cl_type *clt, const struct symbol *raw_symbol,
     //CL_TRAP;
     clt->name     = sparse_ident(type->ident);
     //TODO:
-    add_subtypes(clt, type->symbol_list);
+    read_and_append_subtypes(clt, type->symbol_list);
     //clt->item_cnt = /* TODO */ 0;
     //clt->items    = /* TODO */ NULL;
 }
@@ -722,22 +730,25 @@ new_ptr_db_item(void)
 // Note: use `build_referenced_type' when possible
 static inline struct cl_type *
 referenced_type(const struct cl_type* orig_type)
-{
+{/* Problems/exceptions/notes:
+  * 1. Reusing location and scope from `orig_type'.
+  */
+
     struct cl_type *retval = MEM_NEW(struct cl_type);
     if (!retval)
         die("MEM_NEW failed");
 
-    *retval = *orig_type;
-    retval->uid = type_ptr_db.last_base_type_uid+1;
-    retval->code = CL_TYPE_PTR;
-    retval->name = NULL;
-    retval->size = sizeof_from_bits(bits_in_pointer);
-    retval->item_cnt = 1;
-    retval->items = MEM_NEW(struct cl_type_item);
-    if (!retval->items)
-        die("MEM_NEW failed");
-    retval->items->type = orig_type;
-    retval->items->name = NULL;
+    retval->uid   = type_ptr_db.last_base_type_uid+1;
+    retval->code  = CL_TYPE_PTR;
+    retval->loc   = orig_type->loc;
+    retval->scope = orig_type->scope;
+    retval->name  = NULL;
+    retval->size  = sizeof_from_bits(bits_in_pointer);
+    retval->items = NULL;
+
+    struct cl_type_item *item = type_append_item(retval);
+    item->type    = orig_type;
+    item->name    = NULL;
 
     // guaranteed not to return NULL
     return retval;
@@ -883,12 +894,9 @@ prepare_type_array_ptr(const struct symbol *raw_symbol,
         // finalize SYM_PTR (not in `read_type()' as we have needed info here)
         if (type->type == SYM_PTR) {
             // use obtained dereferenced type
-            (*clt_ptr)->item_cnt = 1;
-            (*clt_ptr)->items = MEM_NEW(struct cl_type_item);
-            if (!(*clt_ptr)->items)
-                die("MEM_NEW");
-            (*clt_ptr)->items->type = ptr_type;
-            (*clt_ptr)->items->name = NULL;
+            struct cl_type_item *item = type_append_item(*clt_ptr);
+            item->type = ptr_type;
+            item->name = NULL;
         }
     }
 
