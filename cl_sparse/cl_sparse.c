@@ -941,13 +941,30 @@ type_from_symbol(const struct symbol *raw_symbol, struct ptr_db_item **ptr)
 }
 
 static inline struct cl_type *
-type_from_instruction(struct instruction *insn)
+type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
 {
+    //struct pseudo_user *pu;
+
     // Note: pseudo->def == NULL for copy.32
     if (insn && insn->type) {
+
+#if 0
+        // TODO: for casts only?
+        // first and most authoritative way of getting the type;
+        // if the pseudo is the target pseudo, check whether its immediate
+        // user/instruction has `orig_type' and use it if available
+        if (insn->target == pseudo) {
+            pu = (struct pseudo_user *)
+                 PTR_ENTRY((struct ptr_list *) insn->target->users, 0);
+            if (pu && pu->insn->orig_type)
+                return type_from_symbol(pu->insn->orig_type, NULL);
+        }
+#endif
+
         switch (insn->opcode) {
             case OP_BINCMP ... OP_BINCMP_END:
                 return &bool_clt;
+
             case OP_CALL:
                 // NOTE: experimental, mainly for alloc et al.
                 // try to find immediatelly following OP_CAST
@@ -1253,7 +1270,7 @@ op_from_register(struct cl_operand *op, const struct instruction *insn,
   * pseudo->def
   *
   */
-    op->type = type_from_instruction(pseudo->def);
+    op->type = type_from_instruction(pseudo->def, pseudo);
 
     struct cl_var *var = op_make_var(op);
     var->uid  = (int)(long) pseudo;
@@ -1527,7 +1544,12 @@ insn_assignment_mod_rhs(struct cl_operand *op_rhs, pseudo_t rhs,
 
     int offset = insn->offset;
     bool use_rhs_dereference = true;
+#if 0
     struct cl_type *type = (insn->opcode == OP_PTRCAST)
+                               ? type_from_symbol(insn->orig_type, NULL)
+                               : type_from_symbol(insn->type, NULL);
+#endif
+    struct cl_type *type = (insn->orig_type)
                                ? type_from_symbol(insn->orig_type, NULL)
                                : type_from_symbol(insn->type, NULL);
 
@@ -1686,7 +1708,7 @@ handle_insn_load(struct cl_insn *cli, const struct instruction *insn)
 static inline bool
 handle_insn_copy(struct cl_insn *cli, const struct instruction *insn)
 {/* Synopsis (see also `insn_assignment_base'):
-  * [input] OP_COPY and cast operations except for OP_PTRCAST
+  * [input] OP_COPY
   *     insn->target
   *     insn->src
   *     insn->type
@@ -1700,6 +1722,48 @@ handle_insn_copy(struct cl_insn *cli, const struct instruction *insn)
     );
 }
 
+static inline bool
+handle_insn_cast(struct cl_insn *cli, const struct instruction *insn)
+{/* Synopsis (see also `insn_assignment_base'):
+  * [input] OP_CAST, OP_SCAST
+  *     insn->target
+  *     insn->src
+  *     insn->type
+  *     insn->orig_type
+  *
+  * Problems/exceptions/notes:
+  * May end up with with emitting CL_BINOP_BIT_AND when casting "smaller"
+  * type to "bigger" type (currently, for bitfields only) to be sure we get
+  * rid of unwanted garbage (e.g., data from the next bitfield item).
+  */
+    if (insn->orig_type->bit_size == insn->type->bit_size)
+        handle_insn_copy(cli, insn);
+    else if (insn->orig_type->bit_size < insn->type->bit_size
+            && insn->orig_type->ctype.base_type->type == SYM_BITFIELD) {
+        // we have to apply CL_BINOP_BIT_AND on `insn->src' using mask
+        // (currently of int size XXX?) with additional higher bits zeroed
+
+        int mask = ~((~0) << insn->orig_type->bit_size);
+        struct cl_operand dst, lhs, op_mask;
+
+        cli->code = CL_INSN_BINOP;
+        cli->data.insn_binop.code = CL_BINOP_BIT_AND;
+        cli->data.insn_binop.dst  = op_from_pseudo(&dst, insn, insn->target);
+        cli->data.insn_binop.src1 = op_from_pseudo(&lhs, insn, insn->src);
+        cli->data.insn_binop.src2 = op_from_value(&op_mask, insn, mask);
+
+        cl->insn(cl, cli);
+
+        op_free_data(&dst);
+        op_free_data(&lhs);
+        op_free_data(&op_mask);
+
+        return true;
+    }
+
+    CL_TRAP;  // will this ever happen?
+    return true;
+}
 
 static inline bool
 handle_insn_ptrcast(struct cl_insn *cli, const struct instruction *insn)
@@ -1707,6 +1771,7 @@ handle_insn_ptrcast(struct cl_insn *cli, const struct instruction *insn)
   * [input] OP_PTRCAST
   *     insn->target
   *     insn->src
+  *     insn->type
   *     insn->orig_type
   *
   * Problems/exceptions/notes:
@@ -1767,6 +1832,7 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
   * S. If any of the operand is a pointer or an array, promote CL_BINOP_PLUS
   *    to CL_BINOP_POINTER_PLUS (other operations not expected in this case).
   */
+    //CL_TRAP;
     struct cl_operand dst, op1, op2;
 
     cli->data.insn_binop.dst  = op_from_pseudo(&dst, insn, insn->target);
@@ -1975,6 +2041,9 @@ handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
 
     /* emit cases */
 
+    op_make_void(&val_lo);
+    op_make_void(&val_hi);
+
     FOR_EACH_PTR(insn->multijmp_list, jmp) {
         if (asprintf(&label, "%p", jmp->target) < 0)
             die("asprintf failed");
@@ -1995,6 +2064,9 @@ handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
         cl->insn_switch_case(cl, &cli->loc, &val_lo, val_hi_ptr, label);
 
         free(label);
+        // not necessary now, but ...
+        op_free_data(&val_lo);
+        op_free_data(&val_hi);
     } END_FOR_EACH_PTR(jmp);
 
     op_free_data(&op);
@@ -2154,9 +2226,9 @@ handle_insn(struct instruction *insn)
             //        and OP_PHI or OP_PHISOURCE occurs (really encountered)
         INSN_IGN( PHI             ,                     ,                    ),
         INSN_IGN( PHISOURCE       ,                     ,                    ),
-        INSN_UNI( CAST            , ASSIGN              , handle_insn_copy   ),
-        INSN_UNI( SCAST           , ASSIGN              , handle_insn_copy   ),
-        INSN_UNI( FPCAST          , ASSIGN              , handle_insn_copy   ),
+        INSN_UNI( CAST            , ASSIGN              , handle_insn_cast   ),
+        INSN_UNI( SCAST           , ASSIGN              , handle_insn_cast   ),
+        INSN_IGN( FPCAST          , ASSIGN /*not sure*/ , handle_insn_copy   ),
         INSN_UNI( PTRCAST         , ASSIGN              , handle_insn_ptrcast),
         INSN_IGN( INLINED_CALL    ,                     ,                    ),
         INSN_STD( CALL            , NOP /*another way*/ , handle_insn_call   ),
