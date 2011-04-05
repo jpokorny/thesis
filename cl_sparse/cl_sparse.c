@@ -1760,16 +1760,23 @@ handle_insn_ptrcast(struct cl_insn *cli, const struct instruction *insn)
 static bool
 handle_insn_unop(struct cl_insn *cli, const struct instruction *insn)
 {/* Synopsis -- input (OP_NOT, OP_NEG):
-  * insn->src1   ... source
+  * insn->src1   ... source operand
   * insn->target ... destination
+  *
+  * Problems:
+  * 1. OP_NEG means "unary minus" when applied on int.
   */
     struct cl_operand dst, src;
 
     cli->data.insn_unop.dst = op_from_pseudo(&dst, insn, insn->target);
-    cli->data.insn_unop.src = op_from_pseudo(&src, insn, insn->src   );
-    //
+    cli->data.insn_unop.src = op_from_pseudo(&src, insn, insn->src1);
+
+    // for "unary minus", rewrite unary operation
+    if (src.type->code == CL_TYPE_INT && insn->opcode == OP_NEG)
+        cli->data.insn_unop.code = CL_UNOP_MINUS;
+
     cl->insn(cl, cli);
-    //
+
     free_op_data(&dst);
     free_op_data(&src);
 
@@ -1782,15 +1789,15 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
   * 1. Binary arithmetics has to be installed ex post.
   * S. CL_BINOP_PLUS -> CL_BINOP_POINTER_PLUS when suitable.
   */
-    struct cl_operand dst, src1, src2;
+    struct cl_operand dst, op1, op2;
 
-    cli->data.insn_binop.dst  = op_from_pseudo(&dst,  insn, insn->target);
-    cli->data.insn_binop.src1 = op_from_pseudo(&src1, insn, insn->src1  );
-    cli->data.insn_binop.src2 = op_from_pseudo(&src2, insn, insn->src2  );
+    cli->data.insn_binop.dst  = op_from_pseudo(&dst, insn, insn->target);
+    cli->data.insn_binop.src1 = op_from_pseudo(&op1, insn, insn->src1);
+    cli->data.insn_binop.src2 = op_from_pseudo(&op2, insn, insn->src2);
 
     // for pointer arithmetics, rewrite binary operation
-    if (src1.type->code == CL_TYPE_ARRAY || src2.type->code == CL_TYPE_ARRAY
-        || src1.type->code == CL_TYPE_PTR || src2.type->code == CL_TYPE_PTR) {
+    if (op1.type->code == CL_TYPE_PTR || op1.type->code == CL_TYPE_ARRAY
+        || op2.type->code == CL_TYPE_PTR || op2.type->code == CL_TYPE_ARRAY) {
         switch (cli->data.insn_binop.code) {
             case CL_BINOP_PLUS:
                 cli->data.insn_binop.code = CL_BINOP_POINTER_PLUS;
@@ -1798,15 +1805,14 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
             default:
                 // only addition is supported (XXX: may other ops occur?)
                 CL_TRAP;
-                break;
         }
     }
 
     cl->insn(cl, cli);
 
     free_op_data(&dst);
-    free_op_data(&src1);
-    free_op_data(&src2);
+    free_op_data(&op1);
+    free_op_data(&op2);
 
     return true;
 }
@@ -2081,7 +2087,7 @@ handle_insn(struct instruction *insn)
 
         /* Binary */
         // OP_BINARY = OP_ADD
-        INSN_BIN( ADD             , PLUS                , handle_insn_binop  ),
+        INSN_BIN( ADD             , PLUS/*POINTER_PLUS*/, handle_insn_binop  ),
         INSN_BIN( SUB             , MINUS               , handle_insn_binop  ),
         INSN_BIN( MULU            , MULT /*XXX: unsig.*/, handle_insn_binop  ),
         INSN_BIN( MULS            , MULT                , handle_insn_binop  ),
@@ -2117,7 +2123,7 @@ handle_insn(struct instruction *insn)
 
         /* Uni */
         INSN_UNI( NOT             , BIT_NOT             , handle_insn_unop   ),
-        INSN_UNI( NEG             , TRUTH_NOT           , handle_insn_unop   ),
+        INSN_UNI( NEG             , TRUTH_NOT/*u.minus*/, handle_insn_unop   ),
 
         /* Select - three input values */
         INSN_STD( SEL             , NOP /*COND*/        , handle_insn_sel    ),
