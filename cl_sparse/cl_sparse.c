@@ -1666,6 +1666,9 @@ handle_insn_load(struct cl_insn *cli, const struct instruction *insn)
   * Problems/exceptions/notes:
   * None.
   */
+    if (insn->target->type != PSEUDO_REG)
+        CL_TRAP;
+
     return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
         TYPE_LHS_KEEP      |     (TYPE_RHS_DIG | TYPE_RHS_DIG_ANY)
