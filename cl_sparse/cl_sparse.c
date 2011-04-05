@@ -2098,9 +2098,17 @@ handle_insn(struct instruction *insn)
         INSN_BIN( DIVS            , TRUNC_DIV           , handle_insn_binop  ),
         INSN_BIN( MODU            , TRUNC_MOD /*unsig.*/, handle_insn_binop  ),
         INSN_BIN( MODS            , TRUNC_MOD           , handle_insn_binop  ),
-        INSN_IGN( SHL             ,                     ,                    ),
-        INSN_IGN( LSR             ,                     ,                    ),
-        INSN_IGN( ASR             ,                     ,                    ),
+        INSN_BIN( SHL             , LSHIFT              , handle_insn_binop  ),
+        INSN_BIN( LSR             , RSHIFT              , handle_insn_binop  ),
+            // OP_ASR (arithmetic shift) is the same as OP_LSR (logical shift)
+            // except for that the highest bit is kept the same, not zeroed;
+            // - C standard says that right shift perfomed on unsigned type is
+            //   of the LSR type, implementation specific (LSR/ASR) otherwise
+            //   [C text book by P. Herout, TODO: check real standard]
+            // - sparse generates OP_LSR for all the cases (OP_ASR should not
+            //   occur at all) which cannot be considered harmfull, though
+            //   (when necessary, operand signedness can be checked)
+        INSN_IGN( ASR             , /*   see above   */ , handle_insn_binop  ),
 
         /* Logical */
         INSN_BIN( AND             , BIT_AND             , handle_insn_binop  ),
@@ -2142,10 +2150,10 @@ handle_insn(struct instruction *insn)
         INSN_IGN( GET_ELEMENT_PTR ,                     ,                    ),
 
         /* Other */
+            // FIXME: this might be a SPARSE bug if DO_PER_EP_UNSAA is set
+            //        and OP_PHI or OP_PHISOURCE occurs (really encountered)
         INSN_IGN( PHI             ,                     ,                    ),
         INSN_IGN( PHISOURCE       ,                     ,                    ),
-            // FIXME: this might be a SPARSE bug if DO_PER_EP_UNSAA is set
-            // NOTE: really encountered (hash_table.c)
         INSN_UNI( CAST            , ASSIGN              , handle_insn_copy   ),
         INSN_UNI( SCAST           , ASSIGN              , handle_insn_copy   ),
         INSN_UNI( FPCAST          , ASSIGN              , handle_insn_copy   ),
