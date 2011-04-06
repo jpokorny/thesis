@@ -7,7 +7,6 @@ others:
 
 priority
 --------
-finish union - DONE, but memory leaks
 op_from_fn_argument ... location
 is_insn_interesting ... keep/remove
 bring the signals back (as it sometimes ends without printing sparse messages)

@@ -454,7 +454,7 @@ free_type(struct cl_type *clt)
         // selective approach can expose wrong usage through leaked memory
         BEGIN_WHEN(clt->code IN (CL_TYPE_PTR     OR
                                  CL_TYPE_STRUCT  OR
-                                 //CL_TYPE_UNION   OR
+                                 CL_TYPE_UNION   OR
                                  CL_TYPE_ARRAY   OR
                                  CL_TYPE_FNC     ))
         {
@@ -1460,8 +1460,8 @@ op_accessible(const struct cl_operand *op)
 
 static unsigned
 op_dig_for_type_match(struct cl_operand *op,
-                           const struct cl_type *expected_type,
-                           unsigned initial_offset)
+                      const struct cl_type *expected_type,
+                      unsigned initial_offset)
 {/* Problems/exceptions/notes:
   * When digging union, we go through its items, apply a DFS-based search
   * in order to get expected type on one, if it ends without success, we try
@@ -1500,16 +1500,17 @@ op_dig_for_type_match(struct cl_operand *op,
                 op_clone->type = op->type;
             }
 
-            offset = res;
-
             if (res != UINT_MAX) {
                 // reflect the changes collected within successful DFS trace
                 // (with `op_clone') back to its preimage `op'
                 op->type = op_clone->type;
                 assert(op_clone->accessor);
                 op_append_accessor(op, op_clone->accessor);
-                break;
+                assert(type_match(op->type, expected_type));
             }
+
+            free(op_clone);
+            offset = res;
         } else
             offset = op_dig_step(op, offset);
 
