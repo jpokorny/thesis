@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include <unistd.h>
 #include <poll.h>
 #include <errno.h>
@@ -1028,6 +1029,16 @@ new_op(void)
     return retval;
 }
 
+static inline struct cl_operand *
+op_shallow_copy(const struct cl_operand *op_src)
+{
+    struct cl_operand *retval = new_op();
+    *retval = *op_src;
+
+    // guaranteed not to return NULL
+    return retval;
+}
+
 
 /* freeing resources connected with operand */
 
@@ -1053,18 +1064,10 @@ op_free_initializers(struct cl_initializer *initial)
     free(initial);
 }
 
-// Note: for freeing heap-based nested items only (see also `free_op')
 static void
-op_free_data(struct cl_operand *op)
+free_accessor_chain(struct cl_accessor *ac)
 {
-    if (op->code == CL_OPERAND_VOID)
-        return;
-
-    /* op->type (skipped) */
-
-    /* op->accessor */
-    // XXX: cl_pp says that accessor is not expected for CL_OPERAND_CST
-    struct cl_accessor *ac_next, *ac = op->accessor;
+    struct cl_accessor *ac_next;
     while (ac) {
         ac_next = ac->next;
 
@@ -1079,6 +1082,19 @@ op_free_data(struct cl_operand *op)
         free(ac);
         ac = ac_next;
     }
+}
+
+// Note: for freeing heap-based nested items only (see also `free_op')
+static void
+op_free_data(struct cl_operand *op)
+{
+    if (op->code == CL_OPERAND_VOID)
+        return;
+
+    /* op->type (skipped) */
+
+    /* op->accessor */
+    free_accessor_chain(op->accessor);
 
     if (op->code == CL_OPERAND_CST) {
         /* op->data.cst... */
@@ -1273,7 +1289,11 @@ op_from_register(struct cl_operand *op, const struct instruction *insn,
     op->type = type_from_instruction(pseudo->def, pseudo);
 
     struct cl_var *var = op_make_var(op);
+#if 1
     var->uid  = (int)(long) pseudo;
+#else
+    var->uid  = pseudo->nr;
+#endif
 
     return op;
 }
@@ -1321,8 +1341,30 @@ op_from_pseudo(struct cl_operand *op, const struct instruction *insn,
     }
 }
 
+static struct cl_accessor *
+new_cl_accessor()
+{
+    struct cl_accessor *retval;
+    retval = MEM_NEW(struct cl_accessor);
+    if (!retval)
+        die("MEM_NEW failed");
+
+    retval->next = NULL;
+
+    // guaranteed not to return NULL
+    return retval;
+}
+
+static inline void
+accessor_array_index(struct cl_accessor *ac, struct cl_loc loc, int index)
+{
+    ac->code                  = CL_ACCESSOR_DEREF_ARRAY;
+    ac->data.array.index      = op_make_cst_int(new_op(), index);
+    ac->data.array.index->loc = loc;
+}
+
 static inline struct cl_accessor *
-op_append_accessor(struct cl_operand *op)
+op_append_accessor(struct cl_operand *op, struct cl_accessor *ac)
 {
     struct cl_accessor *ac_chain, **retval;
 
@@ -1335,43 +1377,31 @@ op_append_accessor(struct cl_operand *op)
         retval = &ac_chain->next;
     }
 
-    *retval = MEM_NEW(struct cl_accessor);
-    if (!*retval)
-        die("MEM_NEW failed");
-
-    (*retval)->next = NULL;
+    if (ac)
+        *retval = ac;
+    else
+        *retval = new_cl_accessor();
 
     // guaranteed not to return NULL
     return *retval;
 }
 
-static inline void
-accessor_array_index(struct cl_accessor *ac, struct cl_loc loc, int index)
-{
-    ac->code                  = CL_ACCESSOR_DEREF_ARRAY;
-    ac->data.array.index      = op_make_cst_int(new_op(), index);
-    ac->data.array.index->loc = loc;
-}
-
-static int
+// Note: returns UINT_MAX when operand could not be dug
+static unsigned
 op_dig_step(struct cl_operand *op, unsigned insn_offset)
 {
-    int i = 0;
     // `insn_offset' is consumed only by CL_TYPE_STRUCT or CL_TYPE_ARRAY;
     // e.g., accessing struct element is different with the first level
     // access (use insn_offset) and with other accesses (always zero offset)
-    int retval = insn_offset;
+    int retval = insn_offset,
+        i = 0;
 
     struct cl_accessor *ac;
 
-    ac = op_append_accessor(op);
-
-    // accessor's type is the operand's type (it itself is to be peeled off)
-    ac->type = (struct cl_type *) op->type;
-
-    #define MAP_ACCESSOR(var, type, acc) case CL_##type: var = CL_##acc;
+    #define MAP_ACCESSOR(acc, clt, cl_ac) \
+        case CL_##clt: acc = new_cl_accessor(); acc->code = CL_##cl_ac;
     switch (op->type->code) {
-        MAP_ACCESSOR(ac->code, TYPE_STRUCT, ACCESSOR_ITEM) {
+        MAP_ACCESSOR(ac, TYPE_STRUCT, ACCESSOR_ITEM) {
             for (i = 0; i < op->type->item_cnt; i++)
                 if (op->type->items[i].offset == insn_offset)
                     break;
@@ -1379,22 +1409,15 @@ op_dig_step(struct cl_operand *op, unsigned insn_offset)
             retval = 0;
             break;
         }
-        MAP_ACCESSOR(ac->code, TYPE_UNION, ACCESSOR_ITEM) {
-            for (i = 0; i < op->type->item_cnt; i++)
-                if (op->type->items[i].offset == insn_offset)
-                    break;
-            ac->data.item.id = i;
-            retval = 0;
-            break;
-        }
-        MAP_ACCESSOR(ac->code, TYPE_ARRAY, ACCESSOR_DEREF_ARRAY) {
-            div_t indexes = div(insn_offset, op->type->size/op->type->array_size);
+        MAP_ACCESSOR(ac, TYPE_ARRAY, ACCESSOR_DEREF_ARRAY) {
+            div_t indexes;
+            indexes = div(insn_offset, op->type->size/op->type->array_size);
             accessor_array_index(ac, op->loc, indexes.quot);
             // the remainder serves for next index-based-dereferencing rounds
             retval = indexes.rem;
             break;
         }
-        MAP_ACCESSOR(ac->code, TYPE_PTR, ACCESSOR_DEREF) {
+        MAP_ACCESSOR(ac, TYPE_PTR, ACCESSOR_DEREF) {
             if (insn_offset /* && op->type->items->type->size*/) {
                 // convert into another accessor then predestined (ptr->arr),
                 // but only if resulting index would be 1+
@@ -1407,11 +1430,14 @@ op_dig_step(struct cl_operand *op, unsigned insn_offset)
             break;
         }
         default:
-            CL_TRAP;
+            return UINT_MAX;
     }
 
+    op_append_accessor(op, ac);
+    // accessor's type is the operand's type (it itself will be peeled off)
+    ac->type = (struct cl_type *) op->type;
     // peel off one level of type/access decoration from the operand
-    op->type = (struct cl_type *)op->type->items[i].type;
+    op->type = (struct cl_type *) op->type->items[i].type;
 
     return retval;
 }
@@ -1419,7 +1445,9 @@ op_dig_step(struct cl_operand *op, unsigned insn_offset)
 // XXX: removal candidate
 static inline bool
 op_accessible(const struct cl_operand *op)
-{
+{/* Problems/exceptions/notes:
+  * Operand of CL_TYPE_UNION type classified as inaccessible (by purpose).
+  */
     switch (op->type->code) {
         case CL_TYPE_STRUCT:
         case CL_TYPE_ARRAY:
@@ -1430,20 +1458,64 @@ op_accessible(const struct cl_operand *op)
     }
 }
 
-static inline unsigned
+static unsigned
 op_dig_for_type_match(struct cl_operand *op,
                            const struct cl_type *expected_type,
                            unsigned initial_offset)
-{
+{/* Problems/exceptions/notes:
+  * When digging union, we go through its items, apply a DFS-based search
+  * in order to get expected type on one, if it ends without success, we try
+  * another (on the whole, should not end without success).
+  */
+
     unsigned offset = initial_offset;
 
-#if 0
-    if (!op_accessible(op))
-        return;
-#endif
+    while (!type_match(op->type, expected_type)) {
+        if (op->type->code == CL_TYPE_UNION) {
+            // unions bring non-determinism as there are more ways how to
+            // "dig" -- use DFS with a sort of backtracking (through stack)
+            struct cl_operand *op_clone;
+            struct cl_accessor *ac;
+            int i, res;
 
-    while (!type_match(op->type, expected_type))
-        offset = op_dig_step(op, offset);
+            // `op_clone' is a special shallow copy with accessor chain reset
+            op_clone = op_shallow_copy(op);
+
+            for (i = 0; i < op->type->item_cnt; i++) {
+                op_clone->accessor = NULL;
+                ac               = op_append_accessor(op_clone, NULL);
+                ac->code         = CL_ACCESSOR_ITEM;
+                ac->type         = op_clone->type;
+                ac->data.item.id = i;
+                op_clone->type = (struct cl_type *) ac->type->items[i].type;
+
+                res = op_dig_for_type_match(op_clone, expected_type, offset);
+
+                if (res != UINT_MAX)
+                    // successfull case of digging
+                    break;
+
+                // restore for the next round
+                free_accessor_chain(op_clone->accessor);
+                op_clone->type = op->type;
+            }
+
+            offset = res;
+
+            if (res != UINT_MAX) {
+                // reflect the changes collected within successful DFS trace
+                // (with `op_clone') back to its preimage `op'
+                op->type = op_clone->type;
+                assert(op_clone->accessor);
+                op_append_accessor(op, op_clone->accessor);
+                break;
+            }
+        } else
+            offset = op_dig_step(op, offset);
+
+        if (offset == UINT_MAX)
+            break;
+    }
 
     return offset;
 }
@@ -1571,7 +1643,8 @@ insn_assignment_mod_rhs(struct cl_operand *op_rhs, pseudo_t rhs,
                 } else
                     use_rhs_dereference = false;
             }
-            op_dig_for_type_match(op_rhs, expected_type, offset);
+            unsigned res = op_dig_for_type_match(op_rhs, expected_type, offset);
+            assert(res != UINT_MAX);
 
         } else if (ops_handling & TYPE_RHS_REFERENCE) {
             // OP_STORE with PSEUDO_VAL rhs (e.g., value can be pointer)
@@ -1589,7 +1662,7 @@ insn_assignment_mod_rhs(struct cl_operand *op_rhs, pseudo_t rhs,
     if (ops_handling & TYPE_RHS_REFERENCE && use_rhs_dereference) {
         // OP_PTRCAST, OP_STORE (for PSEUDO_SYM and PSEUDO_ARG only
         //                       and only when returning level of indirection)
-        struct cl_accessor *ac = op_append_accessor(op_rhs);
+        struct cl_accessor *ac = op_append_accessor(op_rhs, NULL);
         ac->code = CL_ACCESSOR_REF;
         ac->type = op_rhs->type;
         op_rhs->type = build_referenced_type(op_rhs->type);
@@ -1632,7 +1705,7 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
     if (ops_handling & TYPE_LHS_DIG) {
         struct cl_type *type = type_from_symbol(insn->type, NULL);
         if (pseudo_immediate(lhs)) {
-            struct cl_accessor *ac = op_append_accessor(&op_lhs);
+            struct cl_accessor *ac = op_append_accessor(&op_lhs, NULL);
             ac->code = CL_ACCESSOR_DEREF;
             // note: no such clt easily accessible (contrary to previous case)
             ac->type = build_referenced_type(type);
