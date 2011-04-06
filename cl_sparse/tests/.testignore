@@ -44,3 +44,6 @@ struct/s-02.c-return_int.dot             ;sparse is more direct wrt accessing/ha
 struct/ss-01.c-return_sstruct.dot        ;sparse is more direct wrt accessing/handling structures
 struct/ss-02.c-return_struct.dot         ;sparse is more direct wrt accessing/handling structures
 struct/ss-03.c-return_int.dot            ;sparse is more direct wrt accessing/handling structures
+
+#union
+union/u-01.c-handle_union.dot            ;gcc does extra job preparing an argument for call
