@@ -1,0 +1,41 @@
+From 16fb8aa4e593841e8999fbf76f73322bc2f9ed11 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jan=20Pokorn=C3=BD?= <xpokor04@stud.fit.vutbr.cz>
+Date: Wed, 6 Apr 2011 23:54:52 +0200
+Subject: [PATCH] fix load instruction simplification
+
+This has shown up with 5ecad11 commit as always-true conditional
+used to mask this problem.
+---
+ flow.c   |    2 +-
+ memops.c |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/flow.c b/flow.c
+index 5bd9a1d..8f43c38 100644
+--- a/flow.c
++++ b/flow.c
+@@ -462,7 +462,7 @@ found:
+ 		if (!local)
+ 			return 0;
+ 		check_access(insn);
+-		convert_load_instruction(insn, value_pseudo(0));
++		convert_load_instruction(insn, insn->src);
+ 		return 1;
+ 	}
+ 
+diff --git a/memops.c b/memops.c
+index 45bd340..328edec 100644
+--- a/memops.c
++++ b/memops.c
+@@ -126,7 +126,7 @@ static void simplify_loads(struct basic_block *bb)
+ 				if (!dominators) {
+ 					if (local) {
+ 						assert(pseudo->type != PSEUDO_ARG);
+-						convert_load_instruction(insn, value_pseudo(0));
++						convert_load_instruction(insn, insn->src);
+ 					}
+ 					goto next_load;
+ 				}
+-- 
+1.7.1
+
