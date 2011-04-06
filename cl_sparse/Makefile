@@ -32,7 +32,7 @@ $(MAIN_SRC:.c=.o) $(SRCS:.c=.o): %.o : %.c
 	$(CC) -I$(INC_DIR) -o $@ $(CFLAGS) -fPIC -c $<
 
 $(SPARSE_LIB):
-	make -C $(SPARSE_DIR) $(basename SPARSE_LIB)
+	make -C $(SPARSE_DIR) $(shell basename $(SPARSE_LIB))
 
 $(CL_LIB):
 	@echo Not implemented yet, prepare $@ manually
