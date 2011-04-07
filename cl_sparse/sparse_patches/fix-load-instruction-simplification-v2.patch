@@ -15,7 +15,7 @@ in tokenize.c).
 This is an example case that hasn't been previously proceeded
 correctly:
 
-    int main(int argc, char **argv)
+    static int test(void)
     {
         int x;
         int *px = &x;
