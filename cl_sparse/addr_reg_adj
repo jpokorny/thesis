@@ -23,7 +23,7 @@ Note: terribly slow, but is there a chance to go significantly better?
       would help
 """
 
-__author__ = "Jan Pokorny <xpokor04@stud.fit.vutbr.cz>"
+__author__ = "Jan Pokorny <pokorny_jan@seznam.cz>"
 
 from sys import argv, stdout, exit
 from os.path import exists
