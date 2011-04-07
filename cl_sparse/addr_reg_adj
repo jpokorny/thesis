@@ -17,6 +17,10 @@ Definitions:
 
 Currently, the algorithm does not tolerate any line displacement (line X
 in the first file expected to otherwise same as line X in the other).
+
+Note: terribly slow, but is there a chance to go significantly better?
+      maybe not using lines explicitly (whole as one string instead)
+      would help
 """
 
 __author__ = "Jan Pokorny <xpokor04@stud.fit.vutbr.cz>"
@@ -49,7 +53,8 @@ def addr_reg_adj(adj_lines, src_lines, dest_file="-", use_reg=False):
             continue
 
         if len(adj_matches) != len(src_matches):
-            print("Warning: matches number does not fit")
+            print("Warning: matches number does not fit between files"
+                  " (same line %d)" % i)
 
         for j in xrange(i, adj_lines_len):
             for target, subst in zip(adj_matches, src_matches):
