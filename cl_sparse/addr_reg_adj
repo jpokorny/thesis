@@ -4,8 +4,8 @@ Program that for two input files (presumably representing a linearized code)
 tries to "adjust" (memory) addresses and register numbers in the first file
 to fit those in the other.
 
-It's intended to be be used prior to comparing such two files (in case we
-expect these files are isomorphic except for addresses and optionally register
+It's intended to be used prior to comparing such two files (in case we expect
+these files are isomorphic except for addresses and, optionally, register
 numbers).
 
 Definitions:
@@ -16,11 +16,11 @@ Definitions:
     decimal number (of arbitrary length) prefixed with "%r"
 
 Currently, the algorithm does not tolerate any line displacement (line X
-in the first file expected to otherwise same as line X in the other).
+in the first file expected to correspond to line X in the other).
 
 Note: terribly slow, but is there a chance to go significantly better?
-      maybe not using lines explicitly (whole as one string instead)
-      would help
+      maybe not using lines explicitly (all as one string instead)
+      would help...
 """
 
 __author__ = "Jan Pokorny <pokorny_jan@seznam.cz>"
@@ -55,9 +55,6 @@ def addr_reg_adj(adj_lines, src_lines, dest_file="-", use_reg=False):
         if len(adj_matches) != len(src_matches):
             print("Warning: matches number does not fit between files"
                   " (same line %d)" % i)
-        #else:
-        #    if adj_matches == src_matches:
-        #        continue
 
         adj_matches = map(lambda target:
                               re.compile("(?<!\$)" + target + "(?=\W)"),
