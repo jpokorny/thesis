@@ -284,11 +284,13 @@ warn(struct position pos, const char *fmt, ...)
 //
 
 
-// Note: `bits_in_char' defined by sparse
 static inline int
 sizeof_from_bits(int bits)
-{
-	return (bits >= 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
+{/*Alternative:
+  * bytes_to_bits (sparse/target.h)
+  *     - cons: we need the ceil value (1 bit ~ 1 byte), 0 in "strange" cases
+  */
+	return (bits > 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
 }
 
 static void
@@ -1402,11 +1404,20 @@ op_dig_step(struct cl_operand *op, unsigned insn_offset)
         case CL_##clt: acc = new_cl_accessor(); acc->code = CL_##cl_ac;
     switch (op->type->code) {
         MAP_ACCESSOR(ac, TYPE_STRUCT, ACCESSOR_ITEM) {
-            for (i = 0; i < op->type->item_cnt; i++)
-                if (op->type->items[i].offset == insn_offset)
+            for (i = 0; i < op->type->item_cnt-1; i++)
+                if (op->type->items[i].offset == insn_offset
+                    || op->type->items[i+1].offset > insn_offset)
                     break;
+
+            assert(op->type->items[i].offset <= insn_offset);
+
+            // if item has not been found on exact offset match
+            // (then `insn_offset' is expected to be greater than the offset
+            // of the last proceeded item in the structure), the next digging
+            // (really ought to be possible) will continue through this item
+
             ac->data.item.id = i;
-            retval = 0;
+            retval = insn_offset - op->type->items[i].offset;
             break;
         }
         MAP_ACCESSOR(ac, TYPE_ARRAY, ACCESSOR_DEREF_ARRAY) {
@@ -1446,10 +1457,11 @@ op_dig_step(struct cl_operand *op, unsigned insn_offset)
 static inline bool
 op_accessible(const struct cl_operand *op)
 {/* Problems/exceptions/notes:
-  * Operand of CL_TYPE_UNION type classified as inaccessible (by purpose).
+  * None.
   */
     switch (op->type->code) {
         case CL_TYPE_STRUCT:
+        case CL_TYPE_UNION:
         case CL_TYPE_ARRAY:
         case CL_TYPE_PTR:
             return true;
@@ -1638,9 +1650,12 @@ insn_assignment_mod_rhs(struct cl_operand *op_rhs, pseudo_t rhs,
                 offset = 0;
                 if (!type_match(op_rhs->type, expected_type)) {
                     expected_type = expected_type->items->type;
-                    // XXX: this is not necessary but tests/struct/rs1-03
-                    //      yields better result
-                    op_dig_step(op_rhs, offset);
+                    // XXX: second condition yields better results
+                    //      with tests/struct/rs1-03 but makes
+                    //      tests/predator/test-0044.c fail
+                    if (!type_match(op_rhs->type, expected_type)
+                        /*|| op_accessible(op_rhs)*/)
+                        op_dig_step(op_rhs, offset);
                 } else
                     use_rhs_dereference = false;
             }
@@ -1705,7 +1720,7 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
     // dig lhs (when applicable)
     if (ops_handling & TYPE_LHS_DIG) {
         struct cl_type *type = type_from_symbol(insn->type, NULL);
-        if (pseudo_immediate(lhs)) {
+        if (!op_accessible(&op_lhs)) {
             struct cl_accessor *ac = op_append_accessor(&op_lhs, NULL);
             ac->code = CL_ACCESSOR_DEREF;
             // note: no such clt easily accessible (contrary to previous case)
