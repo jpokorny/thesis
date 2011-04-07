@@ -1,5 +1,5 @@
 From 9ccfb833a11663af0351fb8388b258aa0e96bb7b Mon Sep 17 00:00:00 2001
-From: Jan Pokorny <xpokor04@stud.fit.vutbr.cz>
+From: Jan Pokorny <pokorny_jan@seznam.cz>
 Date: Thu, 7 Apr 2011 03:26:59 +0200
 Subject: [PATCH] fix load instruction simplification
 
@@ -45,7 +45,7 @@ With this patch:
     # phi.32    %r4 <- VOID
     ret.32      x
 
-The other thing is that no warning about a use of unitinialized value is
+The other thing is that no warning about a use of uninitialized value is
 emitted (neither by library nor by sparse binary).
 ---
  memops.c |    2 +-
