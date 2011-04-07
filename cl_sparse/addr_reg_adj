@@ -55,11 +55,17 @@ def addr_reg_adj(adj_lines, src_lines, dest_file="-", use_reg=False):
         if len(adj_matches) != len(src_matches):
             print("Warning: matches number does not fit between files"
                   " (same line %d)" % i)
+        #else:
+        #    if adj_matches == src_matches:
+        #        continue
+
+        adj_matches = map(lambda target:
+                              re.compile("(?<!\$)" + target + "(?=\W)"),
+                          adj_matches)
 
         for j in xrange(i, adj_lines_len):
             for target, subst in zip(adj_matches, src_matches):
-                guarded_target = "(?<!\$)" + target + "(?=\W)"
-                adj_lines[j] = re.sub(guarded_target, subst, adj_lines[j])
+                adj_lines[j] = re.sub(target, subst, adj_lines[j])
 
     fdst.writelines(adj_lines)
     if (dest_file != "-"):
