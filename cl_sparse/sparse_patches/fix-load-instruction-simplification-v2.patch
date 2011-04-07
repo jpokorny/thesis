@@ -1,0 +1,69 @@
+From 9ccfb833a11663af0351fb8388b258aa0e96bb7b Mon Sep 17 00:00:00 2001
+From: Jan Pokorny <xpokor04@stud.fit.vutbr.cz>
+Date: Thu, 7 Apr 2011 03:26:59 +0200
+Subject: [PATCH] fix load instruction simplification
+
+This issue has shown up with 5ecad11 commit as always-true conditional
+used to mask this problem.
+
+Originally, I suspected that similar change should be made also
+to flow.c (in `find_dominating_stores'), but my experiments made me
+believe that this case is right -- it starts to do less optimizations
+after such edit (encountered with bitfields handling in `stream_pos'
+in tokenize.c).
+
+This is an example case that hasn't been previously proceeded
+correctly:
+
+    int main(int argc, char **argv)
+    {
+        int x;
+        int *px = &x;
+
+        return *px;
+    }
+
+This originally resulted in:
+
+    <entry-point>
+    # symaddr.32 %r1 <- x
+    # snop.32   VOID -> 0[px]
+    # lnop.32   %r2 <- 0[px]
+    # lnop.32   %r3 <- 0[x]
+    # phisrc.32 %phi1(return) <- VOID
+    # phi.32    %r4 <- VOID
+    ret.32      $0
+
+With this patch:
+
+    <entry-point>
+    # symaddr.32 %r1 <- x
+    # snop.32   VOID -> 0[px]
+    # lnop.32   %r2 <- 0[px]
+    # lnop.32   %r3 <- 0[x]
+    # phisrc.32 %phi1(return) <- VOID
+    # phi.32    %r4 <- VOID
+    ret.32      x
+
+The other thing is that no warning about a use of unitinialized value is
+emitted (neither by library nor by sparse binary).
+---
+ memops.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/memops.c b/memops.c
+index 45bd340..328edec 100644
+--- a/memops.c
++++ b/memops.c
+@@ -126,7 +126,7 @@ static void simplify_loads(struct basic_block *bb)
+ 				if (!dominators) {
+ 					if (local) {
+ 						assert(pseudo->type != PSEUDO_ARG);
+-						convert_load_instruction(insn, value_pseudo(0));
++						convert_load_instruction(insn, insn->src);
+ 					}
+ 					goto next_load;
+ 				}
+-- 
+1.7.1
+
