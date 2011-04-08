@@ -15,8 +15,9 @@ Definitions:
 - register number
     decimal number (of arbitrary length) prefixed with "%r"
 
-Currently, the algorithm does not tolerate any line displacement (line X
-in the first file expected to correspond to line X in the other).
+Currently, the algorithm tolerates a line displacement of OFFSET_LIMIT
+(line X in the first file expected to correspond to line Y..Y+OFFSET_LIMIT
+in the other, where initially X=Y), but probably not robust enough, though.
 """
 
 __author__ = "Jan Pokorny <pokorny_jan@seznam.cz>"
@@ -25,12 +26,27 @@ from sys import argv, stdout, exit
 from os.path import exists
 import re
 
-re_address_str = r"(?<!\$)0x[0-9a-fA-F]+(?=\W)"
-re_reg_num_str = r"%r[1-9][0-9]*(?=\W)"
+# tolerated corresponding lines displacement between the two files
+OFFSET_LIMIT = 3
 
-def addr_reg_adj(adj_text, src_text, dest_file="-", use_reg=False):
-    re_address = re.compile(re_address_str)
-    re_reg_num = re.compile(re_reg_num_str)
+# Note: group names required to distinguish them in proceeding.
+RE_ADDR_STR   = r"(?P<addr>(?<!\$)0x[0-9a-fA-F]+(?=\W))"
+RE_REGNUM_STR = r"(?P<regnum>%r[1-9][0-9]*(?=\W))"
+
+def mobj_to_strgrp(matchobj):
+    return (matchobj.lastgroup, matchobj.group(0))
+
+# Note: using inputs as lists of items generated with function above.
+def same_strgrp_lists(strgrp_list1, strgrp_list2):
+    if len(strgrp_list1) != len(strgrp_list2):
+        return False
+    for g1, g2 in zip(strgrp_list1, strgrp_list2):
+        if g1[0] != g2[0]:
+            return False
+    return True
+
+def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
+    re_ptrn = re.compile(pattern)
 
     if dest_file == "-":
         fdst = stdout
@@ -38,59 +54,81 @@ def addr_reg_adj(adj_text, src_text, dest_file="-", use_reg=False):
         fdst = open(dest_file, "w")
 
     matches_dict = {}
-    for i, (adj_line, src_line) in enumerate(zip(adj_text.split("\n"),
-                                                 src_text.split("\n"))):
-        adj_matches = re_address.findall(adj_line)
-        src_matches = re_address.findall(src_line)
-        if len(adj_matches) != len(src_matches):
-            print("Warning: matches number does not fit between files"
-                  " (same line %d)" % i)
-        matches = zip(adj_matches, src_matches)
+    adj_lines = adj_text.split("\n"); adj_lnum = len(adj_lines)
+    src_lines = src_text.split("\n"); src_lnum = len(src_lines)
+    if adj_lnum != src_lnum:
+        print("Warning:\tnumber of lines differ between files (%d, %d)"
+              % (adj_lnum, src_lnum))
+    adj_cnt = src_cnt = 0
+    while adj_cnt < adj_lnum and src_cnt < src_lnum:
+        adj_matches = map(mobj_to_strgrp, re_ptrn.finditer(adj_lines[adj_cnt]))
+        src_matches = map(mobj_to_strgrp, re_ptrn.finditer(src_lines[src_cnt]))
+        offset_pos = 0
+        while not same_strgrp_lists(adj_matches, src_matches):
+            if offset_pos == OFFSET_LIMIT:
+                print("Warning:\tmatches number does not fit between files "
+                      "(lines %d/%d..%d)"
+                      % (adj_cnt, src_cnt - offset_pos, src_cnt))
+                src_cnt -= offset_pos
+                break
+            else:
+                print("Note:\tlines do not correspond with each other, "
+                      "trying lines around (lines %d/%d)"
+                      % (adj_cnt, src_cnt))
+            while not same_strgrp_lists(adj_matches, src_matches) \
+                  and offset_pos < OFFSET_LIMIT:
+                src_cnt += 1
+                if src_cnt == src_lnum:
+                    offset_pos = OFFSET_LIMIT
+                    break
+                offset_pos += 1
+                src_matches = map(mobj_to_strgrp,
+                                  re_ptrn.finditer(src_lines[src_cnt]))
 
-        if use_reg:
-            adj_matches = re_reg_num.findall(adj_line)
-            src_matches = re_reg_num.findall(src_line)
-            if len(adj_matches) != len(src_matches):
-                print("Warning: matches number does not fit between files"
-                      " (same line %d)" % i)
-            matches += zip(adj_matches, src_matches)
+        if offset_pos < OFFSET_LIMIT:
+            # success with searching corresponding line in src file,
+            # remember the substitutions in summary dict
+            for adj_match, src_match in zip(adj_matches, src_matches):
+                if adj_match[1] == src_match[1]:
+                    continue
+                adj_ptrn_re = re.compile("(?<!\$)" + adj_match[1] + "(?=\W)")
+                old_src_ptrn = matches_dict.get(adj_ptrn_re, None)
+                matches_dict[adj_ptrn_re] = src_match[1]
+                if old_src_ptrn is not None and old_src_ptrn != src_match[1]:
+                    print("Warning:\tredefining already defined substitution "
+                          "(`%s\' -> `%s\', was `%s\')" % (adj_ptrn_re.pattern,
+                                                           src_match[1],
+                                                           old_src_ptrn))
+        adj_cnt += 1
+        src_cnt += 1
+    #while
 
-        # reflect the changes in summary dict
-        for adj_ptrn, src_ptrn in matches:
-            adj_ptrn_re = re.compile("(?<!\$)" + adj_ptrn + "(?=\W)")
-            old_src_ptrn = matches_dict.get(adj_ptrn_re, None)
-            matches_dict[adj_ptrn_re] = src_ptrn
-            if old_src_ptrn is not None and old_src_ptrn != src_ptrn:
-                print("Warning: redefining already defined substitution"
-                      " (`%s\' -> `%s\', was `%s\')" % (adj_ptrn_re.pattern,
-                                                        src_ptrn,
-                                                        old_src_ptrn))
-
+    # do planned substitutions
     for adj_ptrn_re, src_ptrn in matches_dict.iteritems():
         adj_text = re.sub(adj_ptrn_re, src_ptrn, adj_text)
 
     fdst.write(adj_text)
     if (dest_file != "-"):
         fdst.close()
+    return 0
 
 if __name__ == "__main__":
     if len(argv) >= 3:
-        use_reg = False
+        pattern = RE_ADDR_STR
         if len(argv) >= 4 and argv[1] == "-r":
-            use_reg = True
+            pattern += "|" + RE_REGNUM_STR
             argv = argv[1:]
         if exists(argv[1]) and exists(argv[2]):
             dest_file = "-"
-            # XXX: tests, e.g. whether it is the same file
             f = open(argv[1], "r"); adj_text = f.read(); f.close()
             f = open(argv[2], "r"); src_text = f.read(); f.close()
             if len(argv) >= 4:
                 dest_file = argv[3]
-            ret = addr_reg_adj(adj_text, src_text, dest_file, use_reg)
+            ret = addr_reg_adj(adj_text, src_text, pattern, dest_file)
             exit(ret)
         else:
+            print("Error:\tcannot read input file(s)")
             exit(1)
     else:
-        print("Usage: %(script)s [-r] adj_file src_file [dest_file]"
-              % {"script": argv[0]})
+        print("Usage: %s [-r] adj_file src_file [dest_file]" % argv[0])
         exit(2)
