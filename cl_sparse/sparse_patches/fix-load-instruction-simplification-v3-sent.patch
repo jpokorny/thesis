@@ -105,14 +105,14 @@ index 45bd340..328edec 100644
 --- a/memops.c
 +++ b/memops.c
 @@ -126,7 +126,7 @@ static void simplify_loads(struct basic_block *bb)
-                if (!dominators) {
-                    if (local) {
-                        assert(pseudo->type != PSEUDO_ARG);
--                       convert_load_instruction(insn, value_pseudo(0));
-+                       convert_load_instruction(insn, insn->src);
-                    }
-                    goto next_load;
-                }
+ 				if (!dominators) {
+ 					if (local) {
+ 						assert(pseudo->type != PSEUDO_ARG);
+-						convert_load_instruction(insn, value_pseudo(0));
++						convert_load_instruction(insn, insn->src);
+ 					}
+ 					goto next_load;
+ 				}
 -- 
 1.7.1
 
