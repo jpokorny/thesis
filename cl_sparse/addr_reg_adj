@@ -17,10 +17,6 @@ Definitions:
 
 Currently, the algorithm does not tolerate any line displacement (line X
 in the first file expected to correspond to line X in the other).
-
-Note: terribly slow, but is there a chance to go significantly better?
-      maybe not using lines explicitly (all as one string instead)
-      would help...
 """
 
 __author__ = "Jan Pokorny <pokorny_jan@seznam.cz>"
@@ -32,7 +28,7 @@ import re
 re_address_str = r"(?<!\$)0x[0-9a-fA-F]+(?=\W)"
 re_reg_num_str = r"%r[1-9][0-9]*(?=\W)"
 
-def addr_reg_adj(adj_lines, src_lines, dest_file="-", use_reg=False):
+def addr_reg_adj(adj_text, src_text, dest_file="-", use_reg=False):
     re_address = re.compile(re_address_str)
     re_reg_num = re.compile(re_reg_num_str)
 
@@ -41,30 +37,39 @@ def addr_reg_adj(adj_lines, src_lines, dest_file="-", use_reg=False):
     else:
         fdst = open(dest_file, "w")
 
-    adj_lines_len = len(adj_lines)
-    for i, (adj_line, src_line) in enumerate(zip(adj_lines, src_lines)):
+    matches_dict = {}
+    for i, (adj_line, src_line) in enumerate(zip(adj_text.split("\n"),
+                                                 src_text.split("\n"))):
         adj_matches = re_address.findall(adj_line)
         src_matches = re_address.findall(src_line)
-        if use_reg:
-            adj_matches += re_reg_num.findall(adj_line)
-            src_matches += re_reg_num.findall(src_line)
-
-        if len(adj_matches) == 0:
-            continue
-
         if len(adj_matches) != len(src_matches):
             print("Warning: matches number does not fit between files"
                   " (same line %d)" % i)
+        matches = zip(adj_matches, src_matches)
 
-        adj_matches = map(lambda target:
-                              re.compile("(?<!\$)" + target + "(?=\W)"),
-                          adj_matches)
+        if use_reg:
+            adj_matches = re_reg_num.findall(adj_line)
+            src_matches = re_reg_num.findall(src_line)
+            if len(adj_matches) != len(src_matches):
+                print("Warning: matches number does not fit between files"
+                      " (same line %d)" % i)
+            matches += zip(adj_matches, src_matches)
 
-        for j in xrange(i, adj_lines_len):
-            for target, subst in zip(adj_matches, src_matches):
-                adj_lines[j] = re.sub(target, subst, adj_lines[j])
+        # reflect the changes in summary dict
+        for adj_ptrn, src_ptrn in matches:
+            adj_ptrn_re = re.compile("(?<!\$)" + adj_ptrn + "(?=\W)")
+            old_src_ptrn = matches_dict.get(adj_ptrn_re, None)
+            matches_dict[adj_ptrn_re] = src_ptrn
+            if old_src_ptrn is not None and old_src_ptrn != src_ptrn:
+                print("Warning: redefining already defined substitution"
+                      " (`%s\' -> `%s\', was `%s\')" % (adj_ptrn_re.pattern,
+                                                        src_ptrn,
+                                                        old_src_ptrn))
 
-    fdst.writelines(adj_lines)
+    for adj_ptrn_re, src_ptrn in matches_dict.iteritems():
+        adj_text = re.sub(adj_ptrn_re, src_ptrn, adj_text)
+
+    fdst.write(adj_text)
     if (dest_file != "-"):
         fdst.close()
 
@@ -77,11 +82,11 @@ if __name__ == "__main__":
         if exists(argv[1]) and exists(argv[2]):
             dest_file = "-"
             # XXX: tests, e.g. whether it is the same file
-            f = open(argv[1], "r"); adj_lines = f.readlines(); f.close()
-            f = open(argv[2], "r"); src_lines = f.readlines(); f.close()
+            f = open(argv[1], "r"); adj_text = f.read(); f.close()
+            f = open(argv[2], "r"); src_text = f.read(); f.close()
             if len(argv) >= 4:
                 dest_file = argv[3]
-            ret = addr_reg_adj(adj_lines, src_lines, dest_file, use_reg)
+            ret = addr_reg_adj(adj_text, src_text, dest_file, use_reg)
             exit(ret)
         else:
             exit(1)
