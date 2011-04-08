@@ -1,0 +1,30 @@
+From: Jan Pokorny <pokorny_jan@seznam.cz>
+Date: Thu, 7 Apr 2011 21:22:20 +0200
+Subject: [PATCH] remove unused "container" macro
+
+This macro seems to be unused since commit e7fb6e0 (4 years ago).
+But my estimation that it does not currently have any practical usage for
+navigating through the sparse structures may be wrong.
+
+Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
+---
+ ptrlist.h |    3 ---
+ 1 files changed, 0 insertions(+), 3 deletions(-)
+
+diff --git a/ptrlist.h b/ptrlist.h
+index fbfc080..58d3bda 100644
+--- a/ptrlist.h
++++ b/ptrlist.h
+@@ -9,9 +9,6 @@
+  * (C) Copyright Linus Torvalds 2003-2005
+  */
+ 
+-#define container(ptr, type, member) \
+-	(type *)((void *)(ptr) - offsetof(type, member))
+-
+ /* Silly type-safety check ;) */
+ #define DECLARE_PTR_LIST(listname,type)	struct listname { type *list[1]; }
+ #define CHECK_TYPE(head,ptr)		(void)(&(ptr) == &(head)->list[0])
+-- 
+1.7.1
+

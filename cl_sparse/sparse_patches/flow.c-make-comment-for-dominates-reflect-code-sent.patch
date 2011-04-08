@@ -1,0 +1,28 @@
+From: Jan Pokorny <pokorny_jan@seznam.cz>
+Date: Thu, 7 Apr 2011 22:21:11 +0200
+Subject: [PATCH] flow.c: make comment for `dominates' reflect code
+
+
+Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
+---
+ flow.c |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/flow.c b/flow.c
+index 5bd9a1d..7db9548 100644
+--- a/flow.c
++++ b/flow.c
+@@ -284,8 +284,8 @@ static inline int same_memop(struct instruction *a, struct instruction *b)
+ }
+ 
+ /*
+- * Return 1 if "one" dominates the access to 'pseudo'
+- * in insn.
++ * Return 1 if "dom" dominates the access to "pseudo"
++ * in "insn".
+  *
+  * Return 0 if it doesn't, and -1 if you don't know.
+  */
+-- 
+1.7.1
+
