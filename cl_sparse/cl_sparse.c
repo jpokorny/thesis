@@ -1008,7 +1008,7 @@ type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
 static inline bool
 pseudo_futile(pseudo_t pseudo)
 {
-    return pseudo && pseudo != VOID;
+    return !pseudo || pseudo == VOID;
 }
 
 static inline bool
@@ -1317,7 +1317,7 @@ op_from_pseudo(struct cl_operand *op, const struct instruction *insn,
   * 1. PSEUDO_VAL and PSEUDO_REG operands are not holding type information
   * S. Try to use insn->type, pseudo->def->type for PSEUDO_REG, ...
   */
-    if (!pseudo_futile(pseudo))
+    if (pseudo_futile(pseudo))
         return op_make_void(op);
 
     switch (pseudo->type) {
@@ -2024,7 +2024,7 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
 
     /* unconditional jump handling */
 
-    if (!pseudo_futile(insn->cond)) {
+    if (pseudo_futile(insn->cond)) {
         emit_insn_jmp(cli, bb_name_true);
         free(bb_name_true);
         return true;
