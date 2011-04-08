@@ -2260,16 +2260,15 @@ handle_insn(struct instruction *insn)
         INSN_BIN( MODU            , TRUNC_MOD /*unsig.*/, handle_insn_binop  ),
         INSN_BIN( MODS            , TRUNC_MOD           , handle_insn_binop  ),
         INSN_BIN( SHL             , LSHIFT              , handle_insn_binop  ),
-        INSN_BIN( LSR             , RSHIFT              , handle_insn_binop  ),
             // OP_ASR (arithmetic shift) is the same as OP_LSR (logical shift)
             // except for that the highest bit is kept the same, not zeroed;
             // - C standard says that right shift perfomed on unsigned type is
             //   of the LSR type, implementation specific (LSR/ASR) otherwise
             //   [C text book by P. Herout, TODO: check real standard]
-            // - sparse generates OP_LSR for all the cases (OP_ASR should not
-            //   occur at all) which cannot be considered harmfull, though
-            //   (when necessary, operand signedness can be checked)
-        INSN_IGN( ASR             , /*   see above   */ , handle_insn_binop  ),
+            // - for sparse, right shift performed on signed operand is
+            //   translated into OP_ASR (OP_LSR otherwise as expected XXX:vrfy)
+        INSN_BIN( LSR             , RSHIFT              , handle_insn_binop  ),
+        INSN_BIN( ASR             , RSHIFT              , handle_insn_binop  ),
 
         /* Logical */
         INSN_BIN( AND             , BIT_AND             , handle_insn_binop  ),
