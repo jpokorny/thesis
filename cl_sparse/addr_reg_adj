@@ -66,7 +66,7 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
         offset_pos = 0
         while not same_strgrp_lists(adj_matches, src_matches):
             if offset_pos == OFFSET_LIMIT:
-                print("Warning:\tmatches number does not fit between files "
+                print("Warning:\tmatches (number/type) differ between files "
                       "(lines %d/%d..%d)"
                       % (adj_cnt, src_cnt - offset_pos, src_cnt))
                 src_cnt -= offset_pos
