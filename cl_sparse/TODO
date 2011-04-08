@@ -14,6 +14,10 @@ bring the signals back (as it sometimes ends without printing sparse messages)
 
 not to forget
 -------------
+
+generating of OP_ASR
+PSEUDO_REG can have pseudo->ident
+
 type recursion
 -- with (typedef'd) functions?
 -- during adjust_cl_operand_accessors?
