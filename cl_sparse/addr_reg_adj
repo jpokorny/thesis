@@ -8,13 +8,6 @@ It's intended to be used prior to comparing such two files (in case we expect
 these files are isomorphic except for addresses and, optionally, register
 numbers).
 
-Definitions:
-- address
-    hexadecimal number (of arbitrary length) prefixed with "0x"
-    but not with "$0x" (which denotes immediate value)
-- register number
-    decimal number (of arbitrary length) prefixed with "%r"
-
 Currently, the algorithm tolerates a line displacement of OFFSET_LIMIT
 (line X in the first file expected to correspond to line Y..Y+OFFSET_LIMIT
 in the other, where initially X=Y), but probably not robust enough, though.
@@ -29,8 +22,15 @@ import re
 # tolerated corresponding lines displacement between the two files
 OFFSET_LIMIT = 3
 
+#
+# RE definitions
 # Note: group names required to distinguish them in proceeding.
+#
+
+# address: hexadecimal number (of arbitrary length) prefixed with "0x"
+#          but not with "$0x" (which denotes immediate value)
 RE_ADDR_STR   = r"(?P<addr>(?<!\$)0x[0-9a-fA-F]+(?=\W))"
+# register number: decimal number (of arbitrary length) prefixed with "%r"
 RE_REGNUM_STR = r"(?P<regnum>%r[1-9][0-9]*(?=\W))"
 
 def mobj_to_strgrp(matchobj):
