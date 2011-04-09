@@ -13,9 +13,12 @@ Currently, the algorithm tolerates a line displacement of OFFSET_LIMIT
 in the other, where initially X=Y), but probably not robust enough, though.
 """
 
+# for `file=stderr' argument with older Python versions (2.6 probably minimum)
+from __future__ import print_function
+
 __author__ = "Jan Pokorny <pokorny_jan@seznam.cz>"
 
-from sys import argv, stdout, exit
+from sys import argv, stdout, stderr, exit
 from os.path import exists
 import re
 
@@ -58,7 +61,7 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
     src_lines = src_text.split("\n"); src_lnum = len(src_lines)
     if adj_lnum != src_lnum:
         print("Warning:\tnumber of lines differ between files (%d, %d)"
-              % (adj_lnum, src_lnum))
+              % (adj_lnum, src_lnum), file=stderr)
     adj_cnt = src_cnt = 0
     while adj_cnt < adj_lnum and src_cnt < src_lnum:
         adj_matches = map(mobj_to_strgrp, re_ptrn.finditer(adj_lines[adj_cnt]))
@@ -68,13 +71,13 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
             if offset_pos == OFFSET_LIMIT:
                 print("Warning:\tmatches (number/type) differ between files "
                       "(lines %d/%d..%d)"
-                      % (adj_cnt, src_cnt - offset_pos, src_cnt))
+                      % (adj_cnt, src_cnt - offset_pos, src_cnt), file=stderr)
                 src_cnt -= offset_pos
                 break
             else:
                 print("Note:\tlines do not correspond with each other, "
-                      "trying lines around (lines %d/%d)"
-                      % (adj_cnt, src_cnt))
+                      "trying lines around (lines %d/%d)" % (adj_cnt, src_cnt),
+                      file=stderr)
             while not same_strgrp_lists(adj_matches, src_matches) \
                   and offset_pos < OFFSET_LIMIT:
                 src_cnt += 1
@@ -98,7 +101,8 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
                     print("Warning:\tredefining already defined substitution "
                           "(`%s\' -> `%s\', was `%s\')" % (adj_ptrn_re.pattern,
                                                            src_match[1],
-                                                           old_src_ptrn))
+                                                           old_src_ptrn),
+                          file=stderr)
         adj_cnt += 1
         src_cnt += 1
     #while
@@ -127,7 +131,7 @@ if __name__ == "__main__":
             ret = addr_reg_adj(adj_text, src_text, pattern, dest_file)
             exit(ret)
         else:
-            print("Error:\tcannot read input file(s)")
+            print("Error:\tcannot read input file(s)", file=stderr)
             exit(1)
     else:
         print("Usage: %s [-r] adj_file src_file [dest_file]" % argv[0])
