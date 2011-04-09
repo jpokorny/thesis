@@ -1,0 +1,41 @@
+From: Jan Pokorny <pokorny_jan@seznam.cz>
+Date: Sat, 9 Apr 2011 12:56:54 +0200
+Subject: [PATCH] better dealing with OP_PHISOURCE insn
+
+Remove checking for a case that (most probably) never happens as the
+only expected instruction is OP_PHISOURCE.
+
+For the sake of assurance, assert added with a comment easing the fix if
+the assumption of OP_PHISOURCE is wrong (better then masking a problem).
+
+Also, use `def' as existing shortcut for `phi->def'.
+
+Tested the same way as the previous patch (together).
+
+Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
+---
+ liveness.c |    8 +++-----
+ 1 files changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/liveness.c b/liveness.c
+index eeff0f7..02ceed9 100644
+--- a/liveness.c
++++ b/liveness.c
+@@ -23,11 +23,9 @@ static void phi_defines(struct instruction * phi_node, pseudo_t target,
+ 		def = phi->def;
+ 		if (!def || !def->bb)
+ 			continue;
+-		if (def->opcode == OP_PHI) {
+-			phi_defines(def, target, defines);
+-			continue;
+-		}
+-		defines(def->bb, phi->def, target);
++		/* if this ever fails (very unlikely), it's a sign of a regression */
++		assert(def->opcode == OP_PHISOURCE);
++		defines(def->bb, def, target);
+ 	} END_FOR_EACH_PTR(phi);
+ }
+ 
+-- 
+1.7.1
+
