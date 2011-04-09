@@ -21,8 +21,15 @@ from __future__ import print_function
 __author__ = "Jan Pokorny <pokorny_jan@seznam.cz>"
 
 from sys import argv, stdout, stderr, exit
-from os.path import exists
+from os.path import exists, split
+from os import stat, makedirs
 import re
+
+
+VERBOSITY_FILE_TO_PROCESS    = True
+VERBOSITY_NOTES              = False
+VERBOSITY_MATCHES_DIFFER_MAX = 10
+VERBOSITY_SUBST_REDEF_MAX    = 10
 
 # tolerated corresponding lines displacement between the two files
 OFFSET_LIMIT = 3
@@ -37,6 +44,16 @@ OFFSET_LIMIT = 3
 RE_ADDR_STR   = r"(?P<addr>(?<!\$)0x[0-9a-fA-F]+(?=\W))"
 # register number: decimal number (of arbitrary length) prefixed with "%r"
 RE_REGNUM_STR = r"(?P<regnum>%r[1-9][0-9]*(?=\W))"
+
+def open_smarter(name, mode):
+    # http://stackoverflow.com/questions/273192/
+    d, base = split(name)
+    if d is not "":
+        try:
+            stat(d)
+        except:
+            makedirs(d)
+    return open(name, mode), base
 
 def mobj_to_strgrp(matchobj):
     return (matchobj.lastgroup, matchobj.group(0))
@@ -54,16 +71,19 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
     re_ptrn = re.compile(pattern)
 
     if dest_file == "-":
-        fdst = stdout
+        fdst, base = stdout, dest_file
     else:
-        fdst = open(dest_file, "w")
+        fdst, base = open_smarter(dest_file, "w")
+        if VERBOSITY_FILE_TO_PROCESS:
+            print(dest_file)
 
     matches_dict = {}
     adj_lines = adj_text.split("\n"); adj_lnum = len(adj_lines)
     src_lines = src_text.split("\n"); src_lnum = len(src_lines)
     if adj_lnum != src_lnum:
-        print("Warning:\tnumber of lines differ between files (%d, %d)"
+        print("warning:\tnumber of lines differ between files (%d, %d)"
               % (adj_lnum, src_lnum), file=stderr)
+    matches_differ_cnt = subst_redef_cnt = 0
     adj_cnt = src_cnt = 0
     while adj_cnt < adj_lnum and src_cnt < src_lnum:
         adj_matches = map(mobj_to_strgrp, re_ptrn.finditer(adj_lines[adj_cnt]))
@@ -71,15 +91,23 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
         offset_pos = 0
         while not same_strgrp_lists(adj_matches, src_matches):
             if offset_pos == OFFSET_LIMIT:
-                print("Warning:\tmatches (number/type) differ between files "
-                      "(lines %d/%d..%d)"
-                      % (adj_cnt, src_cnt - offset_pos, src_cnt), file=stderr)
+                if matches_differ_cnt < VERBOSITY_MATCHES_DIFFER_MAX:
+                    print("warning: %s: matches (number/type) differ between"
+                          " files (lines %d/%d..%d)"
+                          % (base, adj_cnt, src_cnt - offset_pos, src_cnt),
+                          file=stderr)
+                    matches_differ_cnt+=1
+                elif matches_differ_cnt == VERBOSITY_MATCHES_DIFFER_MAX:
+                    print("warning: %s: too much matches differences,"
+                          " giving up" % base, file=stderr)
+                    matches_differ_cnt+=1
+                # restore
                 src_cnt -= offset_pos
                 break
-            else:
-                print("Note:\tlines do not correspond with each other, "
-                      "trying lines around (lines %d/%d)" % (adj_cnt, src_cnt),
-                      file=stderr)
+            elif VERBOSITY_NOTES:
+                print("note: %s: lines do not correspond with each other,"
+                      " trying lines around (lines %d/%d)"
+                      % (base, adj_cnt, src_cnt), file=stderr)
             while not same_strgrp_lists(adj_matches, src_matches) \
                   and offset_pos < OFFSET_LIMIT:
                 src_cnt += 1
@@ -99,12 +127,17 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
                 adj_ptrn_re = re.compile("(?<!\$)" + adj_match[1] + "(?=\W)")
                 old_src_ptrn = matches_dict.get(adj_ptrn_re, None)
                 matches_dict[adj_ptrn_re] = src_match[1]
-                if old_src_ptrn is not None and old_src_ptrn != src_match[1]:
-                    print("Warning:\tredefining already defined substitution "
-                          "(`%s\' -> `%s\', was `%s\')" % (adj_ptrn_re.pattern,
-                                                           src_match[1],
-                                                           old_src_ptrn),
-                          file=stderr)
+                if subst_redef_cnt < VERBOSITY_SUBST_REDEF_MAX \
+                   and old_src_ptrn is not None and old_src_ptrn != src_match[1]:
+                    print("warning: %s: redefining already defined substitution"
+                          " (`%s\' -> `%s\', was `%s\')"
+                          % (base, adj_ptrn_re.pattern, src_match[1],
+                             old_src_ptrn), file=stderr)
+                    subst_redef_cnt+=1
+                elif subst_redef_cnt == VERBOSITY_SUBST_REDEF_MAX:
+                    print("warning: %s: too much substitution redefinitions,"
+                          " giving up" % base, file=stderr)
+                    subst_redef_cnt+=1
         adj_cnt += 1
         src_cnt += 1
     #while
@@ -133,7 +166,7 @@ if __name__ == "__main__":
             ret = addr_reg_adj(adj_text, src_text, pattern, dest_file)
             exit(ret)
         else:
-            print("Error:\tcannot read input file(s)", file=stderr)
+            print("error: cannot read input file(s)", file=stderr)
             exit(1)
     else:
         print("Usage: %s [-r] adj_file src_file [dest_file]" % argv[0])
