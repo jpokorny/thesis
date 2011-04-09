@@ -11,6 +11,8 @@ numbers).
 Currently, the algorithm tolerates a line displacement of OFFSET_LIMIT
 (line X in the first file expected to correspond to line Y..Y+OFFSET_LIMIT
 in the other, where initially X=Y), but probably not robust enough, though.
+
+Note: still quite slow for input files 500 KiB+.
 """
 
 # for `file=stderr' argument with older Python versions (2.6 probably minimum)
