@@ -2,7 +2,8 @@ From: Jan Pokorny <pokorny_jan@seznam.cz>
 Date: Sun, 10 Apr 2011 17:24:43 +0200
 Subject: re: [PATCH] memops.c: fix load instruction simplification
 
-The same as previous, I should have noticed that I can use pseudo directly.
+Semantically same as previous, I should have noticed that I can use pseudo
+directly.  Also, may the assert denote the original intention?
 
 Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
 ---
