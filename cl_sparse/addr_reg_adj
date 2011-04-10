@@ -98,7 +98,7 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
                           file=stderr)
                     matches_differ_cnt+=1
                 elif matches_differ_cnt == VERBOSITY_MATCHES_DIFFER_MAX:
-                    print("warning: %s: too much matches differences,"
+                    print("warning: %s: too many matches differences,"
                           " giving up reporting them all" % base, file=stderr)
                     matches_differ_cnt+=1
                 # restore
@@ -135,7 +135,7 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
                              old_src_ptrn), file=stderr)
                     subst_redef_cnt+=1
                 elif subst_redef_cnt == VERBOSITY_SUBST_REDEF_MAX:
-                    print("warning: %s: too much substitution redefinitions,"
+                    print("warning: %s: too many substitution redefinitions,"
                           " giving up reporting them all" % base, file=stderr)
                     subst_redef_cnt+=1
         adj_cnt += 1
