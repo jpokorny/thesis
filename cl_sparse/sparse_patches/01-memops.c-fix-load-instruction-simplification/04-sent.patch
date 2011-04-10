@@ -1,0 +1,27 @@
+From: Jan Pokorny <pokorny_jan@seznam.cz>
+Date: Sun, 10 Apr 2011 17:24:43 +0200
+Subject: re: [PATCH] memops.c: fix load instruction simplification
+
+The same as previous, I should have noticed that I can use pseudo directly.
+
+Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
+---
+ memops.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/memops.c b/memops.c
+index 45bd340..3178af9 100644
+--- a/memops.c
++++ b/memops.c
+@@ -126,7 +126,7 @@ static void simplify_loads(struct basic_block *bb)
+ 				if (!dominators) {
+ 					if (local) {
+ 						assert(pseudo->type != PSEUDO_ARG);
+-						convert_load_instruction(insn, value_pseudo(0));
++						convert_load_instruction(insn, pseudo);
+ 					}
+ 					goto next_load;
+ 				}
+-- 
+1.7.1
+

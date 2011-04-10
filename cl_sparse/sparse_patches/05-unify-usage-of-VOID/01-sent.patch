@@ -1,0 +1,36 @@
+From: Jan Pokorny <pokorny_jan@seznam.cz>
+Date: Sun, 10 Apr 2011 18:12:23 +0200
+Subject: [PATCH] unify usage of VOID
+
+Also remove unneeded empty initializator of `void_pseudo'.
+
+Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
+---
+ linearize.c |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/linearize.c b/linearize.c
+index f2034ce..46c9726 100644
+--- a/linearize.c
++++ b/linearize.c
+@@ -33,7 +33,7 @@ struct access_data;
+ static pseudo_t add_load(struct entrypoint *ep, struct access_data *);
+ static pseudo_t linearize_initializer(struct entrypoint *ep, struct expression *initializer, struct access_data *);
+ 
+-struct pseudo void_pseudo = {};
++struct pseudo void_pseudo;
+ 
+ static struct position current_pos;
+ 
+@@ -1880,7 +1880,7 @@ pseudo_t linearize_statement(struct entrypoint *ep, struct statement *stmt)
+ 		struct basic_block *active;
+ 		pseudo_t src = linearize_expression(ep, expr);
+ 		active = ep->active;
+-		if (active && src != &void_pseudo) {
++		if (active && src != VOID) {
+ 			struct instruction *phi_node = first_instruction(bb_return->insns);
+ 			pseudo_t phi;
+ 			if (!phi_node) {
+-- 
+1.7.1
+
