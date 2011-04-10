@@ -81,7 +81,7 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
     adj_lines = adj_text.split("\n"); adj_lnum = len(adj_lines)
     src_lines = src_text.split("\n"); src_lnum = len(src_lines)
     if adj_lnum != src_lnum:
-        print("warning:\tnumber of lines differ between files (%d, %d)"
+        print("warning: number of lines differ between files (%d, %d)"
               % (adj_lnum, src_lnum), file=stderr)
     matches_differ_cnt = subst_redef_cnt = 0
     adj_cnt = src_cnt = 0
