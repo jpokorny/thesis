@@ -12,7 +12,7 @@ Currently, the algorithm tolerates a line displacement of OFFSET_LIMIT
 (line X in the first file expected to correspond to line Y..Y+OFFSET_LIMIT
 in the other, where initially X=Y), but probably not robust enough, though.
 
-Note: still quite slow for input files 500 KiB+.
+Note: might be significantly faster?
 """
 
 # for `file=stderr' argument with older Python versions (2.6 probably minimum)
@@ -29,10 +29,11 @@ import re
 VERBOSITY_FILE_TO_PROCESS    = True
 VERBOSITY_NOTES              = False
 VERBOSITY_MATCHES_DIFFER_MAX = 10
-VERBOSITY_SUBST_REDEF_MAX    = 10
 
 # tolerated corresponding lines displacement between the two files
-OFFSET_LIMIT = 3
+OFFSET_LIMIT                 = 3
+# whether to redefine already prepated substitution
+DO_SUBST_REDEF               = True
 
 #
 # RE definitions
@@ -41,9 +42,9 @@ OFFSET_LIMIT = 3
 
 # address: hexadecimal number (of arbitrary length) prefixed with "0x"
 #          but not with "$0x" (which denotes immediate value)
-RE_ADDR_STR   = r"(?P<addr>(?<!\$)0x[0-9a-fA-F]+(?=\W))"
+RE_ADDR_STR   = r"(?P<addr>(?<!\$)0x[0-9a-fA-F]+(?=\b))"
 # register number: decimal number (of arbitrary length) prefixed with "%r"
-RE_REGNUM_STR = r"(?P<regnum>%r[1-9][0-9]*(?=\W))"
+RE_REGNUM_STR = r"(?P<regnum>%r[1-9][0-9]*(?=\b))"
 
 def open_smarter(name, mode):
     # http://stackoverflow.com/questions/273192/
@@ -120,31 +121,37 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
 
         if offset_pos < OFFSET_LIMIT:
             # success with searching corresponding line in src file,
-            # remember the substitutions in summary dict
+            # remember possible substitutions in summary dict, which
+            # has a form: "adj_pattern: {src_pattern1: occurencies_num, ...}"
             for adj_match, src_match in zip(adj_matches, src_matches):
                 if adj_match[1] == src_match[1]:
                     continue
-                adj_ptrn_re = re.compile("(?<!\$)" + adj_match[1] + "(?=\W)")
-                old_src_ptrn = matches_dict.get(adj_ptrn_re, None)
-                matches_dict[adj_ptrn_re] = src_match[1]
-                if subst_redef_cnt < VERBOSITY_SUBST_REDEF_MAX \
-                   and old_src_ptrn is not None and old_src_ptrn != src_match[1]:
-                    print("warning: %s: redefining already defined substitution"
-                          " (`%s\' -> `%s\', was `%s\')"
-                          % (base, adj_ptrn_re.pattern, src_match[1],
-                             old_src_ptrn), file=stderr)
-                    subst_redef_cnt+=1
-                elif subst_redef_cnt == VERBOSITY_SUBST_REDEF_MAX:
-                    print("warning: %s: too many substitution redefinitions,"
-                          " giving up reporting them all" % base, file=stderr)
-                    subst_redef_cnt+=1
+                src_dict = matches_dict.get(adj_match[1], None)
+                if src_dict is None or DO_SUBST_REDEF:
+                    if src_dict is None:
+                        src_dict = matches_dict[adj_match[1]] = {}
+                        cnt = 0
+                    else:
+                        cnt = src_dict.get(src_match[1], 0)
+                    src_dict[src_match[1]] = (cnt+len(src_dict)/2+1)
+                if src_dict is None or not DO_SUBST_REDEF:
+                    continue
+            src_cnt += 1
+        elif src_cnt > 0:
+            src_cnt -= 1
         adj_cnt += 1
-        src_cnt += 1
     #while
 
-    # do planned substitutions
-    for adj_ptrn_re, src_ptrn in matches_dict.iteritems():
-        adj_text = re.sub(adj_ptrn_re, src_ptrn, adj_text)
+    # do planned substitutions according to summary dict
+    # (take most frequented "src_pattern")
+    for adj_ptrn, src_dict in matches_dict.iteritems():
+        src_ptrn = dict(
+                       zip(src_dict.values(), src_dict.keys())
+                   )[max(src_dict.values())]
+        #print(src_dict.items())
+        #print("%s -> %s" % (adj_ptrn, src_ptrn) ,file=stderr)
+        adj_ptrn_re = re.compile(r"(?<!\$)" + adj_ptrn + r"(?=\b)")
+        adj_text = adj_ptrn_re.sub(src_ptrn, adj_text)
 
     fdst.write(adj_text)
     if (dest_file != "-"):
@@ -163,11 +170,8 @@ if __name__ == "__main__":
             f = open(argv[2], "r"); src_text = f.read(); f.close()
             if len(argv) >= 4:
                 dest_file = argv[3]
-            ret = addr_reg_adj(adj_text, src_text, pattern, dest_file)
-            exit(ret)
+            exit(addr_reg_adj(adj_text, src_text, pattern, dest_file))
         else:
-            print("error: cannot read input file(s)", file=stderr)
-            exit(1)
+            print("error: cannot read input file(s)", file=stderr); exit(1)
     else:
-        print("Usage: %s [-r] adj_file src_file [dest_file]" % argv[0])
-        exit(2)
+        print("Usage: %s [-r] adj_file src_file [dest_file]"%argv[0]); exit(2)
