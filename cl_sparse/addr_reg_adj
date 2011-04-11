@@ -12,7 +12,9 @@ Currently, the algorithm tolerates a line displacement of OFFSET_LIMIT
 (line X in the first file expected to correspond to line Y..Y+OFFSET_LIMIT
 in the other, where initially X=Y), but probably not robust enough, though.
 
-Note: might be significantly faster?
+Note: currently with sparse, random numbers with "bad pseudo types" are quite
+      annoying, but there is an option in my favorite meld to ignore lines
+      with certain patterns (but could be handled also from here)
 """
 
 # for `file=stderr' argument with older Python versions (2.6 probably minimum)
@@ -32,7 +34,7 @@ VERBOSITY_MATCHES_DIFFER_MAX = 10
 
 # tolerated corresponding lines displacement between the two files
 OFFSET_LIMIT                 = 3
-# whether to redefine already prepated substitution
+# whether to redefine already planned substitution
 DO_SUBST_REDEF               = True
 
 #
@@ -42,9 +44,9 @@ DO_SUBST_REDEF               = True
 
 # address: hexadecimal number (of arbitrary length) prefixed with "0x"
 #          but not with "$0x" (which denotes immediate value)
-RE_ADDR_STR   = r"(?P<addr>(?<!\$)0x[0-9a-fA-F]+(?=\b))"
+RE_ADDR_STR   = r"(?P<addr>(?<!\$)0x[0-9a-fA-F]+\b)"
 # register number: decimal number (of arbitrary length) prefixed with "%r"
-RE_REGNUM_STR = r"(?P<regnum>%r[1-9][0-9]*(?=\b))"
+RE_REGNUM_STR = r"(?P<regnum>%r[1-9][0-9]*\b)"
 
 def open_smarter(name, mode):
     # http://stackoverflow.com/questions/273192/
@@ -102,7 +104,7 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
                     print("warning: %s: too many matches differences,"
                           " giving up reporting them all" % base, file=stderr)
                     matches_differ_cnt+=1
-                # restore
+                # restore position (line) in src file
                 src_cnt -= offset_pos
                 break
             elif VERBOSITY_NOTES:
@@ -120,11 +122,13 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
                                   re_ptrn.finditer(src_lines[src_cnt]))
 
         if offset_pos < OFFSET_LIMIT:
-            # success with searching corresponding line in src file,
-            # remember possible substitutions in summary dict, which
-            # has a form: "adj_pattern: {src_pattern1: occurencies_num, ...}"
+            # success with searching corresponding line in src file, remember
+            # possible substitutions in summary dict, which is in a form
+            # "{adj_pattern1: {src_pattern1: occurencies_num, ...}, ...}"
             for adj_match, src_match in zip(adj_matches, src_matches):
                 if adj_match[1] == src_match[1]:
+                    # maybe this should be proceeded as well in order to make
+                    # sure it doesn't get eventually overriden not desired
                     continue
                 src_dict = matches_dict.get(adj_match[1], None)
                 if src_dict is None or DO_SUBST_REDEF:
@@ -138,6 +142,7 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
                     continue
             src_cnt += 1
         elif src_cnt > 0:
+            # adj file can be ahead src file (or do not change at all?)
             src_cnt -= 1
         adj_cnt += 1
     #while
@@ -150,7 +155,7 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
                    )[max(src_dict.values())]
         #print(src_dict.items())
         #print("%s -> %s" % (adj_ptrn, src_ptrn) ,file=stderr)
-        adj_ptrn_re = re.compile(r"(?<!\$)" + adj_ptrn + r"(?=\b)")
+        adj_ptrn_re = re.compile(r"(?<!\$)" + adj_ptrn + r"\b")
         adj_text = adj_ptrn_re.sub(src_ptrn, adj_text)
 
     fdst.write(adj_text)
