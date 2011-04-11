@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 """/
 Program that for two input files (presumably representing a linearized code)
-tries to "adjust" (memory) addresses and register numbers in the first file
-to fit those in the other.
+tries to "adjust" (memory) addresses and optionally register numbers
+in the first file to fit those in the other.
 
 It's intended to be used prior to comparing such two files (in case we expect
-these files are isomorphic except for addresses and, optionally, register
-numbers).
+these files are isomorphic except for addresses and/or register numbers).
 
 Currently, the algorithm tolerates a line displacement of OFFSET_LIMIT
 (line X in the first file expected to correspond to line Y..Y+OFFSET_LIMIT
@@ -33,18 +32,19 @@ VERBOSITY_NOTES              = False
 VERBOSITY_MATCHES_DIFFER_MAX = 10
 
 # tolerated corresponding lines displacement between the two files
-OFFSET_LIMIT                 = 3
+OFFSET_LIMIT                 = 6
 # whether to redefine already planned substitution
 DO_SUBST_REDEF               = True
 
 #
 # RE definitions
-# Note: group names required to distinguish them in proceeding.
+# Note: group names required to distinguish them in proceeding,
+#       anonymous groups at the beginning do not matter.
 #
 
 # address: hexadecimal number (of arbitrary length) prefixed with "0x"
 #          but not with "$0x" (which denotes immediate value)
-RE_ADDR_STR   = r"(?P<addr>(?<!\$)0x[0-9a-fA-F]+\b)"
+RE_ADDR_STR   = r"(:^|[^$]|\B)(?P<addr>0x[0-9a-fA-F]+\b)"
 # register number: decimal number (of arbitrary length) prefixed with "%r"
 RE_REGNUM_STR = r"(?P<regnum>%r[1-9][0-9]*\b)"
 
@@ -59,7 +59,7 @@ def open_smarter(name, mode):
     return open(name, mode), base
 
 def mobj_to_strgrp(matchobj):
-    return (matchobj.lastgroup, matchobj.group(0))
+    return (matchobj.lastgroup, matchobj.group(matchobj.lastindex))
 
 # Note: using inputs as lists of items generated with function above.
 def same_strgrp_lists(strgrp_list1, strgrp_list2):
@@ -88,12 +88,14 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
               % (adj_lnum, src_lnum), file=stderr)
     matches_differ_cnt = subst_redef_cnt = 0
     adj_cnt = src_cnt = 0
+    offset_max = OFFSET_LIMIT/2
     while adj_cnt < adj_lnum and src_cnt < src_lnum:
         adj_matches = map(mobj_to_strgrp, re_ptrn.finditer(adj_lines[adj_cnt]))
+        #print(adj_matches)
         src_matches = map(mobj_to_strgrp, re_ptrn.finditer(src_lines[src_cnt]))
         offset_pos = 0
         while not same_strgrp_lists(adj_matches, src_matches):
-            if offset_pos == OFFSET_LIMIT:
+            if offset_pos == offset_max:
                 if matches_differ_cnt < VERBOSITY_MATCHES_DIFFER_MAX:
                     print("warning: %s: matches (number/type) differ between"
                           " files (lines %d/%d..%d)"
@@ -112,50 +114,56 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
                       " trying lines around (lines %d/%d)"
                       % (base, adj_cnt, src_cnt), file=stderr)
             while not same_strgrp_lists(adj_matches, src_matches) \
-                  and offset_pos < OFFSET_LIMIT:
+                  and offset_pos < offset_max:
                 src_cnt += 1
-                if src_cnt == src_lnum:
-                    offset_pos = OFFSET_LIMIT
+                if src_cnt >= src_lnum:
+                    offset_pos = offset_max
                     break
                 offset_pos += 1
                 src_matches = map(mobj_to_strgrp,
                                   re_ptrn.finditer(src_lines[src_cnt]))
 
-        if offset_pos < OFFSET_LIMIT:
+        if offset_pos < offset_max:
             # success with searching corresponding line in src file, remember
             # possible substitutions in summary dict, which is in a form
             # "{adj_pattern1: {src_pattern1: occurencies_num, ...}, ...}"
             for adj_match, src_match in zip(adj_matches, src_matches):
+                #print(adj_match[1])
                 if adj_match[1] == src_match[1]:
-                    # maybe this should be proceeded as well in order to make
-                    # sure it doesn't get eventually overriden not desired
+                    src_dict = matches_dict.setdefault(adj_match[1], {})
+                    src_dict[src_match[1]] = 99  # make it hard to be overriden
                     continue
-                src_dict = matches_dict.get(adj_match[1], None)
-                if src_dict is None or DO_SUBST_REDEF:
-                    if src_dict is None:
-                        src_dict = matches_dict[adj_match[1]] = {}
-                        cnt = 0
-                    else:
-                        cnt = src_dict.get(src_match[1], 0)
-                    src_dict[src_match[1]] = (cnt+len(src_dict)/2+1)
-                if src_dict is None or not DO_SUBST_REDEF:
-                    continue
+                src_dict = matches_dict.setdefault(adj_match[1], {})
+                if src_dict is {} or DO_SUBST_REDEF:
+                    cnt = src_dict.setdefault(src_match[1], 0)
+                    # occurences have decresing weight when closer to end
+                    src_dict[src_match[1]] = cnt+1 #+ (src_lnum-len(src_dict))/2
             src_cnt += 1
-        elif src_cnt > 0:
-            # adj file can be ahead src file (or do not change at all?)
-            src_cnt -= 1
+            offset_max = OFFSET_LIMIT/2
+            #if offset_max > 1:
+            #    offset_max -= 1
+        else:
+            if src_cnt > 0:
+                # adj file can be ahead src file (or do not change at all?)
+                src_cnt -= 1
+            if offset_max < OFFSET_LIMIT:
+               offset_max += 1
         adj_cnt += 1
     #while
 
     # do planned substitutions according to summary dict
     # (take most frequented "src_pattern")
     for adj_ptrn, src_dict in matches_dict.iteritems():
-        src_ptrn = dict(
-                       zip(src_dict.values(), src_dict.keys())
-                   )[max(src_dict.values())]
-        #print(src_dict.items())
-        #print("%s -> %s" % (adj_ptrn, src_ptrn) ,file=stderr)
-        adj_ptrn_re = re.compile(r"(?<!\$)" + adj_ptrn + r"\b")
+        if (len(src_dict) == 1):
+            # common shortcut
+            src_ptrn = src_dict.keys()[0]
+        else:
+            src_ptrn = dict(
+                           zip(src_dict.values(), src_dict.keys())
+                       )[max(src_dict.values())]
+        #print("%s -> %s" % (adj_ptrn, src_dict.items()))
+        #print("%s -> %s" % (adj_ptrn, src_ptrn))
+        adj_ptrn_re = re.compile(adj_ptrn + r"\b")
         adj_text = adj_ptrn_re.sub(src_ptrn, adj_text)
 
     fdst.write(adj_text)
@@ -167,7 +175,7 @@ if __name__ == "__main__":
     if len(argv) >= 3:
         pattern = RE_ADDR_STR
         if len(argv) >= 4 and argv[1] == "-r":
-            pattern += "|" + RE_REGNUM_STR
+            pattern += "|"+RE_REGNUM_STR
             argv = argv[1:]
         if exists(argv[1]) and exists(argv[2]):
             dest_file = "-"
