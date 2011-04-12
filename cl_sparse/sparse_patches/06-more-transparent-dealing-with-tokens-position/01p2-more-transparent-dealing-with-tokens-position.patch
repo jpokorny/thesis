@@ -1,0 +1,31 @@
+From: Jan Pokorny <pokorny_jan@seznam.cz>
+Date: Tue, 12 Apr 2011 09:53:11 +0200
+Subject: [PATCH 2/4] more transparent dealing with tokens/position
+
+Unify usage of `eof_token'.
+
+Version with respective assertions added will be provided,
+mainly for convenient testing.  I used it to proceeded sparse itself
+and linux-2.6.35.12 sources with no assertion violation encountered.
+
+Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
+---
+ pre-process.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/pre-process.c b/pre-process.c
+index 603cc00..c0fc89d 100644
+--- a/pre-process.c
++++ b/pre-process.c
+@@ -794,7 +794,7 @@ out:
+ 
+ static int free_preprocessor_line(struct token *token)
+ {
+-	while (token_type(token) != TOKEN_EOF) {
++	while (!eof_token(token)) {
+ 		struct token *free = token;
+ 		token = token->next;
+ 		__free_token(free);
+-- 
+1.7.1
+

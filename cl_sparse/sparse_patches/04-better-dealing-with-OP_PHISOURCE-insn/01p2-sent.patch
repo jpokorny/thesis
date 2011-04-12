@@ -1,6 +1,6 @@
 From: Jan Pokorny <pokorny_jan@seznam.cz>
 Date: Sat, 9 Apr 2011 12:56:54 +0200
-Subject: [PATCH] better dealing with OP_PHISOURCE insn
+Subject: [PATCH 2/2] better dealing with OP_PHISOURCE insn
 
 Remove checking for a case that (most probably) never happens as the
 only expected instruction is OP_PHISOURCE.

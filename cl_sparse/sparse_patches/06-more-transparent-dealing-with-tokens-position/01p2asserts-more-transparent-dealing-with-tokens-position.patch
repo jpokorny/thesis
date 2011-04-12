@@ -1,0 +1,42 @@
+From: Jan Pokorny <pokorny_jan@seznam.cz>
+Date: Tue, 12 Apr 2011 09:40:32 +0200
+Subject: [PATCH 2/4] more transparent dealing with tokens/position
+
+Unify usage of `eof_token', version with respective asserts,
+mainly intended for convenient testing.
+
+Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
+---
+ pre-process.c |    5 ++++-
+ 1 files changed, 4 insertions(+), 1 deletions(-)
+
+diff --git a/pre-process.c b/pre-process.c
+index 603cc00..cee3d29 100644
+--- a/pre-process.c
++++ b/pre-process.c
+@@ -19,6 +19,7 @@
+ #include <fcntl.h>
+ #include <limits.h>
+ #include <time.h>
++#include <assert.h>
+ 
+ #include "lib.h"
+ #include "allocate.h"
+@@ -794,11 +795,13 @@ out:
+ 
+ static int free_preprocessor_line(struct token *token)
+ {
+-	while (token_type(token) != TOKEN_EOF) {
++	while (!eof_token(token)) {
++		assert(token_type(token) != TOKEN_EOF);
+ 		struct token *free = token;
+ 		token = token->next;
+ 		__free_token(free);
+ 	};
++	assert(token_type(token) == TOKEN_EOF);
+ 	return 1;
+ }
+ 
+-- 
+1.7.1
+

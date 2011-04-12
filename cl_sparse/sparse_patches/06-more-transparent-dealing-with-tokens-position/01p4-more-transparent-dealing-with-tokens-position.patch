@@ -1,0 +1,68 @@
+From: Jan Pokorny <pokorny_jan@seznam.cz>
+Date: Tue, 12 Apr 2011 12:35:32 +0200
+Subject: [PATCH 4/4] more transparent dealing with tokens/position
+
+Unify usage of `token_type' and `eof_token' also with gdbhelpers.
+When 3/4 is applied, no need to do explicit cast to `enum token_type'.
+
+Tested to work as it used to*).
+
+*) testing commands sequence:
+$ gdb --args ./sparse compat/mmap-blob.c
+(gdb) source gdbhelpers
+(gdb) b lib.c:882
+(gdb) r
+(gdb) gdb_show_tokens token
+
+Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
+---
+ gdbhelpers |   10 +++++-----
+ 1 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/gdbhelpers b/gdbhelpers
+index 8634786..9a3630d 100644
+--- a/gdbhelpers
++++ b/gdbhelpers
+@@ -259,7 +259,7 @@ end
+ 
+ define gdb_show_token
+ 	printf "%p: '%s', type = ", $arg0, show_token($arg0)
+-	output (enum token_type) ($arg0)->pos.type
++	output token_type($arg0)
+ 	printf "\n"
+ 
+ 	if (! $showing_token)
+@@ -268,18 +268,18 @@ define gdb_show_token
+ 
+ 		set $token = $arg0
+ 
+-		if ($token->pos.type == TOKEN_IDENT)
++		if (token_type($token) == TOKEN_IDENT)
+ 			gdb_tabs
+ 			printf "ident = "
+ 			gdb_show_ident $token.ident
+ 		end
+ 
+-		if ($token->pos.type == TOKEN_MACRO_ARGUMENT)
++		if (token_type($token) == TOKEN_MACRO_ARGUMENT)
+ 			gdb_tabs
+ 			printf "argnum = %d\n", $token->argnum
+ 		end
+ 
+-		if ($token->pos.type == TOKEN_SPECIAL)
++		if (token_type($token) == TOKEN_SPECIAL)
+ 			gdb_tabs
+ 			printf "special = \"%s\"\n", show_special($token.special)
+ 		end
+@@ -294,7 +294,7 @@ define gdb_show_tokens
+ 	set $t = $arg0
+ 	printf "{\n"
+ 	set $ntabs++
+-	while ($t != &eof_token_entry)
++	while (!eof_token($t))
+ 		gdb_tabs
+ 		printf "token = "
+ 		gdb_show_token($t)
+-- 
+1.7.1
+

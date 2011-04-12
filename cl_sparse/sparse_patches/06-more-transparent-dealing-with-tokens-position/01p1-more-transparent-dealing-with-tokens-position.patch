@@ -1,0 +1,47 @@
+From: Jan Pokorny <pokorny_jan@seznam.cz>
+Date: Mon, 11 Apr 2011 18:54:19 +0200
+Subject: [PATCH 1/4] more transparent dealing with tokens/position
+
+Unify usage of `token_type'.
+
+Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
+---
+ expression.h |    2 +-
+ token.h      |    4 ++--
+ 3 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/expression.h b/expression.h
+index 9778de8..480079c 100644
+--- a/expression.h
++++ b/expression.h
+@@ -200,7 +200,7 @@ struct token *typename(struct token *, struct symbol **, int *);
+ 
+ static inline int lookup_type(struct token *token)
+ {
+-	if (token->pos.type == TOKEN_IDENT) {
++	if (token_type(token) == TOKEN_IDENT) {
+ 		struct symbol *sym = lookup_symbol(token->ident, NS_SYMBOL | NS_TYPEDEF);
+ 		return sym && (sym->namespace & NS_TYPEDEF);
+ 	}
+diff --git a/token.h b/token.h
+index a7ec77e..a3c194d 100644
+--- a/token.h
++++ b/token.h
+@@ -205,12 +205,12 @@ extern struct token *preprocess(struct token *);
+ 
+ static inline int match_op(struct token *token, int op)
+ {
+-	return token->pos.type == TOKEN_SPECIAL && token->special == op;
++	return token_type(token) == TOKEN_SPECIAL && token->special == op;
+ }
+ 
+ static inline int match_ident(struct token *token, struct ident *id)
+ {
+-	return token->pos.type == TOKEN_IDENT && token->ident == id;
++	return token_type(token) == TOKEN_IDENT && token->ident == id;
+ }
+ 
+ #endif
+-- 
+1.7.1
+
