@@ -17,7 +17,7 @@ But it might be a good idea to keep it for backward compatibility (it's
 usage/meaning stays untouched with this patch series), only add
 a comment that it should not be used (for maintainability reasons).
 
-Another solution for TOKEN_EOF then making it "deprecated" would be to
+Another solution for TOKEN_EOF than making it "deprecated" would be to
 make `eof_token_entry' initialized with ".pos.type = TOKEN_EOF" to make
 this correspondence explicit (so far, this has silently applied because
 of implicit zero initialization of `eof_token_entry' global).
