@@ -1,0 +1,94 @@
+From: Jan Pokorny <pokorny_jan@seznam.cz>
+Date: Wed, 13 Apr 2011 14:07:11 +0200
+Subject: [PATCH] use ARRAY_SIZE() when possible (continued)
+
+Some cases were omitted with the patch from Namhyung Kim
+(commit c5e425e in Chris Li's repo).
+
+My curiosity led me to try out coccinelle/spatch as suggested by
+Nicholas Mc Guire in reply to Kim's patch, but it*) only discovered
+occurrences in show-parse.c, probably because of "const vs. non-const"
+differences of array item types and the expression given to sizeof.
+
+*) sequence to try coccinelle out on this case (when coccinelle installed):
+$ wget http://coccinelle.lip6.fr/rules/array.cocci
+$ sed 's/<linux\/kernel.h>/"lib.h"/' array.cocci > array-sparse.cocci
+$ for i in $(find . -path ./validation -prune -o -name "*.c" -print); \
+> do spatch -sp_file array-sparse.cocci $i; done
+
+Beside proceeding messages, this will print out any "real" patch
+generated according to the semantic patch in `array-sparse.cocci'
+(it can also reflect these changes directly etc.).
+
+Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
+---
+ expression.c |    2 +-
+ linearize.c  |    2 +-
+ show-parse.c |    4 ++--
+ sparse.c     |    2 +-
+ 4 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/expression.c b/expression.c
+index 7e06e60..d9cdfd3 100644
+--- a/expression.c
++++ b/expression.c
+@@ -916,7 +916,7 @@ struct token *assignment_expression(struct token *token, struct expression **tre
+ 			SPECIAL_SHR_ASSIGN, SPECIAL_AND_ASSIGN,
+ 			SPECIAL_OR_ASSIGN,  SPECIAL_XOR_ASSIGN };
+ 		int i, op = token->special;
+-		for (i = 0; i < sizeof(assignments)/sizeof(int); i++)
++		for (i = 0; i < ARRAY_SIZE(assignments); i++)
+ 			if (assignments[i] == op) {
+ 				struct expression * expr = alloc_expression(token->pos, EXPR_ASSIGNMENT);
+ 				expr->left = *tree;
+diff --git a/linearize.c b/linearize.c
+index 5819862..6f3fa40 100644
+--- a/linearize.c
++++ b/linearize.c
+@@ -282,7 +282,7 @@ const char *show_instruction(struct instruction *insn)
+ 	if (!insn->bb)
+ 		buf += sprintf(buf, "# ");
+ 
+-	if (opcode < sizeof(opcodes)/sizeof(char *)) {
++	if (opcode < ARRAY_SIZE(opcodes)) {
+ 		const char *op = opcodes[opcode];
+ 		if (!op)
+ 			buf += sprintf(buf, "opcode:%d", opcode);
+diff --git a/show-parse.c b/show-parse.c
+index 73cc86a..a5beafe 100644
+--- a/show-parse.c
++++ b/show-parse.c
+@@ -754,7 +754,7 @@ static int show_binop(struct expression *expr)
+ 	unsigned int op = expr->op;
+ 
+ 	opname = show_special(op);
+-	if (op < sizeof(name)/sizeof(*name))
++	if (op < ARRAY_SIZE(name))
+ 		opname = name[op];
+ 	printf("\t%s.%d\t\tv%d,v%d,v%d\n", opname,
+ 		expr->ctype->bit_size,
+@@ -782,7 +782,7 @@ static int show_regular_preop(struct expression *expr)
+ 	const char *opname;
+ 
+ 	opname = show_special(op);
+-	if (op < sizeof(name)/sizeof(*name))
++	if (op < ARRAY_SIZE(name))
+ 		opname = name[op];
+ 	printf("\t%s.%d\t\tv%d,v%d\n", opname, expr->ctype->bit_size, new, target);
+ 	return new;
+diff --git a/sparse.c b/sparse.c
+index 4026ba7..67b7d9e 100644
+--- a/sparse.c
++++ b/sparse.c
+@@ -187,7 +187,7 @@ static void check_call_instruction(struct instruction *insn)
+ 	ident = fn->sym->ident;
+ 	if (!ident)
+ 		return;
+-	for (i = 0; i < sizeof(check_fn)/sizeof(struct checkfn) ; i++) {
++	for (i = 0; i < ARRAY_SIZE(check_fn); i++) {
+ 		if (check_fn[i].id != ident)
+ 			continue;
+ 		check_fn[i].check(insn);
+-- 
+1.7.1
+

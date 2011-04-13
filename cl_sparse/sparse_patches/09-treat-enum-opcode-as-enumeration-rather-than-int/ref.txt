@@ -1,0 +1,2 @@
+http://marc.info/?l=linux-sparse&m=130270552331909&w=2
+http://comments.gmane.org/gmane.comp.parsers.sparse/2435
