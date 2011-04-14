@@ -70,8 +70,12 @@ def same_strgrp_lists(strgrp_list1, strgrp_list2):
             return False
     return True
 
-def batch_substitution_apply(matches_dict, adj_text):
-    """Apply batch substitution on `adj_text' according to `matches_dict'."""
+def batch_substitution_apply_faster(matches_dict, adj_text):
+    """Apply batch substitution on `adj_text' according to `matches_dict'.
+
+    Contrary to `batch_substitution_apply_better', this can make undesired
+    substitutions of yet substituted patterns.  OTOH, it's noticeably faster.
+    """
     for adj_ptrn, src_dict in matches_dict.iteritems():
         # take most frequented "src_pattern"
         if (len(src_dict) == 1):
@@ -86,6 +90,24 @@ def batch_substitution_apply(matches_dict, adj_text):
         adj_ptrn_re = re.compile(adj_ptrn + r"\b")
         adj_text = adj_ptrn_re.sub(src_ptrn, adj_text)
     return adj_text
+
+def batch_substitution_apply_better(matches_dict, adj_text):
+    """Apply batch substitution on `adj_text' according to `matches_dict'."""
+    TEMPORARY_MARK = "@@"
+    for adj_ptrn, src_dict in matches_dict.iteritems():
+        # take most frequented "src_pattern"
+        if (len(src_dict) == 1):
+            # common shortcut when there is the only candidate
+            src_ptrn = src_dict.keys()[0]
+        else:
+            src_ptrn = dict(
+                           zip(src_dict.values(), src_dict.keys())
+                       )[max(src_dict.values())]
+        #print("%s -> %s" % (adj_ptrn, src_dict.items()))
+        #print("%s -> %s" % (adj_ptrn, src_ptrn))
+        adj_ptrn_re = re.compile("(?<!"+TEMPORARY_MARK+")" + adj_ptrn + r"\b")
+        adj_text = adj_ptrn_re.sub(TEMPORARY_MARK + src_ptrn, adj_text)
+    return adj_text.replace(TEMPORARY_MARK, "")
 
 def batch_substitution_add(matches_dict, adj_matches, src_matches):
     """\
@@ -103,7 +125,7 @@ def batch_substitution_add(matches_dict, adj_matches, src_matches):
             cnt = src_dict.setdefault(src_match[1], 0)
             src_dict[src_match[1]] = cnt+1 #+ (src_lnum-len(src_dict))/2
 
-def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
+def addr_reg_adj(adj_text, src_text, pattern, subst_apply_f, dest_file="-"):
     re_ptrn = re.compile(pattern)
 
     if dest_file == "-":
@@ -168,7 +190,7 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
                offset_max += 1
         adj_cnt += 1
 
-    fdst.write(batch_substitution_apply(matches_dict, adj_text))
+    fdst.write(subst_apply_f(matches_dict, adj_text))
     if (dest_file != "-"):
         fdst.close()
     return 0
@@ -176,6 +198,10 @@ def addr_reg_adj(adj_text, src_text, pattern, dest_file="-"):
 if __name__ == "__main__":
     if len(argv) >= 3:
         pattern = RE_ADDR_STR
+        subst_apply_f = batch_substitution_apply_better
+        if len(argv) >= 4 and argv[1] == "-f":
+            subst_apply_f = batch_substitution_apply_faster
+            argv = argv[1:]
         if len(argv) >= 4 and argv[1] == "-r":
             pattern += "|"+RE_REGNUM_STR
             argv = argv[1:]
@@ -185,8 +211,12 @@ if __name__ == "__main__":
             f = open(argv[2], "r"); src_text = f.read(); f.close()
             if len(argv) >= 4:
                 dest_file = argv[3]
-            exit(addr_reg_adj(adj_text, src_text, pattern, dest_file))
+            exit(addr_reg_adj(adj_text, src_text, pattern, subst_apply_f,
+                              dest_file))
         else:
             print("error: cannot read input file(s)", file=stderr); exit(1)
     else:
-        print("Usage: %s [-r] adj_file src_file [dest_file]"%argv[0]); exit(2)
+        # "f" for be faster/less accurate proceeding
+        # "r" for involve register numbers
+        print("Usage: %s [-f] [-r] adj_file src_file [dest_file]"%argv[0])
+        exit(2)
