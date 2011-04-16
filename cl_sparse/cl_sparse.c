@@ -1861,7 +1861,7 @@ handle_insn_cast(struct cl_insn *cli, const struct instruction *insn)
     if (insn->orig_type->bit_size == insn->type->bit_size)
         handle_insn_copy(cli, insn);
     else if (insn->orig_type->bit_size < insn->type->bit_size
-            && insn->orig_type->ctype.base_type->type == SYM_BITFIELD) {
+             && insn->orig_type->ctype.base_type->type == SYM_BITFIELD) {
         // we have to apply CL_BINOP_BIT_AND on `insn->src' using mask
         // (currently of int size XXX?) with additional higher bits zeroed
 
