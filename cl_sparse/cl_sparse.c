@@ -2737,7 +2737,7 @@ static void print_help(const char *cmd)
     _("This code listener fronted also defines few args/options on its own:"   )
     __
     B("h", "help"          , "Prints this help text"                           )
-    L("verbose[=MASK]"     , "Be verbose (selectively if MASK provided)"       )
+    C("verbose[=MASK]"     , "Be verbose (selectively if MASK provided)"       )
     C("dump-pp"            , "Dump pretty-printed linearized code"             )
     C("dump-types"         , "Add type information to pretty-printed code"     )
     C("dump-keep-switch"   , "Keep switch statement \"as is\" (no unfolding)"  )
