@@ -1,0 +1,59 @@
+From: Jan Pokorny <xpokor04@stud.fit.vutbr.cz>
+Date: Mon, 4 Apr 2011 23:52:50 +0200
+Subject: [PATCH] cl_pp: fix missing jump for default in switch
+
+... noticable when switch statement is not unfolded
+---
+ cl/cl_pp.cc |   34 ++++++++++++++++------------------
+ 1 files changed, 16 insertions(+), 18 deletions(-)
+
+diff --git a/cl/cl_pp.cc b/cl/cl_pp.cc
+index 8a4bab9..af1a8fc 100644
+--- a/cl/cl_pp.cc
++++ b/cl/cl_pp.cc
+@@ -849,26 +849,24 @@ void ClPrettyPrint::insn_switch_case(
+     if (CL_OPERAND_VOID == val_lo->code && CL_OPERAND_VOID == val_hi->code) {
+         out_ << "\t\t\t"
+             << SSD_INLINE_COLOR(C_YELLOW, "default") << ":";
+-
+-        return;
+-    }
+-
+-    if (CL_OPERAND_CST != val_lo->code || CL_OPERAND_CST != val_hi->code)
+-        CL_TRAP;
+-
+-    const struct cl_cst &cst_lo = val_lo->data.cst;
+-    const struct cl_cst &cst_hi = val_hi->data.cst;
+-    if (CL_TYPE_INT != cst_lo.code || CL_TYPE_INT != cst_hi.code)
++    } else if (CL_OPERAND_CST != val_lo->code
++               || CL_OPERAND_CST != val_hi->code) {
+         CL_TRAP;
++    } else {
++        const struct cl_cst &cst_lo = val_lo->data.cst;
++        const struct cl_cst &cst_hi = val_hi->data.cst;
++        if (CL_TYPE_INT != cst_lo.code || CL_TYPE_INT != cst_hi.code)
++            CL_TRAP;
+ 
+-    const int lo = cst_lo.data.cst_int.value;
+-    const int hi = cst_hi.data.cst_int.value;
+-    for (int i = lo; i <= hi; ++i) {
+-        out_ << "\t\t\t"
+-            << SSD_INLINE_COLOR(C_YELLOW, "case")
+-            << " " << i << ":";
+-        if (i != hi)
+-            out_ << " /* fall through */" << std::endl;
++        const int lo = cst_lo.data.cst_int.value;
++        const int hi = cst_hi.data.cst_int.value;
++        for (int i = lo; i <= hi; ++i) {
++            out_ << "\t\t\t"
++                << SSD_INLINE_COLOR(C_YELLOW, "case")
++                << " " << i << ":";
++            if (i != hi)
++                out_ << " /* fall through */" << std::endl;
++        }
+     }
+ 
+     out_ << " "
+-- 
+1.7.1
+
