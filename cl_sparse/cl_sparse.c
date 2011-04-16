@@ -999,6 +999,7 @@ type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
 #define CST_INT(op)  (&CST(op)->data.cst_int)
 #define CST_STR(op)  (&CST(op)->data.cst_string)
 #define CST_FNC(op)  (&CST(op)->data.cst_fnc)
+#define CST_REAL(op) (&CST(op)->data.cst_real)
 
 #define VAR(op)      (op->data.var)
 
@@ -1179,6 +1180,18 @@ op_make_cst_int(struct cl_operand *op, int value)
     return op;
 }
 
+static inline struct cl_operand *
+op_make_cst_real(struct cl_operand *op, double value)
+{
+    op_make_cst(op);
+
+    op->type            = &double_clt;
+    CST(op)->code       = CL_TYPE_REAL;
+    CST_REAL(op)->value = value;
+
+    return op;
+}
+
 // TODO: make it accepting const char *
 static inline struct cl_operand *
 op_make_cst_string(struct cl_operand *op, struct expression *expr)
@@ -1341,6 +1354,26 @@ op_from_pseudo(struct cl_operand *op, const struct instruction *insn,
             CL_TRAP;
             return op;
     }
+}
+
+static inline struct cl_operand *
+op_from_expression(struct cl_operand *op, const struct instruction *insn,
+                   const struct expression *expr)
+{/* Synopsis:
+  * sparse/linearize.c: show_instruction: case OP_SETVAL
+  * sparse/show-parse.c: show_expression
+  *
+  * Problems/exceptions/notes:
+  * FIXME: currently only EXPR_FVALUE handled
+  */
+    sparse_location(&op->loc, insn->pos);
+    switch (expr->type) {
+        case EXPR_FVALUE:
+            return op_make_cst_real(op, expr->fvalue);
+        default:
+            CL_TRAP;
+    }
+    return op_make_void(op);
 }
 
 static struct cl_accessor *
@@ -1872,6 +1905,35 @@ handle_insn_ptrcast(struct cl_insn *cli, const struct instruction *insn)
     );
 }
 
+static inline bool
+handle_insn_setval(struct cl_insn *cli, const struct instruction *insn)
+{/* Synopsis:
+  * [input] OP_SETVAL
+  *     insn->target: destination
+  *     insn->val:    value to be assigned in the form of an expression
+  *         EXPR_FVALUE ~ constant of CL_TYPE_REAL type
+  *         (other types of expressions not checked yet)
+  * [output] CL_INSN_UNOP (set by caller, as with location)
+  *     data.insn_unop.code (set by caller, rewrite in case of unary minus)
+  *     data.insn_unop.dst ~ insn->target
+  *     data.insn_unop.src ~ insn->val (see above)
+  *
+  * Problems/exceptions/notes:
+  * See `op_from_expression'.
+  */
+    struct cl_operand dst, src;
+
+    cli->data.insn_unop.dst = op_from_pseudo(&dst, insn, insn->target);
+    cli->data.insn_unop.src = op_from_expression(&src, insn, insn->val);
+
+    cl->insn(cl, cli);
+
+    op_free_data(&dst);
+    op_free_data(&src);
+
+    return true;
+}
+
 /* Functions dedicated to other sparse instructions */
 
 static bool
@@ -2305,7 +2367,7 @@ handle_insn(struct instruction *insn)
         INSN_IGN( ALLOCA          ,                     ,                    ),
         INSN_UNI( LOAD            , ASSIGN              , handle_insn_load   ),
         INSN_UNI( STORE           , ASSIGN              , handle_insn_store  ),
-        INSN_IGN( SETVAL          ,                     ,                    ),
+        INSN_UNI( SETVAL          , ASSIGN              , handle_insn_setval ),
         INSN_IGN( SYMADDR         ,                     ,                    ),
         INSN_IGN( GET_ELEMENT_PTR ,                     ,                    ),
 

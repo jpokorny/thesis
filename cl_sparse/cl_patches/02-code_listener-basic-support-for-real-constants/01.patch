@@ -1,0 +1,61 @@
+From: Jan Pokorny <pokorny_jan@seznam.cz>
+Date: Sat, 16 Apr 2011 17:15:10 +0200
+Subject: [PATCH] cl: basic support for real type + constant
+
+Not sure whether "double" is fine.  The most pragmatical one would be
+"long double" but the standard code listener integer type is also
+plain "int" only (or is better FP type equivalent "float"?).
+
+Can be tested with the updated version of cl_sparse on tests/real/*.c.
+
+Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
+---
+ cl/cl_pp.cc                |    8 ++++++++
+ include/cl/code_listener.h |    5 +++++
+ 2 files changed, 13 insertions(+), 0 deletions(-)
+
+diff --git a/cl/cl_pp.cc b/cl/cl_pp.cc
+index 1daa3d0..4f08cff 100644
+--- a/cl/cl_pp.cc
++++ b/cl/cl_pp.cc
+@@ -276,6 +276,10 @@ void ClPrettyPrint::printCst(const struct cl_operand *op) {
+             }
+             break;
+ 
++        case CL_TYPE_REAL:
++            SSD_COLORIZE(out_, C_WHITE) << op->data.cst.data.cst_real.value;
++            break;
++
+         default:
+             CL_TRAP;
+     }
+@@ -359,6 +363,10 @@ deref_done:
+                 << SSD_INLINE_COLOR(C_DARK_GRAY, typeName(clt));
+             break;
+ 
++        case CL_TYPE_REAL:
++            out_ << SSD_INLINE_COLOR(C_GREEN, "real");
++            break;
++
+         default:
+             CL_TRAP;
+     }
+diff --git a/include/cl/code_listener.h b/include/cl/code_listener.h
+index 4fa384d..1a1ff6e 100644
+--- a/include/cl/code_listener.h
++++ b/include/cl/code_listener.h
+@@ -397,6 +397,11 @@ struct cl_cst {
+         struct {
+             const char                  *value;
+         } cst_string; /**< valid only for @b CL_TYPE_STRING */
++
++        /* CL_TYPE_REAL */
++        struct {
++            double                      value;
++        } cst_real; /**< valid only for @b CL_TYPE_REAL */
+     } data;
+ };
+ 
+-- 
+1.7.1
+

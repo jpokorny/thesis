@@ -17,6 +17,7 @@ not to forget
 
 generating of OP_ASR
 PSEUDO_REG can have pseudo->ident
+sym->endpos.type to determine end pos (as with c2xml)
 
 type recursion
 -- with (typedef'd) functions?
@@ -28,7 +29,8 @@ sparse:
 =======
 * does not complain about nonsensical recursive type (see tests/struct/rs1-01.c.bad)
 * generates phi instruction after unssa (hash_table.c: 85)
-* generates unnecessary copy instruction before ret (unssa?)
+* generates unnecessary copy instruction before ret (unssa?) <<< probably OK
+* simplify.c: simplify_constant_rightside ... add LSR, support also left
 
 
 code listener:
@@ -37,4 +39,11 @@ code listener:
 * accessors with CL_OPERAND_CST
 * type->items for CL_TYPE_FNC ([0] = return value, [1+] = args, why one extra
                                expected?)
-* CL_TYPE_REAL with `cl_pp'
+
+
+
+-----------
+
+interesting:
+simplify.c: operand_size
+
