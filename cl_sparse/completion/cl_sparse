@@ -1,3 +1,5 @@
+# to be placed at /etc/bash_completion.d (or similar...)
+
 _cl_sparse()
 {
     local cur prev opts
