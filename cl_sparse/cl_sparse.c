@@ -1423,6 +1423,19 @@ op_append_accessor(struct cl_operand *op, struct cl_accessor *ac)
     return *retval;
 }
 
+static inline struct cl_accessor *
+op_prepend_accessor(struct cl_operand *op, struct cl_accessor *ac)
+{
+    if (!ac)
+        ac = new_cl_accessor();
+
+    ac->next = op->accessor;
+    op->accessor = ac;
+
+    // guaranteed not to return NULL
+    return ac;
+}
+
 // Note: returns UINT_MAX when operand could not be dug
 static unsigned
 op_dig_step(struct cl_operand *op, unsigned insn_offset)
@@ -1675,13 +1688,13 @@ insn_assignment_mod_rhs(struct cl_operand *op_rhs, pseudo_t rhs,
 
     // dig rhs (when applicable)
     if (ops_handling & TYPE_RHS_DIG) {
-        if (ops_handling & TYPE_RHS_DIG_ANY || !pseudo_immediate(rhs)) {
+        if (!pseudo_immediate(rhs) || ops_handling & TYPE_RHS_DIG_ANY) {
             const struct cl_type *expected_type = type;
 
             if (ops_handling & TYPE_RHS_REFERENCE) {
                 // remove one level of indirection of both resulting_type
                 // and operand type (to be compensated by adding one back
-                // in "dereference rhs" part)
+                // in "reference rhs" part)
                 offset = 0;
                 if (!type_match(op_rhs->type, expected_type)) {
                     expected_type = expected_type->items->type;
@@ -1695,7 +1708,37 @@ insn_assignment_mod_rhs(struct cl_operand *op_rhs, pseudo_t rhs,
                     use_rhs_dereference = false;
             }
             unsigned res = op_dig_for_type_match(op_rhs, expected_type, offset);
-            assert(res != UINT_MAX);
+            if (res == UINT_MAX) {
+                // no success when digging operand for type match,
+                // it may be a pointer and we just haven't been told this
+                // type information (e.g., due to typeless PSEUDO_VAL)
+                if (op_rhs->type->code == CL_TYPE_INT
+                    && expected_type->code == CL_TYPE_PTR) {
+                    struct cl_accessor *ac;
+                    struct cl_type *expected_type_dug;
+
+                    // promote an operand type to a pointer and remove
+                    // a level of pointer indirection also from expected type
+                    // XXX: should be the base type switched to void?
+                    op_rhs->type = build_referenced_type(op_rhs->type);
+                    expected_type_dug = (struct cl_type *)
+                                        expected_type->items->type;
+
+                    while (expected_type_dug->code == CL_TYPE_PTR) {
+                        // now, we do the same but explicitly adding
+                        // dereferences, adjusting the level of dereferences
+                        // in operand's type
+                        ac = op_prepend_accessor(op_rhs, NULL);
+                        ac->code = CL_ACCESSOR_DEREF;
+                        ac->type = op_rhs->type;
+
+                        op_rhs->type = build_referenced_type(op_rhs->type);
+                        expected_type_dug = (struct cl_type *)
+                                            expected_type_dug->items->type;
+                    }
+                } else
+                    CL_TRAP;  // should not happen
+            }
 
         } else if (ops_handling & TYPE_RHS_REFERENCE) {
             // OP_STORE with PSEUDO_VAL rhs (e.g., value can be pointer)
