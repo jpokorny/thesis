@@ -1,10 +1,13 @@
-#binaries
+# binaries etc.
+.*
 *.o
 *.swp
-test
+./cl_sparse
+
+# override
+!.gitignore
+!.testignore
+!.gdbinit
 
 #tests
-tests/.dots
-tests/.logs
-tests/.sparse_pp
-tests/sparse-internal-symbols.dot
+#tests/sparse-internal-symbols.dot
