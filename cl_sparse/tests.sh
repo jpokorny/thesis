@@ -158,11 +158,16 @@ function do_tests() {
                        *) bad_prev $DOT $DOT_PREV $SUMMARY_LOG "unexpected retval";;
             esac
 
-            # b) with current graph by gcc cl frontend (if not ignored)
-            PATTERN=$(echo $DOT | sed "s/\.\//|/1" | cut -d"|" -f2)
-            IGNORE=$(grep -F "$PATTERN" $TESTSUITE_IGNORE) \
-                && test "$(echo $IGNORE | cut -c1)" != "#"
-            if [ $? -eq 0 ]; then
+            # b) with current graph by gcc cl frontend
+            #    (if not ignored or if it is not a type graph)
+            echo "$DOT" | grep -F "type.dot" >/dev/null && ign=1 || ign=0
+            if [ $ign -eq 0 ]; then
+                ign=1
+                PATTERN=$(echo "$DOT" | sed "s/\.\//|/1" | cut -d"|" -f2)
+                IGNORE=$(grep -F "$PATTERN" $TESTSUITE_IGNORE) \
+                    && [ "$(echo $IGNORE | cut -c1)" != "#" ] && ign=0
+            fi
+            if [ $ign -eq 1 ]; then
                 ignore "$(echo $IGNORE | cut -d";" -f2)"
                 continue
             fi
