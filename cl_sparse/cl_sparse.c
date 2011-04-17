@@ -1946,7 +1946,7 @@ handle_insn_ptrcast(struct cl_insn *cli, const struct instruction *insn)
   */
     return insn_assignment_base(cli, insn,
         insn->target,  /* := */  insn->src,
-        TYPE_LHS_KEEP      |     TYPE_RHS_REFERENCE
+        TYPE_LHS_KEEP      |     (TYPE_RHS_DIG | TYPE_RHS_REFERENCE)
     );
 }
 
