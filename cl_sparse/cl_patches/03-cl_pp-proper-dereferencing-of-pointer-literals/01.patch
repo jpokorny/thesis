@@ -1,0 +1,60 @@
+From: Jan Pokorny <pokorny_jan@seznam.cz>
+Date: Sun, 17 Apr 2011 17:38:42 +0200
+Subject: [PATCH] cl_pp: proper dereferencing of pointer literals
+
+As outlined by Kamil Dudka, there should be one dereference for literal
+pointer (e.g., (void *)0 aka NULL) at most in linearized code.
+
+There could be possibly more dereferences ("**(void ***)NULL = NULL;")
+but sparse seems not to violate this rule by breaking such statements
+into more steps (gcc plugin seems to be even more OK from this
+perspective as it probably doesn't need this change at all).
+
+Signed-off-by: Jan Pokorny <pokorny_jan@seznam.cz>
+---
+ cl/cl_pp.cc |   17 ++++++++++++++---
+ 1 files changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/cl/cl_pp.cc b/cl/cl_pp.cc
+index 4f08cff..218ad44 100644
+--- a/cl/cl_pp.cc
++++ b/cl/cl_pp.cc
+@@ -207,12 +207,23 @@ void ClPrettyPrint::printIntegralCst(const struct cl_operand *op) {
+ 
+     enum cl_type_e code = type->code;
+     switch (code) {
+-        case CL_TYPE_PTR:
++        case CL_TYPE_PTR: {
++            struct cl_accessor *ac = op->accessor;
++            if (ac && ac->code == CL_ACCESSOR_DEREF) {
++                if (ac->code == CL_ACCESSOR_DEREF)
++                    SSD_COLORIZE(out_, C_LIGHT_RED) << "*";
++                else
++                    CL_DEBUG("unexpected accessor by CL_OPERAND_CST pointer");
++                if (ac->next)
++                    CL_DEBUG("2+ accessors by CL_OPERAND_CST pointer");
++            }
++
+             if (value)
+                 SSD_COLORIZE(out_, C_LIGHT_RED) << "0x" << std::hex << value;
+             else
+                 SSD_COLORIZE(out_, C_WHITE) << "NULL";
+ 
++            }
+             break;
+ 
+         case CL_TYPE_UNKNOWN:
+@@ -544,8 +555,8 @@ void ClPrettyPrint::printOperand(const struct cl_operand *op) {
+             break;
+ 
+         case CL_OPERAND_CST:
+-            if (op->accessor)
+-                CL_DEBUG("CL_OPERAND_CST with op->accessor");
++            if (op->accessor && op->type->code != CL_TYPE_PTR)
++                CL_DEBUG("accessor by non-pointer CL_OPERAND_CST");
+             this->printCst(op);
+             break;
+ 
+-- 
+1.7.1
+
