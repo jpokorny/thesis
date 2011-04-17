@@ -1914,7 +1914,6 @@ handle_insn_setval(struct cl_insn *cli, const struct instruction *insn)
   *         EXPR_FVALUE ~ constant of CL_TYPE_REAL type
   *         (other types of expressions not checked yet)
   * [output] CL_INSN_UNOP (set by caller, as with location)
-  *     data.insn_unop.code (set by caller, rewrite in case of unary minus)
   *     data.insn_unop.dst ~ insn->target
   *     data.insn_unop.src ~ insn->val (see above)
   *
