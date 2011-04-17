@@ -1343,7 +1343,8 @@ op_from_pseudo(struct cl_operand *op, const struct instruction *insn,
         /* immediate values (some information may be hard/impossible to get) */
 
         case PSEUDO_REG: return op_from_register(op, insn, pseudo);
-        case PSEUDO_VAL: return op_from_value(op, insn, (int) pseudo->value);
+        case PSEUDO_VAL: return op_from_value(op, insn, /*XXX: from long long */
+                                                        (int) pseudo->value);
 #if 0
         case PSEUDO_PHI:
             WARN_UNHANDLED(insn->pos, "PSEUDO_PHI");
@@ -1369,7 +1370,8 @@ op_from_expression(struct cl_operand *op, const struct instruction *insn,
     sparse_location(&op->loc, insn->pos);
     switch (expr->type) {
         case EXPR_FVALUE:
-            return op_make_cst_real(op, expr->fvalue);
+            return op_make_cst_real(op, /*XXX: from long double */
+                                        (double) expr->fvalue);
         default:
             CL_TRAP;
     }
