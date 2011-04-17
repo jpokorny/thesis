@@ -2,7 +2,7 @@
 .*
 *.o
 *.swp
-./cl_sparse
+/cl_sparse
 
 # override
 !.gitignore
