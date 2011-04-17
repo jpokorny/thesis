@@ -1,0 +1,15 @@
+_cl_sparse()
+{
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    #prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="-h --help -cl-verbose -cl-dump-pp -cl-dump-types -cl-dump-keep-switch -cl-gen-dot -cl-type-dot"
+
+
+    if [[ ${cur} == -* ]] ; then
+        COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+        return 0
+    fi
+}
+complete -F _cl_sparse cl_sparse
