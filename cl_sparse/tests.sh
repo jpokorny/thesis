@@ -162,10 +162,10 @@ function do_tests() {
             #    (if not ignored or if it is not a type graph)
             echo "$DOT" | grep -F "type.dot" >/dev/null && ign=1 || ign=0
             if [ $ign -eq 0 ]; then
-                ign=1
                 PATTERN=$(echo "$DOT" | sed "s/\.\//|/1" | cut -d"|" -f2)
                 IGNORE=$(grep -F "$PATTERN" $TESTSUITE_IGNORE) \
-                    && [ "$(echo $IGNORE | cut -c1)" != "#" ] && ign=0
+                    && [ "$(echo $IGNORE | cut -c1)" != "#" ]  \
+                    && ign=1
             fi
             if [ $ign -eq 1 ]; then
                 ignore "$(echo $IGNORE | cut -d";" -f2)"
@@ -196,7 +196,7 @@ function do_tests() {
 
     [ $? -ne 0 ] && echo $DLINE
 
-    nohup $DIRDIFF $SPARSE_PP $PREV_SPARSE_PP 2>&1 >/dev/null &
+    nohup $DIRDIFF $SPARSE_PP $PREV_SPARSE_PP >/dev/null 2>/dev/null &
 
     ###
     popd >/dev/null
