@@ -163,7 +163,7 @@ clean:
 	rm -f -- $(DOC_NAME).pdf
 
 deepclean: clean
-	$(MAKE) -C $<
+	$(MAKE) -C $(FIGS_DIR) $<
 
 setdraft:
 	cat $(PATCH_DRAFT) | patch -F3 -N -r - $(PATCH_TARGET) || :
