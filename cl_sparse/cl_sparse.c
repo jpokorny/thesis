@@ -82,7 +82,7 @@
 #define PARTIALLY_ORDERED(a, b, c)  (a <= b && b <= c)
 
 #define MEM_NEW(type)                malloc(sizeof(type))
-#define MEM_NEW_ARR(arr, num)        malloc(sizeof(*arr) * num)
+#define MEM_NEW_ARR(arr, num)        malloc(sizeof(*arr) * (num))
 #define MEM_RESIZE_ARR(arr, newnum)  realloc(arr, sizeof(*arr) * (newnum))
 
 #ifndef STREQ
@@ -243,13 +243,10 @@ static const char *verbose_mask_str[E_VERBOSE_LAST] = {
 
 #define NOKILL  ((pid_t) 0)
 
-#define PERROR_EXIT(str, code) \
-    do { perror(str); exit(code); } while (0)
-
-#define PERROR_KILL_EXIT(str, pid, code)  do { \
-        perror(str);                           \
-        if (pid != NOKILL) kill(pid, SIGKILL); \
-        exit(code);                            \
+#define ERR(str, pid, code)  do { \
+        perror(str);                                   \
+        if ((pid_t) pid != NOKILL) kill(pid, SIGKILL); \
+        exit(code);                                    \
     } while (0)
 
 #define ERROR(...)  do {                   \
@@ -290,7 +287,7 @@ sizeof_from_bits(int bits)
   * bytes_to_bits (sparse/target.h)
   *     - cons: we need the ceil value (1 bit ~ 1 byte), 0 in "strange" cases
   */
-	return (bits > 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
+    return (bits > 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
 }
 
 static void
@@ -775,7 +772,7 @@ build_referenced_type(struct cl_type *orig_clt)
 }
 
 
-// for given type "clt", return respective item from pointer hieararchy;
+// for given type "clt", return respective item from pointer hierarchy;
 // it is called only when we know such item will be there (already added)
 static struct ptr_db_item *
 type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db, const struct cl_type *clt)
@@ -2777,7 +2774,7 @@ redefine_stderr(int target_fd, FILE **backup_stderr)
         if (!*backup_stderr)
             return false;
         else
-        setbuf(*backup_stderr, NULL);
+            setbuf(*backup_stderr, NULL);
     }
 
     if (close(STDERR_FILENO) == -1
@@ -3112,51 +3109,54 @@ worker_loop(struct cl_plug_options *opt, int argc, char **argv)
 // Master loop (grab worker's stderr via read_fd, print it after work is over)
 static int
 master_loop(int read_fd, pid_t pid)
-#define MASTER_BUFFSIZE  (4096)
+#  define MASTER_BUFFSIZE  (4096)
 {
-      int stat_loc, res = 0;
-      char *buffer = NULL;
-      size_t alloc_size = 0, remain_size = 0;
-      ssize_t read_size;
-      struct pollfd fds = { .fd = read_fd, .events = POLLIN };
+    int worker_status, ret = 0;
+    char *buffer = NULL;
+    size_t alloc_size = 0, remain_size = 0;
+    ssize_t read_size;
+    struct pollfd fds = { .fd = read_fd, .events = POLLIN };
 
-      for (;;) {
-          if (poll(&fds, 1, -1) < 0) {
-              if (errno == EINTR)
-                  continue;
-              PERROR_KILL_EXIT("pol", pid, 2);
-          } else if (fds.revents & POLLHUP)
-            // worker has finished
-            break;
+    for (;;) {
+        if (poll(&fds, 1, -1) < 0) {
+            if (errno == EINTR)
+                continue;
+            ERR("pol", pid, 2);
+        } else if (fds.revents & POLLHUP)
+          // worker has finished
+          break;
 
-          if (!remain_size) {
-              alloc_size += MASTER_BUFFSIZE;
-              remain_size = MASTER_BUFFSIZE;
-              buffer = MEM_RESIZE_ARR(buffer, alloc_size);
-              if (!buffer)
-                  PERROR_KILL_EXIT("MEM_RESIZE_ARR", pid, 2);
-          }
-          read_size = read(read_fd, &buffer[alloc_size-remain_size],
-                           remain_size);
-          if (read_size < 0)
-              PERROR_KILL_EXIT("read", pid, 2);
-          remain_size -= read_size;
-      }
+        if (!remain_size) {
+            alloc_size += MASTER_BUFFSIZE;
+            remain_size = MASTER_BUFFSIZE;
+            buffer = MEM_RESIZE_ARR(buffer, alloc_size);
+            if (!buffer)
+                ERR("MEM_RESIZE_ARR", pid, 2);
+        }
+        read_size = read(read_fd, &buffer[alloc_size-remain_size],
+                         remain_size);
+        if (read_size < 0)
+            ERR("read", pid, 2);
+        remain_size -= read_size;
+    }
 
-      if (wait(&stat_loc) == (pid_t)-1)
-          PERROR_KILL_EXIT("wait", pid, 2);
-      if (WIFEXITED(stat_loc)) {
-          res = WEXITSTATUS(stat_loc);
-          fprintf(real_stderr, "sparse returned %i\n", res);
-      }
+    if (wait(&worker_status) == (pid_t)-1)
+        ERR("wait", pid, 2);
+    if (WIFEXITED(worker_status)) {
+        ret = WEXITSTATUS(worker_status);
+        fprintf(real_stderr, "sparse returned %i\n", ret);
+    } else {
+        ret = EXIT_FAILURE;
+        printf(real_stderr, "worker ended in an unexpected way\n");
+    }
 
-      if (alloc_size-remain_size) {
-          fprintf(real_stderr, "-------------------\nsparse diagnostics:\n");
-          write(STDERR_FILENO, buffer, alloc_size-remain_size);
-      }
-      free(buffer);
+    if (alloc_size-remain_size) {
+        fprintf(real_stderr, "-------------------\nsparse diagnostics:\n");
+        write(STDERR_FILENO, buffer, alloc_size-remain_size);
+    }
+    free(buffer);
 
-      return res;
+    return ret;
 }
 #endif
 
@@ -3181,19 +3181,19 @@ int main(int argc, char *argv[])
     // set up pipe
     int fildes[2];
     if (pipe(fildes) < 0)
-        PERROR_KILL_EXIT("pipe", NOKILL, 2);
+        ERR("pipe", NOKILL, 2);
     // master-worker fork
     pid_t pid = fork();
     if (pid == -1)
-        PERROR_KILL_EXIT("fork", NOKILL, 2);
+        ERR("fork", NOKILL, 2);
     else if (pid == 0) {
 
         /* child = worker, use fildes[1] for writing */
 
         if (close(fildes[0]) < 0)
-            PERROR_EXIT("close", 2);
+            ERR("close", NOKILL, 2);
         if (!redefine_stderr(fildes[1], &real_stderr))
-            PERROR_EXIT("Redefining stderr", 2);
+            ERR("Redefining stderr", NOKILL, 2);
 #endif
 
         // main processing loop
@@ -3201,17 +3201,18 @@ int main(int argc, char *argv[])
 
 #if DO_FORK
         if (fclose(real_stderr) == EOF || close(fildes[1]) < 0)
-            PERROR_EXIT("fclose/close", 2);
+            ERR("fclose/close", NOKILL, 2);
     } else {
 
         /* parent = master, use fildes[0] for reading */
 
         if (close(fildes[1]) < 0)
-            PERROR_KILL_EXIT("close", pid, 2);
+            ERR("close", pid, 2);
         // master loop -- gather what sparse produce to stderr
         retval = master_loop(fildes[0], pid);
     }
 #endif
-
     return retval;
 }
+
+// vim:ts=4:sts=4:sw=4:et
