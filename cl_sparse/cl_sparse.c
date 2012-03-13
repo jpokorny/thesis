@@ -59,7 +59,6 @@
 
 
 // general
-#define DO_FORK                      1  // "1" recommended
 #define DO_EXTRA_CHECKS              1
 #define USE_EXTENDED_TYPE_CMP        0
 #define SHOW_PSEUDO_INSNS            0
@@ -2792,6 +2791,9 @@ redefine_stderr(int target_fd, FILE **backup_stderr)
 
 
 struct cl_plug_options {
+    /* merely local */
+    bool        fork;
+    /* Code Listener */
     bool        dump_types;
     bool        dump_keep_switch;
     bool        use_dotgen;
@@ -2837,10 +2839,13 @@ static void print_help(const char *cmd)
     _("For `sparse args', see sparse documentation; these args are generally"  )
     _("compatible with those for gcc and unrecognized ones are ignored anyway.")
     __
-    _("This code listener fronted also defines few args/options on its own:"   )
+    _("This Code Listener fronted also defines few args/options on its own:"   )
     __
     B("h", "help"          , "Prints this help text"                           )
+    B("f", "fork"          , "Fork in order to separate output from sparse"    )
     C("verbose[=MASK]"     , "Be verbose (selectively if MASK provided)"       )
+    __
+    _("specifically, these are passed to Code Listener:")
     C("dump-pp"            , "Dump pretty-printed linearized code"             )
     C("dump-types"         , "Add type information to pretty-printed code"     )
     C("dump-keep-switch"   , "Keep switch statement \"as is\" (no unfolding)"  )
@@ -2862,7 +2867,7 @@ handle_cl_args(int argc, char *argv[], struct cl_plug_options *opt)
 {
     char *value;
 
-    // initialize opt data
+    // initialize opt data (booleans are false, etc.)
     memset(opt, 0, sizeof(*opt));
 
     // handle plug-in args
@@ -2875,13 +2880,16 @@ handle_cl_args(int argc, char *argv[], struct cl_plug_options *opt)
               || (value = OPTPREFIXEQ_LONG(argv[i],  "help")))
             && *value == '\0') {
             print_help(argv[0]);
-            return EXIT_FAILURE;
+            return EXIT_SUCCESS;
+        } else if ((value = OPTPREFIXEQ_SHORT(argv[i],     "f"))
+                    || (value = OPTPREFIXEQ_LONG(argv[i],  "fork")))
+            opt->fork = true;
         } else if ((value = OPTPREFIXEQ_CL(argv[i],  "verbose"))) {
             cl_verbose = OPTVALUE(value)
                 ? atoi(value)
                 : ~0;
 
-        /* args affecting code listener behaviour */
+        /* args affecting Code Listener behaviour */
 
         } else if ((value = OPTPREFIXEQ_CL(argv[i],  "dump-pp"))) {
             opt->use_pp           = true;
@@ -3105,11 +3113,10 @@ worker_loop(struct cl_plug_options *opt, int argc, char **argv)
 }
 
 
-#if DO_FORK
 // Master loop (grab worker's stderr via read_fd, print it after work is over)
 static int
 master_loop(int read_fd, pid_t pid)
-#  define MASTER_BUFFSIZE  (4096)
+#define MASTER_BUFFSIZE  (4096)
 {
     int worker_status, ret = 0;
     char *buffer = NULL;
@@ -3158,7 +3165,6 @@ master_loop(int read_fd, pid_t pid)
 
     return ret;
 }
-#endif
 
 
 
@@ -3177,41 +3183,42 @@ int main(int argc, char *argv[])
 
     real_stderr = stderr; // use this if you need "unfaked" stderr
 
-#if DO_FORK
-    // set up pipe
-    int fildes[2];
-    if (pipe(fildes) < 0)
-        ERR("pipe", NOKILL, 2);
-    // master-worker fork
-    pid_t pid = fork();
-    if (pid == -1)
-        ERR("fork", NOKILL, 2);
-    else if (pid == 0) {
-
-        /* child = worker, use fildes[1] for writing */
-
-        if (close(fildes[0]) < 0)
-            ERR("close", NOKILL, 2);
-        if (!redefine_stderr(fildes[1], &real_stderr))
-            ERR("Redefining stderr", NOKILL, 2);
-#endif
-
-        // main processing loop
+    if (!opt->fork)
         retval = worker_loop(&opt, argc, argv);
+    else {
+        // set up pipe
+        int fildes[2];
+        if (pipe(fildes) < 0)
+            ERR("pipe", NOKILL, 2);
+        // master-worker fork
+        pid_t pid = fork();
+        if (pid == -1)
+            ERR("fork", NOKILL, 2);
+        else if (pid == 0) {
 
-#if DO_FORK
-        if (fclose(real_stderr) == EOF || close(fildes[1]) < 0)
-            ERR("fclose/close", NOKILL, 2);
-    } else {
+            /* child = worker, uses fildes[1] for writing */
 
-        /* parent = master, use fildes[0] for reading */
+            if (close(fildes[0]) < 0)
+                ERR("close", NOKILL, 2);
+            if (!redefine_stderr(fildes[1], &real_stderr))
+                ERR("Redefining stderr", NOKILL, 2);
 
-        if (close(fildes[1]) < 0)
-            ERR("close", pid, 2);
-        // master loop -- gather what sparse produce to stderr
-        retval = master_loop(fildes[0], pid);
+            // main processing loop
+            retval = worker_loop(&opt, argc, argv);
+
+            if (fclose(real_stderr) == EOF || close(fildes[1]) < 0)
+                ERR("fclose/close", NOKILL, 2);
+        } else {
+
+            /* parent = master, uses fildes[0] for reading */
+
+            if (close(fildes[1]) < 0)
+                ERR("close", pid, 2);
+            // master loop -- gather what sparse produce to stderr
+            retval = master_loop(fildes[0], pid);
+        }
     }
-#endif
+
     return retval;
 }
 
