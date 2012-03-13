@@ -1048,13 +1048,13 @@ op_free_initializers(struct cl_initializer *initial)
 {
     /* initial->type (skipped) */
 
-    if (!initial->type->item_cnt) {
+    if (!initial->nested_cnt) {
         /* initial->data.value (heap-based!) */
         free_op(initial->data.value);
     } else {
         /* initial->data.nested_initials */
         int i;
-        for (i = 0; i < initial->type->item_cnt; i++)
+        for (i = 0; i < initial->nested_cnt; i++)
             if (initial->data.nested_initials[i])
                 op_free_initializers(initial->data.nested_initials[i]);
     }
@@ -3067,11 +3067,15 @@ worker_loop(struct cl_plug_options *opt, int argc, char **argv)
     struct symbol_list *symlist;
 
     // initialize code listener
-    struct cl_init_data init = { .debug = trivial_printer,
-                                 .warn  = cl_warn,
-                                 .error = cl_error,
-                                 .note  = trivial_printer,
-                                 .die   = trivial_printer  };
+    struct cl_init_data init = {
+        .debug       = trivial_printer,
+        .warn        = cl_warn,
+        .error       = cl_error,
+        .note        = trivial_printer,
+        .die         = trivial_printer,
+        .debug_level = cl_verbose,
+    };
+
     cl_global_init(&init);
     cl = create_cl_chain(opt);
     if (!cl)
@@ -3175,7 +3179,7 @@ master_loop(int read_fd, pid_t pid)
 
 int main(int argc, char *argv[])
 {
-    // handle arguments specific for this code listener frontend
+    // handle arguments specific for this Code Listener frontend
     struct cl_plug_options opt;
     int retval = handle_cl_args(argc, argv, &opt);
     if (retval)
