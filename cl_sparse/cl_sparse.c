@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2009 Kamil Dudka <kdudka@redhat.com>
- * Copyright (C) 2011 Jan Pokorny <pokorny_jan@seznam.cz>
+ * Copyright (C) 2012 Jan Pokorny <pokorny_jan@seznam.cz>
  *
  * This file is part of predator.
  *
@@ -18,21 +18,21 @@
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _POSIX_C_SOURCE 200809L // snprintf
 
-#define _GNU_SOURCE // asprintf, ...
-
-#include <stdarg.h>
+//#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 #include <unistd.h>
-#include <poll.h>
 #include <errno.h>
-#include <signal.h>
-#include <sys/wait.h>
+#include <signal.h>    // kill
+#include <sys/wait.h>  // wait
 #include <assert.h>
+#include <dlfcn.h>     // dlopen, dlsym, dlclose
+#include <ctype.h>     // isdigit
 
 #define USE_INT3_AS_BRK
 #include "trap.h"
@@ -52,11 +52,7 @@
 //#include "sparse/token.h"
 
 
-
-//
-// Compile options
-//
-
+/* compile options */
 
 // general
 #define DO_EXTRA_CHECKS              1
@@ -71,24 +67,35 @@
 #define DO_SPARSE_FREE               1
 #define FIX_SPARSE_EXTRA_ARG_TO_MEM  1
 
+/* symbolic values */
 
+#define DL_OPEN_FLAGS                  (RTLD_LAZY|RTLD_LOCAL)
 
-//
-// Common macros
-//
+#define CLSP_CONFIG_STRING_MAX          512
+#define CLSP_NAME                       __FILE__
+#define CLSP_SPARSE_INTERNAL_SYMS_FILE  "sparse-internal-symbols"
 
+#define FD_UNDEF     -1
+#define FD_DEFERRED  -2
 
-#define PARTIALLY_ORDERED(a, b, c)  (a <= b && b <= c)
-
-#define MEM_NEW(type)                malloc(sizeof(type))
-#define MEM_NEW_ARR(arr, num)        malloc(sizeof(*arr) * (num))
-#define MEM_RESIZE_ARR(arr, newnum)  realloc(arr, sizeof(*arr) * (newnum))
+/* common macros */
 
 #ifndef STREQ
-#   define STREQ(s1, s2)  (0 == strcmp(s1, s2))
+# define STREQ(s1, s2)  (!strcmp(s1, s2))
 #endif
 
-// macro language brings wholly new dimensions to the C world, FWIW
+#define UNFOLD(...)  OPT_##what
+
+#define STRINGIFY(arg)              #arg
+#define TOSTRING(arg)               STRINGIFY(arg)
+
+#define PRAGMA(arg)                 _Pragma(arg)
+#define COMPILE_TIME_ASSERT(pred)   switch(0){case 0:case pred:;}
+
+// beware of side-effects
+#define PARTIALLY_ORDERED(a, b, c)  (a <= b && b <= c)
+
+// yo, Dawg...
 #define OR  : case
 #define IN(choices)  , choices
 #define COND_WHICH(cond, which) \
@@ -103,12 +110,181 @@
     }
 
 
+/* allocation */
+
+// NOTE: use "MEM_NEW(foo)" for direct access ("MEM_NEW(foo).bar = 42")
+//       and "(MEM_NEW(foo))" as a function parameter ("bar((MEM_NEW(foo)))")
+
+#define NORETWRN(expr)  (void)(expr)
+
+#define MEM_NEW(var)                        \
+   (((var) = malloc(sizeof(*(var))))        \
+     ? (void) 0  /* NOOP */                 \
+     : DIE( ERRNOCODE(EC_MEM, "MEM_NEW") )  \
+   ) , (var)
+
+#define MEM_ARR_RESIZE(arr, newcnt)                      \
+    (((arr) = realloc((arr), sizeof(*(arr)) * (newcnt))) \
+      ? (void) 0 /* NOOP */                              \
+      : DIE( ERRNOCODE(EC_MEM, "MEM_ARR_RESIZE") )       \
+    ) , (arr)
+
+// NOTE: one-liner for item append: *(MEM_ARR_APPEN(arr,size)) = item
+#define MEM_ARR_APPEND(arr, oldcnt)                          \
+    (((arr) = realloc((arr), sizeof(*(arr)) * (++(oldcnt)))) \
+      ? (void) 0 /* NOOP */                                  \
+      : DIE( ERRNOCODE(EC_MEM, "MEM_ARR_APPEND") )           \
+    ) , (arr + oldcnt - 1)
+
 
 //
-// Pointer and array DB, for building pointer* and array hierarchy in order to
+// globals
+//
+
+typedef void (*atexit_fnc)();
+
+enum streams {
+    // for both master and worker
+    stream_first,
+    stream_out = stream_first,
+    stream_err,
+    // worker only
+    stream_worker_first,
+    stream_sparse = stream_worker_first,
+    stream_cl,
+    stream_debug,
+    stream_worker_last,
+    stream_last = stream_worker_last
+};
+
+static struct globals {
+    FILE            *stream[stream_last];
+    /* buffer for sparse deferred stream */
+    struct g_deferred {
+        char        *buffer;
+        size_t      size;
+    } deferred;
+    struct cl_code_listener  *cl;
+    /* API functions resolved in compile- or run-time set here */
+    struct g_cl_api {
+        void (*global_init)(struct cl_init_data *);
+        void (*global_init_defaults)(const char *, int);
+        struct cl_code_listener *(*code_listener_create)(const char *);
+        struct cl_code_listener *(*chain_create)();
+        void (*chain_append)(struct cl_code_listener *,
+                             struct cl_code_listener *);
+        void (*global_cleanup)();
+    } cl_api;
+    struct g_cl_libs {
+        size_t      cnt;
+        void        **handles;  // !HAS_CL -> first is the main one
+    } cl_libs;
+    // TODO typedb
+    int             debug;
+    /* unexposed, but run-modifying options (e.g., for testing) */
+    struct {
+        bool        register_atexit;
+    } unexposed;
+} globals;
+
+// this is defined to allow a kind of encapsulation
+#define GLOBALS(what)  (globals.what)
+#define STREAM(which)  GLOBALS(stream[stream_##which])
+
+
+//
+// outputs
+//
+
+/* universal print macro with implicit newline
+ *
+ * usage: PUT(stream_index, [[fmt], ...])
+ * NOTE:  fmt has to be compile-time constant
+ */
+
+// NOTE: last argument in order to allow format string as the only
+//       argument; compensated appending "%s" later on
+#define PUT(which, ...)        PUT_(which, __VA_ARGS__, "")
+#define PUT_(which, fmt, ...)  PUT__(which, 0, fmt "%s", __VA_ARGS__)
+#define PUT__(which, skip, fmt, ...) \
+    fprintf(STREAM(which), &(fmt "\n")[skip], __VA_ARGS__)
+
+/* pre-mortem print macro
+ *
+ * usage: DIE( WRAPPER(wrapper_args, [fmt, [...]]) )
+ *        where WRAPPER is one of macros defined below
+ */
+
+#define DLOC \
+    "\n" __FILE__ ":" TOSTRING(__LINE__) ": note: from %s [internal location]"
+
+#define ERRNO(...)             DCHR_ERRNO __VA_ARGS__
+// code (exit ~) can be [0,10), i.e., containing single digit
+#define ECODE_(flag,code,...)  flag STRINGIFY(code) __VA_ARGS__
+#define ECODE(...)             ECODE_(DCHR_ECODE, __VA_ARGS__)
+#define ERRNOCODE(...)         ECODE_(DCHR_ERRNOCODE, __VA_ARGS__)
+
+// NOTE: format string should not start with any of these (used internally):
+#define DCHR_ERRNO      "@"
+#define DCHR_ECODE      "$"
+#define DCHR_ERRNOCODE  "#"
+
+// see PUT
+#define DIE(...)         DIE_(__VA_ARGS__, "")
+#define DIE_(fmt, ...)   DIE__(fmt "%s", __VA_ARGS__)
+#define DIE__(fmt, ...)                                                       \
+    ((*fmt != *DCHR_ERRNO && *fmt != *DCHR_ERRNOCODE)                         \
+        ? PUT__(err, *fmt == *DCHR_ECODE ? 2 : 0, fmt DLOC,                   \
+             __VA_ARGS__, __func__)                                           \
+        : (((fmt)[(*fmt == *DCHR_ERRNOCODE ? 2 : 1)])                         \
+            ? PUT__(err, *fmt == *DCHR_ERRNOCODE ? 2 : 1, fmt ": %s" DLOC,    \
+                    __VA_ARGS__, strerror(errno), __func__)                   \
+            : PUT__(err, *fmt == *DCHR_ERRNOCODE ? 2 : 1, fmt "die: %s" DLOC, \
+                    __VA_ARGS__, strerror(errno), __func__))                  \
+    , ((*fmt == *DCHR_ERRNOCODE || *fmt == *DCHR_ECODE)                       \
+        ? exit((int) (fmt[1] - '0'))                                          \
+        : exit(ec_general)))
+
+
+// common exit codes (1 reserved for sparse)
+#define ECVALUE(arg)     arg
+#define ECACCESS(index)  index - ec_first
+#define ECMSG(suffix)    [ECACCESS(ec_##suffix)] = ec_##suffix()
+enum {
+    ec_first = 1,
+    ec_sparse = ec_first,
+#define ec_sparse()   "sparse has not finished successfully"
+    ec_general,
+#define ec_general()  "something general has failed"
+    ec_opt,
+#define ec_opt()      "incorrect command-line"
+    ec_mem,
+#define ec_mem()      "memory handling has failed (probably OOM)"
+    ec_tdb,
+#define ec_tdb()      "internal type database handling has failed"
+    ec_cl,
+#define ec_cl()       "Code Listener run has been aborted"
+    ec_last
+};
+static const char *ec_str[ec_last] = {
+    ECMSG(sparse),
+    ECMSG(general),
+    ECMSG(opt),
+    ECMSG(mem),
+    ECMSG(tdb),
+    ECMSG(cl),
+};
+
+// output functions
+//static void clmsg_ignore(const char *msg) { (void) msg;                     }
+static void clmsg_print(const char *msg)  { PUT(cl, "%s", msg);             }
+static void clmsg_die(const char *msg)    { DIE( ECODE(ec_cl, "%s", msg) ); }
+
+
+//
+// pointer and array DB, for building pointer* and array hierarchy in order to
 // prevent having two semantically same pointers/arrays as two different types
 //
-
 
 struct arr_db_item {
     int             arr_size;
@@ -120,7 +296,7 @@ struct ptr_db_item {
     struct ptr_db_item  *next;
     size_t              arr_cnt;
     struct arr_db_item  **arr;
-    bool                free_type;  //**< whether we are responsible for clt
+    bool                free_type;  ///< whether we are responsible for clt
 };
 
 struct ptr_db_arr {
@@ -131,14 +307,98 @@ struct ptr_db_arr {
 
 
 
-//
-// Globals
-//
+// shared object for initialization phase data exchange amongst functions
+// NOTE: imm -> immediate values; set -> values that were set up later on
+struct options {
+    /* internal options */
+    struct {
+        struct {
+            bool            fork;
+            struct oi_fd {
+                int         cl;
+                int         sparse;  // FD_DEFERRED for deferred output
+                int         debug;
+            } fd;
+            int             debug;
+        } imm;
+    } internals;
+    /* Code Listener */
+    struct {
+        struct {
+            struct {
+                size_t      cnt;
+                char        **arr;  // !HAS_CL -> first is the main one
+            } listeners;
+            bool            default_output;
+            struct {
+                bool        enable;
+                bool        types;
+                bool        switch_to_if;
+                const char  *file;
+            } pprint;
+            struct {
+                bool        enable;
+                const char  *file;
+            } gencfg;
+            struct {
+                bool        enable;
+                const char  *file;
+            } gentype;
+            struct oc_debug {
+                bool        location;
+                int         level;
+            } debug;
+        } imm;
+    } cl;
+    /* sparse */
+    struct {
+        struct {
+            int             argc;
+            char            **argv;
+        } set;
+    } sparse;
+    /* globals as a dependency injection */
+    struct globals          *globals;
+};
+
+
+/* debugging */
+
+#define DACCESS(index)   index - d_first
+#define DVALUE(arg)       (1 << arg)
+#define DMSG(suffix)     [DACCESS(d_##suffix)] = d_##suffix()
+enum {
+    d_first = 0,
+    d_instruction = d_first,
+#define d_instruction()  "print instruction being processed"
+    d_type,
+#define d_type()         "print type being processed"
+    d_insert_type,
+#define d_insert_type()  "print type being inserted into type DB"
+    d_file,
+#define d_file()         "print current file to be proceeded"
+    d_last
+};
+static const char *d_str[d_last] = {
+    DMSG(instruction),
+    DMSG(type),
+    DMSG(insert_type),
+    DMSG(file),
+};
+
+// two forms of usage
+#define DLOG(level, ...)                \
+    if (GLOBALS(debug) & DVALUE(level)) \
+        PUT(debug, __VA_ARGS__)
+
+#define WITH_DEBUG_LEVEL(level)                            \
+    for (int i=0; 0==i && (GLOBALS(debug) & DVALUE(level)) \
+         ? 1                                               \
+         : 0                                               \
+         ; i++)
 
 
 const char *GIT_SHA1 = "someversion";
-
-static struct cl_code_listener *cl;
 
 static struct type_ptr_db {
     int                 last_base_type_uid;
@@ -147,24 +407,345 @@ static struct type_ptr_db {
 } type_ptr_db = {
     .last_base_type_uid = 0,  // to prevent free of non-heap based types
     .type_db            = NULL,
-    .ptr_db             = { .alloc_size = 0, .last = 0, .heads = NULL },
+    .ptr_db             = { .alloc_size=0, .last=0, .heads=NULL },
 };
 typedef struct type_ptr_db *type_ptr_db_t;
 
-FILE *real_stderr = NULL; /**< used to access "unfaked" stderr */
 
+#define IDENTITY(what)       (what)
+#define APPLY(next,...)      next(__VA_ARGS__)
+
+#define APPLY_DEF_N0_(fnc,               X)  X(fnc)(              )
+#define APPLY_DEF_N1_(fnc,a1,            X)  X(fnc)(a1            )
+#define APPLY_DEF_N2_(fnc,a1,a2,         X)  X(fnc)(a1,a2         )
+#define APPLY_DEF_N3_(fnc,a1,a2,a3,      X)  X(fnc)(a1,a2,a3      )
+#define APPLY_DEF_N4_(fnc,a1,a2,a3,a4,   X)  X(fnc)(a1,a2,a3,a4   )
+#define APPLY_DEF_N5_(fnc,a1,a2,a3,a4,a5,X)  X(fnc)(a1,a2,a3,a4,a5)
+#define APPLY_DEF_R0_(fnc,ret,...)  ret = APPLY_DEF_N0_(fnc,__VA_ARGS__)
+#define APPLY_DEF_R1_(fnc,ret,...)  ret = APPLY_DEF_N1_(fnc,__VA_ARGS__)
+#define APPLY_DEF_R2_(fnc,ret,...)  ret = APPLY_DEF_N2_(fnc,__VA_ARGS__)
+#define APPLY_DEF_R3_(fnc,ret,...)  ret = APPLY_DEF_N3_(fnc,__VA_ARGS__)
+#define APPLY_DEF_R4_(fnc,ret,...)  ret = APPLY_DEF_N4_(fnc,__VA_ARGS__)
+#define APPLY_DEF_R5_(fnc,ret,...)  ret = APPLY_DEF_N5_(fnc,__VA_ARGS__)
+
+/* facade + reusable enumeration for global CL API (subset used) */
+
+#define CL_API_FNC(fnc)        (GLOBALS(cl_api).fnc)
+#define CL_API(...)            CL_API_(__VA_ARGS__,CL_API_FNC)
+#define CL_API_(fnc, ...)      APPLY(CL_API__,CL_API_CNT(fnc),fnc,__VA_ARGS__)
+#define CL_API__(kind,fnc,...) APPLY_DEF_N##kind##_(fnc,__VA_ARGS__)
+
+#define CL_API_CNT(fnc)              CL_API_##fnc
+#define CL_API_global_init           1
+#define CL_API_global_init_defaults  2
+#define CL_API_code_listener_create  1
+#define CL_API_chain_create          0
+#define CL_API_chain_append          2
+#define CL_API_global_cleanup        0
+
+#define CL_API_PROCEED(proceed)        \
+    do {                               \
+        proceed(global_init);          \
+        proceed(global_init_defaults); \
+        proceed(code_listener_create); \
+        proceed(chain_create);         \
+        proceed(chain_append);         \
+        proceed(global_cleanup);       \
+    } while (0)
+
+/* facade + reusable enumeration for emitting part of CL API (subset used) */
+
+#define EMIT_FNC(fnc)        (GLOBALS(cl)->fnc)
+#define EMIT(...)            EMIT_(__VA_ARGS__,EMIT_FNC)
+#define EMIT_(fnc,...)       APPLY(EMIT__,EMIT_KIND(fnc),fnc,__VA_ARGS__)
+#define EMIT__(kind,fnc,...) APPLY_DEF_N##kind##_(fnc,GLOBALS(cl),__VA_ARGS__)
+
+// NOTE: +1 for common cl argument
+#define EMIT_KIND(fnc)          EMIT_##fnc
+#define EMIT_file_open          2
+#define EMIT_file_close         1
+#define EMIT_fnc_open           2
+#define EMIT_fnc_arg_decl       3
+#define EMIT_fnc_close          1
+#define EMIT_bb_open            2
+#define EMIT_insn               2
+#define EMIT_insn_call_open     4
+#define EMIT_insn_call_arg      3
+#define EMIT_insn_call_close    1
+#define EMIT_insn_switch_open   3
+#define EMIT_insn_switch_case   5
+#define EMIT_insn_switch_close  1
+#define EMIT_acknowledge        1
+#define EMIT_destroy            1
+
+#define EMIT_PROCEED(proceed)       \
+    do {                            \
+        proceed(file_open);         \
+        proceed(file_close);        \
+        proceed(fnc_open);          \
+        proceed(fnc_arg_decl);      \
+        proceed(fnc_close);         \
+        proceed(bb_open);           \
+        proceed(insn);              \
+        proceed(insn_call_open);    \
+        proceed(insn_call_arg);     \
+        proceed(insn_call_close);   \
+        proceed(insn_switch_open);  \
+        proceed(insn_switch_case);  \
+        proceed(insn_switch_close); \
+        proceed(acknowledge);       \
+        proceed(destroy);           \
+    } while (0)
+
+/* facade + reusable enumeration for sparse API (subset used) */
+
+#define SPARSE_API(...)            SPARSE_API_(__VA_ARGS__,IDENTITY)
+#define SPARSE_API_(fnc,...)       APPLY(SPARSE_API_OUT(fnc),SPARSE_API_KIND(fnc),fnc,__VA_ARGS__)
+#define SPARSE_API__(kind,fnc,...) APPLY_DEF_##kind##_(fnc,__VA_ARGS__)
+#define SPARSE_API_D(kind,fnc,...)           \
+    WITH_SWAPPED_STREAM(out, debug)          \
+        APPLY_DEF_##kind##_(fnc,__VA_ARGS__)
+#define SPARSE_API_E(kind,fnc,...)           \
+    WITH_SWAPPED_STREAM(sparse, err)         \
+        APPLY_DEF_##kind##_(fnc,__VA_ARGS__)
+
+#define SPARSE_API_KIND(fnc)       APPLY(SPARSE_API_KIND_,SPARSE_API_##fnc)
+#define SPARSE_API_KIND_(kind,argcnt,out)  kind##argcnt
+#define SPARSE_API_OUT(fnc)        APPLY(SPARSE_API_OUT_,SPARSE_API_##fnc)
+#define SPARSE_API_OUT_(kind,argcnt,out)  SPARSE_API_##out
+
+#define SPARSE_API_sparse_initialize  R,3,E
+#define SPARSE_API_sparse             R,1,E
+#define SPARSE_API_expand_symbol      N,1,E
+#define SPARSE_API_linearize_symbol   R,1,E
+#define SPARSE_API_unssa              N,1,E
+#define SPARSE_API_set_up_storage     N,1,E
+#define SPARSE_API_free_storage       N,0,_
+#define SPARSE_API_show_symbol        N,1,D
+
+#define SPARSE_API_PROCEED(proceed)  \
+    do {                             \
+        proceed(sparse_initialize);  \
+        proceed(sparse);             \
+        proceed(expand_symbol);      \
+        proceed(linearize_symbol);   \
+        proceed(unssa);              \
+        proceed(set_up_storage);     \
+        proceed(free_storage);       \
+        proceed(show_symbol);        \
+    } while (0)
+
+/* Context Managers ala Python */
+
+#define SWAP_STREAM(f1, f2)  swap_stream(STREAM(f1), STREAM(f2))
+
+#define WITH_SWAPPED_STREAM(f1,f2)  \
+    for (int i=0; 0==i              \
+         ? (SWAP_STREAM(f1, f2), 1) \
+         : (SWAP_STREAM(f2, f1), 0) \
+         ; i++)
+
+#define WITH_OBJECT(object)               \
+    for (int i=0; 0==i                    \
+         ? (object##_init(&object), 1)    \
+         : (object##_destroy(&object), 0) \
+         ; i++)
+
+#define WITH_FILE_TO_EMIT(file)       \
+    for (int i=0; i==0                \
+         ? (EMIT(file_open, file), 1) \
+         : (EMIT(file_close),      0) \
+         ; i++)
+
+#define WITH_CALL_TO_EMIT(loc, dst, fnc)            \
+    for (int i=0; 0==i                              \
+         ? (EMIT(insn_call_open, loc, dst, fnc), 1) \
+         : (EMIT(insn_call_close),               0) \
+         ; i++)
+
+#define WITH_SWITCH_TO_EMIT(loc, op)            \
+    for (int i=0; 0==i                          \
+         ? (EMIT(insn_switch_open, loc, op), 1) \
+         : (EMIT(insn_switch_close),         0) \
+         ; i++)
+
+#define WITH_FNC_TO_EMIT(fnc)       \
+    for (int i=0; 0==i              \
+         ? (EMIT(fnc_open, fnc), 1) \
+         : (EMIT(fnc_close),     0) \
+         ; i++)
+
+
+//
+// Initialization/deinitialization functions
+//
+
+/* freeing resources connected with type */
+
+static void
+free_type(struct cl_type *clt)
+{
+    // skip base types that are not on heap
+    if (clt->uid > type_ptr_db.last_base_type_uid) {
+
+        /* clt->name */
+        free((char *) clt->name);
+
+        /* clt->items */
+        // selective approach can expose wrong usage through leaked memory
+        BEGIN_WHEN(clt->code IN (CL_TYPE_PTR    OR
+                                 CL_TYPE_STRUCT OR
+                                 CL_TYPE_UNION  OR
+                                 CL_TYPE_ARRAY  OR
+                                 CL_TYPE_FNC    ))
+        {
+            int i;
+            for (i = 0; i < clt->item_cnt; i++) {
+                /* clt->items[i].type (skipped) */
+
+                /* clt->items[i].name */
+                free((char *) clt->items[i].name);
+            }
+            free(clt->items);
+        }
+        END_WHEN
+
+        /* clt (heap!) */
+        free(clt);
+    }
+}
+
+static void
+type_ptr_db_destroy(type_ptr_db_t db)
+{
+    typen_destroy(db->type_db);
+
+    // destroy pointer hierarchy
+    struct ptr_db_arr *ptr_db = &db->ptr_db;
+    struct ptr_db_item *item, *item_next;
+    int i;
+    for (i = 0; i < ptr_db->last; i++) {
+        item = &ptr_db->heads[i];
+
+        /* item->clt (skipped, except for those explicitly flagged) */
+        if (item->free_type)
+            free_type(item->clt);
+
+        /* item->arr */
+        int j;
+        for (j = 0; j < item->arr_cnt; j++)
+            free(item->arr[j]);
+        free(item->arr);
+
+        // move onto next items, this one captured by `free(db->ptr_db.heads)'
+        item = item->next;
+
+        while (item) {
+            item_next = item->next;
+
+            /* item->clt (skipped, except for those explicitly flagged) */
+            if (item->free_type)
+                free_type(item->clt);
+
+            free(item);
+            item = item_next;
+        }
+    }
+    free(ptr_db->heads);
+}
+
+
+//
+// worker-initiated setup, mainly regarding Code Listener
+//
+
+// NOTE: stdout and stderr skipped
+static void
+atexit_worker(void)
+{
+#if 0
+    // TODO
+    type_ptr_db_destroy();
+#endif
+    // close the streams used by the worker
+    int fileno_cur;
+    for (enum streams s=stream_first; s < stream_last; s++) {
+        fileno_cur = fileno(GLOBALS(stream[s]));
+        if (GLOBALS(stream[s]) && fileno_cur > STDERR_FILENO) {
+            // prevent double-close of particular file descriptor
+            enum streams sn = s+1;
+            for ( ; sn < stream_last; sn++)
+                if (fileno_cur == fileno(GLOBALS(stream[sn])))
+                    break;
+            if (sn == stream_last)
+                fclose(GLOBALS(stream[s]));
+        }
+    }
+    // close the access to dynamic libraries
+    for (size_t i=0; i < GLOBALS(cl_libs.cnt); i++)
+        if (GLOBALS(cl_libs.handles)[i]
+          && 0 != dlclose(GLOBALS(cl_libs.handles)[i]))
+            PUT(err, "dlclose: %s", dlerror());
+}
+
+void
+atexit_cl(void) {
+    if (GLOBALS(cl)) {
+        EMIT(destroy);
+        GLOBALS(cl) = NULL;
+        CL_API(global_cleanup);
+    }
+}
+
+// close (->flush to buffer) deferred sparse output and print it
+// NOTE: more options here, e.g., extra line prefix
+// NOTE: must be called before atexit_worker
+void
+atexit_sparse(void) {
+    // to be sure if deferred stream was opened and used,
+    // we fflush the stream and examine size of respective buffer
+    errno = 0;
+    if (STREAM(sparse)
+      && EOF != fflush(STREAM(sparse))
+      && 0 < GLOBALS(deferred.size)) {
+        if (EOF == fclose(STREAM(sparse)))
+            PUT(err, "%s: could not fclose", __func__);
+        STREAM(sparse) = NULL;
+
+        PUT(err,"sparse output:");
+        PUT(err,"%.*s", (int) GLOBALS(deferred.size), GLOBALS(deferred.buffer));
+
+        free(GLOBALS(deferred.buffer));
+        GLOBALS(deferred) = (struct g_deferred) { .buffer=NULL, .size=0 };
+    } else if (0 != errno)
+        PUT(err, "%s: could not fflush", __func__);
+}
+
+static inline void
+setup_stream(FILE **stream, int fd)
+{
+    switch (fd) {
+        case STDOUT_FILENO: *stream = stdout; break;
+        case STDERR_FILENO: *stream = stderr; break;
+        default:
+            *stream = fdopen(fd, "a");
+            if (!*stream)
+                // incl. FD_UNDEF
+                DIE( ERRNO("fdopen") );
+            break;
+    }
+}
 
 
 //
 // Empty composite values
 //
 
-
 // TODO: cl_loc_unknown
-#define EMPTY_LOC  { .file = NULL, .line = -1, .column = -1, .sysp = false }
+#define EMPTY_LOC  { .file=NULL, .line=-1, .column=-1, .sysp=false }
 
 static const struct cl_type pristine_cl_type = {
-    .uid        = NEW_UID,  /**< in control of type_enumerator */
+    .uid        = NEW_UID,  ///< in control of type_enumerator
     .code       = CL_TYPE_UNKNOWN,
     .loc        = EMPTY_LOC,
     .scope      = CL_SCOPE_GLOBAL,
@@ -176,50 +757,14 @@ static const struct cl_type pristine_cl_type = {
 };
 
 
-
-//
-// Verbosity levels
-//
-
-
-static int cl_verbose = 0;
-
-#define MACRO_STRING(arg)  #arg
-#define mask_bitmask(suffix)  (1 << E_VERBOSE_##suffix)
-#define mask_message(suffix, desc)  \
-    [E_VERBOSE_##suffix] = "(" MACRO_STRING(VERBOSE_##suffix) ")\t\t" desc,
-enum verbose_mask {
-    E_VERBOSE_LOCATION,
-    E_VERBOSE_INSTRUCTION,
-    E_VERBOSE_TYPE,
-    E_VERBOSE_INSERT_TYPE,
-    E_VERBOSE_LAST
-};
-static const char *verbose_mask_str[E_VERBOSE_LAST] = {
-#define  VERBOSE_LOCATION \
-    mask_bitmask(LOCATION)
-    mask_message(LOCATION,    "keep printing location continuously")
-#define  VERBOSE_INSTRUCTION \
-    mask_bitmask(INSTRUCTION)
-    mask_message(INSTRUCTION, "print instruction being processed")
-#define  VERBOSE_TYPE \
-    mask_bitmask(TYPE)
-    mask_message(TYPE,        "print type being processed")
-#define  VERBOSE_INSERT_TYPE \
-    mask_bitmask(INSERT_TYPE)
-    mask_message(INSERT_TYPE, "print type being inserted into type DB")
-};
-
-
-
 //
 // Warnings, failures handling
 //
 
-
+// TODO: pos
 #define WARN_UNHANDLED(pos, what) do { \
-    warn(pos, "warning: '%s' not handled", what); \
-    fprintf(real_stderr, \
+    /*warn(pos, "warning: '%s' not handled", what);*/ \
+    fprintf(stderr, \
             "%s:%d: note: raised from function '%s' [internal location]\n", \
             __FILE__, __LINE__, __FUNCTION__); \
 } while (0)
@@ -228,8 +773,8 @@ static const char *verbose_mask_str[E_VERBOSE_LAST] = {
     WARN_UNHANDLED((sym)->pos, show_ident((sym)->ident))
 
 #define WARN_VA(pos, fmt, ...) do {\
-    warn(pos, "warning: " fmt, __VA_ARGS__); \
-    fprintf(real_stderr, \
+    /*warn(pos, "warning: " fmt, __VA_ARGS__);*/ \
+    fprintf(stderr, \
             "%s:%d: note: raised from function '%s' [internal location]\n", \
             __FILE__, __LINE__, __FUNCTION__); \
 } while (0)
@@ -237,52 +782,50 @@ static const char *verbose_mask_str[E_VERBOSE_LAST] = {
 #define WARN_CASE_UNHANDLED(pos, what) \
     case what: WARN_UNHANDLED(pos, #what); break;
 
+static inline void
+swap_stream(FILE *f1, FILE *f2) {
+    int fd1 = fileno(f1), fd2 = fileno(f2);
+    if (fd1 == fd2)
+        return;
 
-// Note: should be used only once these resources are initialized
-
-#define NOKILL  ((pid_t) 0)
-
-#define ERR(str, pid, code)  do { \
-        perror(str);                                   \
-        if ((pid_t) pid != NOKILL) kill(pid, SIGKILL); \
-        exit(code);                                    \
-    } while (0)
-
-#define ERROR(...)  do {                   \
-        fprintf(real_stderr, __VA_ARGS__); \
-        fprintf(real_stderr, "\n");        \
-    } while (0)
-
-#define NOTE(...)  do {               \
-        fprintf(stdout, __VA_ARGS__); \
-        fprintf(stdout, "\n");        \
-    } while (0)
-
-
-static void
-warn(struct position pos, const char *fmt, ...)
-{
-    va_list ap;
-
-    fprintf(real_stderr, "%s:%d: ", stream_name(pos.stream), pos.line);
-
-    va_start(ap, fmt);
-    vfprintf(real_stderr, fmt, ap);
-    va_end(ap);
-
-    fprintf(real_stderr, "\n");
+    fflush(f1); fflush(f2);
+    int temp = dup(fd1);
+    if (-1 == temp
+     || -1 == close(fd1)
+     || -1 == dup2(fd2, fd1)
+     || -1 == dup2(temp, fd2)
+     || -1 == close(temp))
+        DIE( ERRNO("swap_stream") );
 }
-
 
 
 //
 // Mostly sparse related helper functions
 //
 
+// this should accommodate worst-case of pointer hexa reprezentation incl. \0
+#define PTR_STRING_MAX  21
+
+// incl. compile-time constraint check to make sure we fit into PTR_STRING_MAX
+struct ptr_string {
+    char str[sizeof(ptrdiff_t) <= 64 ? PTR_STRING_MAX : -1];
+};
+
+#define PTR_STRING(ptr)  (char const*const) ptr_string(ptr).str
+
+// NOTE: returning a short array through stack, but should not hurt anything
+static inline struct ptr_string
+ptr_string(const void *ptr)
+{
+    struct ptr_string ret;
+    if (0 >= snprintf(ret.str, PTR_STRING_MAX, "%p", ptr))
+        DIE("snprintf");
+    return ret;
+}
 
 static inline int
 sizeof_from_bits(int bits)
-{/*Alternative:
+{/* Alternative:
   * bytes_to_bits (sparse/target.h)
   *     - cons: we need the ceil value (1 bit ~ 1 byte), 0 in "strange" cases
   */
@@ -318,7 +861,7 @@ static inline const char *
 sparse_string(const struct string *str)
 {/* Alternative:
   * show_string (sparse/token.h)
-  *     - cons: character escaping, is verbose about empty string
+  *     - cons: character escaping, is debug about empty string
   */
     return (str->length) ? strndup(str->data, str->length) : NULL;
 }
@@ -327,7 +870,7 @@ static inline const char *
 sparse_ident(const struct ident *ident)
 {/* Alternative:
   * show_ident (sparse/token.h)
-  *     - cons: is verbose about empty identifier string
+  *     - cons: is debug about empty identifier string
   */
     return (ident && ident->len) ? strndup(ident->name, ident->len) : NULL;
 }
@@ -350,11 +893,9 @@ sparse_fn_arg_at(struct symbol *fn, int pos)
 }
 
 
-
 //
 // Types handling
 //
-
 
 /* sparse - code listener types mapping */
 
@@ -415,7 +956,6 @@ static const struct {
 #undef TYPE
 };
 
-
 /* type "constructor" */
 
 static inline struct cl_type *
@@ -428,48 +968,49 @@ empty_type(struct cl_type* clt)
 static inline struct cl_type *
 new_type(void)
 {
-    struct cl_type *retval = MEM_NEW(struct cl_type);
-    if (!retval)
-        die("MEM_NEW failed");
+    struct cl_type *retval;
+    return empty_type((MEM_NEW(retval)));  // guaranteed not to return NULL
+}
 
-    // guaranteed not to return NULL
-    return empty_type(retval);
+static struct cl_type *
+type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
+                   const struct symbol *type, struct ptr_db_item **ptr);
+
+static void
+populate_with_base_types(type_ptr_db_t db)
+{
+    struct symbol *ctype;
+    struct cl_type *clt;
+    int i;
+    for (i = 0; i < ARRAY_SIZE(base_types); i++) {
+        clt = base_types[i].ref;
+        empty_type(clt);
+
+        ctype = base_types[i].ctype;
+
+        clt->code  = base_types[i].cl_type;
+        clt->scope = CL_SCOPE_GLOBAL;
+        clt->name  = base_types[i].name;
+        clt->size  = sizeof_from_bits(ctype->bit_size);
+
+        // insert into hash table + pointer hierarchy (at base level)
+        type_ptr_db_insert(db, clt, ctype, NULL);
+    }
+
+    // set uid of the last type inserted so we can skip the freeing for these
+    db->last_base_type_uid = clt->uid;
 }
 
 
-/* freeing resources connected with type */
-
 static void
-free_type(struct cl_type *clt)
+type_ptr_db_init(type_ptr_db_t db)
 {
-    // skip base types that are not on heap
-    if (clt->uid > type_ptr_db.last_base_type_uid) {
+    db->type_db = typen_create(free_type);
+    if (!db->type_db)
+        DIE( ECODE(ec_tdb, "ht_create() failed") );
 
-        /* clt->name */
-        free((char *) clt->name);
-
-        /* clt->items */
-        // selective approach can expose wrong usage through leaked memory
-        BEGIN_WHEN(clt->code IN (CL_TYPE_PTR     OR
-                                 CL_TYPE_STRUCT  OR
-                                 CL_TYPE_UNION   OR
-                                 CL_TYPE_ARRAY   OR
-                                 CL_TYPE_FNC     ))
-        {
-            int i;
-            for (i = 0; i < clt->item_cnt; i++) {
-                /* clt->items[i].type (skipped) */
-
-                /* clt->items[i].name */
-                free((char *) clt->items[i].name);
-            }
-            free(clt->items);
-        }
-        END_WHEN
-
-        /* clt (heap!) */
-        free(clt);
-    }
+    // fill with base types
+    populate_with_base_types(db);
 }
 
 
@@ -511,19 +1052,15 @@ type_match(const struct cl_type *t1, const struct cl_type *t2)
 #endif
 }
 
-// Note: clt->item_cnt can be uninitialized provided that clt->items is NULL
+// NOTE: clt->item_cnt can be uninitialized provided that clt->items is NULL
 static inline struct cl_type_item *
 type_append_item(struct cl_type *clt)
 {
     if (!clt->items)
         clt->item_cnt = 0;
 
-    clt->items = MEM_RESIZE_ARR(clt->items, ++clt->item_cnt);
-    if (!clt->items)
-        die("MEM_RESIZE_ARR failed");
-
-    // guaranteed not to return NULL
-    return &clt->items[clt->item_cnt-1];
+    // guaranteed to continue only in case of success
+    return MEM_ARR_APPEND(clt->items, clt->item_cnt);
 }
 
 
@@ -665,9 +1202,9 @@ read_type(struct cl_type *clt, const struct symbol *raw_symbol,
 
     const struct type_conversion *conversion;
 
-    if (VERBOSE_TYPE & cl_verbose) {
-        NOTE("\t%d: type to be processed:", type->pos.line);
-        show_symbol((struct symbol *) type);
+    WITH_DEBUG_LEVEL(d_type) {
+        PUT(debug,"\t%d: type to be processed:", type->pos.line);
+        SPARSE_API(show_symbol, (struct symbol *) type);
     }
 
     //assert(PARTIALLY_ORDERED( SYM_UNINITIALIZED , symbol->type , SYM_BAD ));
@@ -718,12 +1255,9 @@ empty_ptr_db_item(struct ptr_db_item *item, struct cl_type *clt)
 static struct ptr_db_item *
 new_ptr_db_item(void)
 {
-    struct ptr_db_item *retval = MEM_NEW(struct ptr_db_item);
-    if (!retval)
-        die("MEM_NEW");
-
+    struct ptr_db_item *retval;
     // guaranteed not to return NULL
-    return empty_ptr_db_item(retval, NULL);
+    return empty_ptr_db_item((MEM_NEW(retval)), NULL);
 }
 
 // Note: use `build_referenced_type' when possible
@@ -733,9 +1267,8 @@ referenced_type(const struct cl_type* orig_type)
   * 1. Reusing location and scope from `orig_type'.
   */
 
-    struct cl_type *retval = MEM_NEW(struct cl_type);
-    if (!retval)
-        die("MEM_NEW failed");
+    struct cl_type *retval;
+    MEM_NEW(retval);  // guaranteed not to return NULL
 
     retval->uid   = type_ptr_db.last_base_type_uid+1;
     retval->code  = CL_TYPE_PTR;
@@ -770,7 +1303,6 @@ build_referenced_type(struct cl_type *orig_clt)
     return prev->next->clt;
 }
 
-
 // for given type "clt", return respective item from pointer hierarchy;
 // it is called only when we know such item will be there (already added)
 static struct ptr_db_item *
@@ -779,7 +1311,7 @@ type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db, const struct cl_type *clt)
     if (clt->code == CL_TYPE_PTR)
         return type_ptr_db_lookup_ptr(ptr_db, clt->items->type)->next;
 
-    int i;
+    size_t i;
     for (i = 0; i < ptr_db->last; i++)
         if (ptr_db->heads[i].clt == clt)
             break;
@@ -803,17 +1335,15 @@ type_ptr_db_lookup_item(type_ptr_db_t db, const struct symbol *type,
     return clt;
 }
 
-
-
 static struct cl_type *
 type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
                    const struct symbol *type, struct ptr_db_item **ptr)
 #define PTRDBARR_SIZE  (128)
 {
-    if (VERBOSE_INSERT_TYPE & cl_verbose) {
-        NOTE("add type (uid = %d, clt = %p): %p", clt->uid, clt, type);
-        show_symbol((struct symbol *) type);
-        NOTE("---");
+    WITH_DEBUG_LEVEL(d_insert_type) {
+        PUT(debug,"add type (uid = %d, clt = %p): %p", clt->uid, (void *) clt,
+            (void *) type);
+        SPARSE_API(show_symbol, (struct symbol *) type);
     }
 
     struct cl_type *retval;
@@ -821,7 +1351,7 @@ type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
 
     retval = typen_insert_with_uid(db->type_db, clt, (void *) type);
     if (!retval)
-        die("typen_insert_with_uid() failed");
+        DIE( ECODE(ec_tdb, "typen_insert_with_uid() failed") );
 
     if (uid == NEW_UID && type->type != SYM_PTR) {
         // track this really new type also in the pointer hierarchy
@@ -830,9 +1360,8 @@ type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
         struct ptr_db_arr *ptr_db = &db->ptr_db;
         if (!(ptr_db->alloc_size - ptr_db->last)) {
             ptr_db->alloc_size += PTRDBARR_SIZE;
-            ptr_db->heads = MEM_RESIZE_ARR(ptr_db->heads, ptr_db->alloc_size);
-            if (!ptr_db->heads)
-                die("MEM_RESIZE_ARR failed");
+            // guaranteed to continue only in case of success
+            MEM_ARR_RESIZE(ptr_db->heads, ptr_db->alloc_size);
         }
         empty_ptr_db_item(&ptr_db->heads[ptr_db->last], clt);
 
@@ -867,19 +1396,17 @@ prepare_type_array_ptr(const struct symbol *raw_symbol,
         clt_ptr = &prev->next->clt;
     } else {
         // SYM_ARRAY
-        int i, size = sizeof_from_bits(raw_symbol->bit_size)/ptr_type->size;
+        int size = sizeof_from_bits(raw_symbol->bit_size)/ptr_type->size;
+        size_t i;
 
         for (i = 0; i < prev->arr_cnt; i++)
             if (prev->arr[i]->arr_size == size)
                 break;
         if (i == prev->arr_cnt) {
             // not found
-            prev->arr = MEM_RESIZE_ARR(prev->arr, ++prev->arr_cnt);
-            if (!prev->arr)
-                die("MEM_RESIZE failed");
-            prev->arr[i] = MEM_NEW(struct arr_db_item);
-            if (!prev->arr[i])
-                die("MEM_NEW failed");
+            // 2x guaranteed to continue only in case of success
+            MEM_ARR_RESIZE(prev->arr, prev->arr_cnt);
+            MEM_NEW(prev->arr[i]);
             prev->arr[i]->arr_size = size;
             prev->arr[i]->clt = NULL;
         }
@@ -960,36 +1487,31 @@ type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
         }
 #endif
 
-        switch (insn->opcode) {
-            case OP_BINCMP ... OP_BINCMP_END:
-                return &bool_clt;
+        if (PARTIALLY_ORDERED(OP_BINCMP, insn->opcodecase, OP_BINCMP_END))
+            return &bool_clt;
 
-            case OP_CALL:
-                // NOTE: experimental, mainly for alloc et al.
-                // try to find immediatelly following OP_CAST
-                // (normally suppressed) and set the type respectively
-                if (ptr_list_size((struct ptr_list *) insn->target->users)) {
-                    struct pseudo_user *u;
-                    u = (struct pseudo_user *)PTR_ENTRY(insn->target->users,3);
-                    if (u->insn->opcode == OP_CAST)
-                        return type_from_symbol(u->insn->type, NULL);
-                }
-                return type_from_symbol(insn->type, NULL);
-                break;
-            default:
-                return type_from_symbol(insn->type, NULL);
+        if (insn->opcode == OP_CALL) {
+            // NOTE: experimental, mainly for alloc et al.
+            // try to find immediatelly following OP_CAST
+            // (normally suppressed) and set the type respectively
+            if (ptr_list_size((struct ptr_list *) insn->target->users)) {
+                struct pseudo_user *u;
+                u = (struct pseudo_user *)PTR_ENTRY(insn->target->users,3);
+                if (u->insn->opcode == OP_CAST)
+                    return type_from_symbol(u->insn->type, NULL);
+            }
         }
-    } else
+        return type_from_symbol(insn->type, NULL);
+    } else {
         // type fallback
         return &int_clt;
+    }
 }
 
 
-
 //
-// Operands handling
+// operands handling
 //
-
 
 #define CST(op)      (&op->data.cst)
 #define CST_INT(op)  (&CST(op)->data.cst_int)
@@ -998,7 +1520,6 @@ type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
 #define CST_REAL(op) (&CST(op)->data.cst_real)
 
 #define VAR(op)      (op->data.var)
-
 
 /* Sparse operands = pseudos */
 
@@ -1020,12 +1541,9 @@ pseudo_immediate(pseudo_t pseudo)
 static inline struct cl_operand *
 new_op(void)
 {
-    struct cl_operand *retval = MEM_NEW(struct cl_operand);
-    if (!retval)
-        die("MEM_NEW failed");
-
+    struct cl_operand *retval;
     // guaranteed not to return NULL
-    return retval;
+    return MEM_NEW(retval);
 }
 
 static inline struct cl_operand *
@@ -1046,6 +1564,7 @@ static inline void free_op(struct cl_operand *op);
 static void
 op_free_initializers(struct cl_initializer *initial)
 {
+    // !!TODO API change
     /* initial->type (skipped) */
 
     if (!initial->nested_cnt) {
@@ -1208,15 +1727,12 @@ op_make_var(struct cl_operand *op)
     op->code     = CL_OPERAND_VAR;
     op->accessor = NULL;
 
-    VAR(op) = MEM_NEW(struct cl_var);
-    if (!VAR(op))
-        die("MEM_NEW failed");
+    MEM_NEW(VAR(op));  // guaranteed to continue only in case of success
 
     // initialize pointers checked by freeing helper
     VAR(op)->name       = NULL;
     VAR(op)->initial    = NULL;
     VAR(op)->artificial = true;
-
 
     // guaranteed not to return NULL
     return VAR(op);
@@ -1272,7 +1788,7 @@ op_from_symbol_base(struct cl_operand *op, struct symbol *sym)
 static inline struct cl_operand *
 op_from_symbol(struct cl_operand *op, struct symbol *sym)
 {
-    sparse_location(&op->loc, sym->pos);
+    // !!TODO: simplify/API change
     return op_from_symbol_base(op, sym);
 }
 
@@ -1286,7 +1802,7 @@ op_from_fn_argument(struct cl_operand *op, const pseudo_t pseudo)
         CL_TRAP;
 
     // XXX: op->scope       = CL_SCOPE_FUNCTION;
-    sparse_location(&op->loc, arg_sym->pos);  // TODO: better!!!
+    // !!TODO: simplify/API change
     return op_from_symbol_base(op, arg_sym);
 }
 
@@ -1312,7 +1828,7 @@ op_from_register(struct cl_operand *op, const struct instruction *insn,
 static inline struct cl_operand *
 op_from_value(struct cl_operand *op, const struct instruction *insn, int value)
 {
-    sparse_location(&op->loc, insn->pos);
+    // !!TODO: simplify/API change
     return op_make_cst_int(op, value);
 }
 
@@ -1363,7 +1879,7 @@ op_from_expression(struct cl_operand *op, const struct instruction *insn,
   * Problems/exceptions/notes:
   * FIXME: currently only EXPR_FVALUE handled
   */
-    sparse_location(&op->loc, insn->pos);
+    // !!TODO: simplify/API change
     switch (expr->type) {
         case EXPR_FVALUE:
             return op_make_cst_real(op, /*XXX: from long double */
@@ -1378,13 +1894,8 @@ static struct cl_accessor *
 new_cl_accessor()
 {
     struct cl_accessor *retval;
-    retval = MEM_NEW(struct cl_accessor);
-    if (!retval)
-        die("MEM_NEW failed");
-
-    retval->next = NULL;
-
     // guaranteed not to return NULL
+    MEM_NEW(retval)->next = NULL;
     return retval;
 }
 
@@ -1393,7 +1904,6 @@ accessor_array_index(struct cl_accessor *ac, struct cl_loc loc, int index)
 {
     ac->code                  = CL_ACCESSOR_DEREF_ARRAY;
     ac->data.array.index      = op_make_cst_int(new_op(), index);
-    ac->data.array.index->loc = loc;
 }
 
 static inline struct cl_accessor *
@@ -1467,6 +1977,7 @@ op_dig_step(struct cl_operand *op, unsigned insn_offset)
         MAP_ACCESSOR(ac, TYPE_ARRAY, ACCESSOR_DEREF_ARRAY) {
             div_t indexes;
             indexes = div(insn_offset, op->type->size/op->type->array_size);
+            // !!TODO API change
             accessor_array_index(ac, op->loc, indexes.quot);
             // the remainder serves for next index-based-dereferencing rounds
             retval = indexes.rem;
@@ -1478,6 +1989,7 @@ op_dig_step(struct cl_operand *op, unsigned insn_offset)
                 // but only if resulting index would be 1+
                 div_t indexes = div(insn_offset, op->type->items->type->size);
                 if (indexes.quot)
+                    // !!TODO API change
                     accessor_array_index(ac, op->loc, indexes.quot);
                 // the remainder serves for next index-based-deref. rounds
                 retval = indexes.rem;
@@ -1532,7 +2044,8 @@ op_dig_for_type_match(struct cl_operand *op,
             // "dig" -- use DFS with a sort of backtracking (through stack)
             struct cl_operand *op_clone;
             struct cl_accessor *ac;
-            int i, res;
+            int i;
+            size_t res;
 
             // `op_clone' is a special shallow copy with accessor chain reset
             op_clone = op_shallow_copy(op);
@@ -1547,7 +2060,7 @@ op_dig_for_type_match(struct cl_operand *op,
 
                 res = op_dig_for_type_match(op_clone, expected_type, offset);
 
-                if (res != UINT_MAX)
+                if (UINT_MAX != res)
                     // successfull case of digging
                     break;
 
@@ -1556,7 +2069,7 @@ op_dig_for_type_match(struct cl_operand *op,
                 op_clone->type = op->type;
             }
 
-            if (res != UINT_MAX) {
+            if (UINT_MAX != res) {
                 // reflect the changes collected within successful DFS trace
                 // (with `op_clone') back to its preimage `op'
                 op->type = op_clone->type;
@@ -1570,7 +2083,7 @@ op_dig_for_type_match(struct cl_operand *op,
         } else
             offset = op_dig_step(op, offset);
 
-        if (offset == UINT_MAX)
+        if (UINT_MAX == offset)
             break;
     }
 
@@ -1578,11 +2091,9 @@ op_dig_for_type_match(struct cl_operand *op,
 }
 
 
-
 //
 // Instructions handling
 //
-
 
 enum assignment_ops_handling {
     TYPE_LHS_KEEP        = (1 << 0),
@@ -1633,7 +2144,7 @@ emit_insn_jmp(struct cl_insn *cli, const char *label)
     cli->code                = CL_INSN_JMP;
     cli->data.insn_jmp.label = label;
 
-    cl->insn(cl, cli);
+    EMIT(insn, cli);
 }
 
 static inline void
@@ -1645,7 +2156,7 @@ emit_insn_cond(struct cl_insn *cli, struct cl_operand *op_cond,
     cli->data.insn_cond.then_label = then_label;
     cli->data.insn_cond.else_label = else_label;
 
-    cl->insn(cl, cli);
+    EMIT(insn, cli);
 }
 
 static inline void
@@ -1817,7 +2328,7 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
     if (lhs->type != PSEUDO_SYM || rhs->type != PSEUDO_ARG
          || op_lhs.data.var->uid != op_rhs.data.var->uid)
 #endif
-        cl->insn(cl, cli);
+        EMIT(insn, cli);
 #if FIX_SPARSE_EXTRA_ARG_TO_MEM
     else
         WARN_VA(insn->pos, "instruction omitted: %s",
@@ -1915,7 +2426,7 @@ handle_insn_cast(struct cl_insn *cli, const struct instruction *insn)
         cli->data.insn_binop.src1 = op_from_pseudo(&lhs, insn, insn->src);
         cli->data.insn_binop.src2 = op_from_value(&op_mask, insn, mask);
 
-        cl->insn(cl, cli);
+        EMIT(insn, cli);
 
         op_free_data(&dst);
         op_free_data(&lhs);
@@ -1966,7 +2477,7 @@ handle_insn_setval(struct cl_insn *cli, const struct instruction *insn)
     cli->data.insn_unop.dst = op_from_pseudo(&dst, insn, insn->target);
     cli->data.insn_unop.src = op_from_expression(&src, insn, insn->val);
 
-    cl->insn(cl, cli);
+    EMIT(insn, cli);
 
     op_free_data(&dst);
     op_free_data(&src);
@@ -1999,7 +2510,7 @@ handle_insn_unop(struct cl_insn *cli, const struct instruction *insn)
     if (src.type->code == CL_TYPE_INT && insn->opcode == OP_NEG)
         cli->data.insn_unop.code = CL_UNOP_MINUS;
 
-    cl->insn(cl, cli);
+    EMIT(insn, cli);
 
     op_free_data(&dst);
     op_free_data(&src);
@@ -2043,7 +2554,7 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
         }
     }
 
-    cl->insn(cl, cli);
+    EMIT(insn, cli);
 
     op_free_data(&dst);
     op_free_data(&op1);
@@ -2070,35 +2581,23 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
     struct pseudo *arg;
     int cnt = 0;
 
-    /* open call */
+    WITH_CALL_TO_EMIT(&cli->loc,
+                      op_from_pseudo(&dst, insn, insn->target),
+                      op_from_pseudo(&fnc, insn, insn->func)) {
+        FOR_EACH_PTR(insn->arguments, arg) {
+            // XXX: ++cnt repeated side-effect?
+            EMIT(insn_call_arg, ++cnt, op_from_pseudo(&arg_op, insn, arg));
+            op_free_data(&arg_op);
+        } END_FOR_EACH_PTR(arg);
+    }
 
-    op_from_pseudo(&dst, insn, insn->target);
-    op_from_pseudo(&fnc, insn, insn->func);
-    //
-    cl->insn_call_open(cl, &cli->loc, &dst, &fnc);
-    //
     op_free_data(&dst);
     op_free_data(&fnc);
 
-    /* emit arguments */
-
-    FOR_EACH_PTR(insn->arguments, arg) {
-        op_from_pseudo(&arg_op, insn, arg);
-        //
-        cl->insn_call_arg(cl, ++cnt, &arg_op);
-        //
-        op_free_data(&arg_op);
-    } END_FOR_EACH_PTR(arg);
-
-    /* close call */
-
-    cl->insn_call_close(cl);
-
-    /* special handling of non-returning function (end of BB) */
-
+    // special handling of non-returning function (end of BB)
     if (insn->func->sym->ctype.modifiers & MOD_NORETURN) {
         cli->code = CL_INSN_ABORT;
-        cl->insn(cl, cli);
+        EMIT(insn, cli);
         return false;
     }
 
@@ -2118,33 +2617,20 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
   * Problems/exceptions/notes:
   * None.
   */
-    struct cl_operand op;
-    char *bb_name_true, *bb_name_false;
-
-    if (asprintf(&bb_name_true, "%p", insn->bb_true) < 0)
-        die("asprintf failed");
-
-    /* unconditional jump handling */
-
+    // unconditional jump
     if (pseudo_futile(insn->cond)) {
-        emit_insn_jmp(cli, bb_name_true);
-        free(bb_name_true);
+        emit_insn_jmp(cli, PTR_STRING(insn->bb_true));
         return true;
     }
 
-    /* conditional jump handling */
-
-    if (asprintf(&bb_name_false, "%p", insn->bb_false) < 0)
-        die("asprintf failed");
+    // conditional jump
+    struct cl_operand op;
 
     op_from_pseudo(&op, insn, insn->cond);
-
-    emit_insn_cond(cli, &op, bb_name_true, bb_name_false);
+    emit_insn_cond(cli, &op,
+                   PTR_STRING(insn->bb_true), PTR_STRING(insn->bb_true));
 
     op_free_data(&op);
-    free(bb_name_true);
-    free(bb_name_false);
-
     return true;
 }
 
@@ -2161,44 +2647,33 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
   *
   * Problems/exceptions/notes:
   * 1. BB label uniqueness.
-  * S. Address of `insn' +1, +2 or +3, provided that insn has size of 4+
-  *    and char 1.
+  * S. Address of `insn' +0, +1 or +2, provided that insn has size of 4+
+  *    and char 1 (compile time constraints?).
   */
-    char *bb_label_true, *bb_label_false, *bb_label_merge;
     struct cl_operand op_cond;
 
-    // BB labels
-    if (   asprintf(&bb_label_true,  "%p", ((char *) insn) + 1) < 0
-        || asprintf(&bb_label_false, "%p", ((char *) insn) + 2) < 0
-        || asprintf(&bb_label_merge, "%p", ((char *) insn) + 3) < 0)
-        die("asprintf failed");
+    // local BB labels
+    char const*const bb_label_true  = PTR_STRING(((char *) insn) + 0);
+    char const*const bb_label_false = PTR_STRING(((char *) insn) + 1);
+    char const*const bb_label_merge = PTR_STRING(((char *) insn) + 2);
 
-    /* cond instruction */
-
+    // cond instruction
     op_from_pseudo(&op_cond, insn, insn->src1);
     emit_insn_cond(cli, &op_cond, bb_label_true, bb_label_false);
     op_free_data(&op_cond);
 
-    /* first BB ("then" branch) with assignment and jump to merging BB */
-
-    cl->bb_open(cl, bb_label_true);
-    free(bb_label_true);
-
+    // first BB ("then" branch) with assignment and jump to merging BB
+    EMIT(bb_open, bb_label_true);
     emit_insn_copy(cli, insn, insn->target,  /* := */  insn->src2);
     emit_insn_jmp(cli, bb_label_merge);
 
-    /* second BB ("else" branch) with assignment and jump to merging BB */
-
-    cl->bb_open(cl, bb_label_false);
-    free(bb_label_false);
-
+    // second BB ("else" branch) with assignment and jump to merging BB
+    EMIT(bb_open, bb_label_false);
     emit_insn_copy(cli, insn, insn->target,  /* := */  insn->src3);
     emit_insn_jmp(cli, bb_label_merge);
 
-    /* merging BB */
-
-    cl->bb_open(cl, bb_label_merge);
-    free(bb_label_merge);
+    // merging BB
+    EMIT(bb_open, bb_label_merge);
 
     return true;
 }
@@ -2221,51 +2696,38 @@ handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
   * Problems/exceptions/notes:
   * FIXME: not enough accurate location info from SPARSE for switch/case.
   */
-    char *label;
     struct cl_operand op, val_lo, val_hi, *val_hi_ptr = &val_lo;
     struct multijmp *jmp;
 
-    /* open switch */
+    WITH_SWITCH_TO_EMIT(&cli->loc, op_from_pseudo(&op, insn, insn->target)) {
+        // emit cases
+        op_make_void(&val_lo);
+        op_make_void(&val_hi);
 
-    op_from_pseudo(&op, insn, insn->target);
-    cl->insn_switch_open(cl, &cli->loc, &op);
+        FOR_EACH_PTR(insn->multijmp_list, jmp) {
+            if (jmp->begin <= jmp->end) {
+                // non-default
+                op_from_value(&val_lo, insn, jmp->begin)->type = op.type;
 
-    /* emit cases */
+                if (jmp->begin != jmp->end) {
+                    // range
+                    op_from_value(&val_hi, insn, jmp->end)->type = op.type;
+                    val_hi_ptr = &val_hi;
+                }
+            } else
+                // default case
+                op_make_void(&val_lo);
 
-    op_make_void(&val_lo);
-    op_make_void(&val_hi);
+            EMIT(insn_switch_case, &cli->loc, &val_lo, val_hi_ptr,
+                 PTR_STRING(jmp->target));
 
-    FOR_EACH_PTR(insn->multijmp_list, jmp) {
-        if (asprintf(&label, "%p", jmp->target) < 0)
-            die("asprintf failed");
-
-        if (jmp->begin <= jmp->end) {
-            // non-default
-            op_from_value(&val_lo, insn, jmp->begin)->type = op.type;
-
-            if (jmp->begin != jmp->end) {
-                // range
-                op_from_value(&val_hi, insn, jmp->end)->type = op.type;
-                val_hi_ptr = &val_hi;
-            }
-        } else
-            // default case
-            op_make_void(&val_lo);
-
-        cl->insn_switch_case(cl, &cli->loc, &val_lo, val_hi_ptr, label);
-
-        free(label);
-        // not necessary now, but ...
-        op_free_data(&val_lo);
-        op_free_data(&val_hi);
-    } END_FOR_EACH_PTR(jmp);
+            // not necessary now, but ...
+            op_free_data(&val_lo);
+            op_free_data(&val_hi);
+        } END_FOR_EACH_PTR(jmp);
+    }
 
     op_free_data(&op);
-
-    /* close switch */
-
-    cl->insn_switch_close(cl);
-
     return true;
 }
 
@@ -2292,11 +2754,10 @@ handle_insn_ret(struct cl_insn *cli, const struct instruction *insn)
         resulting_type = type_from_symbol(insn->type, NULL);
         op_dig_for_type_match(&op, resulting_type, insn->offset);
     }
-    //
-    cl->insn(cl, cli);
-    //
-    op_free_data(&op);
 
+    EMIT(insn, cli);
+
+    op_free_data(&op);
     return true;
 }
 
@@ -2331,7 +2792,7 @@ handle_insn(struct instruction *insn)
         [OP_##spi]={ .insn_code=CL_INSN_BINOP, \
                      .code.binop=CL_BINOP_##binop_code, .prop.handler=hnd }
     #define INSN_IGN(spi, _, __) \
-        [OP_##spi] = { .insn_code=CL_INSN_ABORT, .prop.string = "OP_" #spi }
+        [OP_##spi] = { .insn_code=CL_INSN_ABORT, .prop.string="OP_" #spi }
 
         // how? | sparse insn.    | cl insn. (+uni/bin) | handler            |
         //------+-----------------+---------------------+--------------------|
@@ -2442,9 +2903,9 @@ handle_insn(struct instruction *insn)
     struct cl_insn cli;
     const struct insn_conversion *conversion;
 
-    if (VERBOSE_INSTRUCTION & cl_verbose)
-        NOTE("\t%d: instruction to be processed: %s", insn->pos.line,
-                                                      show_instruction(insn));
+    WITH_DEBUG_LEVEL(d_instruction)
+        PUT(debug,"\t%d: instruction to be processed: %s",
+            insn->pos.line, show_instruction(insn));
 
     //assert(PARTIALLY_ORDERED( OP_BADOP , insn->opcode , OP_COPY ));
     conversion = &insn_conversions[insn->opcode];
@@ -2501,26 +2962,22 @@ static bool handle_bb_insn(struct instruction *insn)
 }
 
 
-
 //
 // Functions for lower granularity/higher level handling
 //
 
-
 static void handle_bb(struct basic_block *bb)
-{
+{/*
+  *
+  * Problems/exceptions/notes:
+  * - avoid being called with !bb
+  */
     struct instruction *insn;
-    char *bb_name;
 
     if (!bb)
         return;
 
-    if (asprintf(&bb_name, "%p", bb) < 0)
-        die("asprintf failed");
-
-    cl->bb_open(cl, bb_name);
-
-    free(bb_name);
+    EMIT(bb_open, PTR_STRING(bb));
 
     FOR_EACH_PTR(bb->insns, insn) {
         if (!handle_bb_insn(insn))
@@ -2533,19 +2990,13 @@ done:
 
 static void handle_fnc_ep(struct entrypoint *ep)
 {
-    char *entry_name;
     struct cl_insn cli;
     struct basic_block *bb;
-    struct instruction *entry = ep->entry;
 
     /* jump to entry basic block */
 
-    if (asprintf(&entry_name, "%p", entry->bb) < 0)
-        die("asprintf failed");
-
-    sparse_location(&cli.loc, entry->pos);
-    emit_insn_jmp(&cli, entry_name);
-    free(entry_name);
+    sparse_location(&cli.loc, ep->entry->pos);
+    emit_insn_jmp(&cli, PTR_STRING(ep->entry->bb));
 
     /* go through basic blocks */
 
@@ -2554,7 +3005,8 @@ static void handle_fnc_ep(struct entrypoint *ep)
             continue;
 
         if (bb->parents || bb->children || bb->insns
-            || /* FIXME: is the following actually useful? */ 2 < cl_verbose) {
+            || /* FIXME: is the following actually useful? */
+            2 < GLOBALS(debug)) {
             handle_bb(bb);
         }
     } END_FOR_EACH_PTR(bb);
@@ -2562,22 +3014,24 @@ static void handle_fnc_ep(struct entrypoint *ep)
 
 static void handle_fnc_body(struct symbol *sym)
 {
-    struct entrypoint *ep = linearize_symbol(sym);
+    struct entrypoint *ep;
+    SPARSE_API(linearize_symbol, /*OUT*/ ep, /*IN*/ sym);
     if (!ep)
         CL_TRAP;
 
 #if DO_PER_EP_UNSAA
-    unssa(ep);
+    SPARSE_API(unssa, ep);
 #endif
 
 #if DO_PER_EP_SET_UP_STORAGE
-    set_up_storage(ep);
+    SPARSE_API(set_up_storage, ep);
 #endif
 
     handle_fnc_ep(ep);
 
 #if DO_PER_EP_SET_UP_STORAGE
-    free_storage();
+    // no switch, vrfy_storage uses printf anyway
+    SPARSE_API(free_storage);
 #endif
 }
 
@@ -2588,10 +3042,7 @@ static void handle_fnc_arg_list(struct symbol_list *arg_list)
     struct cl_operand arg_op;
 
     FOR_EACH_PTR(arg_list, arg) {
-        op_from_symbol(&arg_op, arg);
-        //
-        cl->fnc_arg_decl(cl, ++argc, &arg_op);
-        //
+        EMIT(fnc_arg_decl, ++argc, op_from_symbol(&arg_op, arg));
         op_free_data(&arg_op);
     } END_FOR_EACH_PTR(arg);
 }
@@ -2600,19 +3051,14 @@ static void handle_fnc_def(struct symbol *sym)
 {
     struct cl_operand fnc;
 
-    op_from_symbol(&fnc, sym);
-    //
-    cl->fnc_open(cl, &fnc);
-    //
+    WITH_FNC_TO_EMIT(op_from_symbol(&fnc, sym)) {
+        // dump argument list
+        handle_fnc_arg_list(sym->ctype.base_type->arguments);
+        // handle fnc body
+        handle_fnc_body(sym);
+    }
+
     op_free_data(&fnc);
-
-    // dump argument list
-    handle_fnc_arg_list(sym->ctype.base_type->arguments);
-
-    // handle fnc body
-    handle_fnc_body(sym);
-
-    cl->fnc_close(cl);
 }
 
 static void handle_sym_fn(struct symbol *sym)
@@ -2669,14 +3115,15 @@ static void handle_top_level_sym(struct symbol *sym)
         WARN_UNHANDLED(sym->pos, "sym->initializer");
 }
 
-static void clean_up_symbols(struct symbol_list *list)
+static void
+proceed_symbols(struct symbol_list *list)
 {
     struct symbol *sym;
 
     FOR_EACH_PTR(list, sym) {
 
 #if DO_EXPAND_SYMBOL
-        expand_symbol(sym);
+        SPARSE_API(expand_symbol, sym);
 #endif
 
         handle_top_level_sym(sym);
@@ -2684,546 +3131,639 @@ static void clean_up_symbols(struct symbol_list *list)
 }
 
 
+#undef GLOBALS
 
 //
-// Initialization/deinitialization functions
+// from now on, globals are used via `opts' binding (function argument!)
 //
 
+#define GLOBALS(what)     (opts->globals->what)
+#define INTERNALS(what)   (opts->internals.what)
+#define CLOPTS(what)      (opts->cl.what)
+#define SPARSEOPTS(what)  (opts->sparse.what)
 
 static void
-populate_with_base_types(type_ptr_db_t db)
-{
-    struct symbol *ctype;
-    struct cl_type *clt;
-    int i;
-    for (i = 0; i < ARRAY_SIZE(base_types); i++) {
-        clt = base_types[i].ref;
-        empty_type(clt);
-
-        ctype = base_types[i].ctype;
-
-        clt->code  = base_types[i].cl_type;
-        clt->scope = CL_SCOPE_GLOBAL;
-        clt->name  = base_types[i].name;
-        clt->size  = sizeof_from_bits(ctype->bit_size);
-
-        // insert into hash table + pointer hierarchy (at base level)
-        type_ptr_db_insert(db, clt, ctype, NULL);
-    }
-
-    // set uid of the last type inserted so we can skip the freeing for these
-    db->last_base_type_uid = clt->uid;
-}
-
-static void
-type_ptr_db_init(type_ptr_db_t db)
-{
-    db->type_db = typen_create(free_type);
-    if (!db->type_db)
-        die("ht_create() failed");
-
-    // fill with base types
-    populate_with_base_types(db);
-}
-
-static void
-type_ptr_db_destroy(type_ptr_db_t db)
-{
-    typen_destroy(db->type_db);
-
-    // destroy pointer hierarchy
-    struct ptr_db_arr *ptr_db = &db->ptr_db;
-    struct ptr_db_item *item, *item_next;
-    int i;
-    for (i = 0; i < ptr_db->last; i++) {
-        item = &ptr_db->heads[i];
-
-        /* item->clt (skipped, except for those explicitly flagged) */
-        if (item->free_type)
-            free_type(item->clt);
-
-        /* item->arr */
-        int j;
-        for (j = 0; j < item->arr_cnt; j++)
-            free(item->arr[j]);
-        free(item->arr);
-
-        // move onto next items, this one captured by `free(db->ptr_db.heads)'
-        item = item->next;
-
-        while (item) {
-            item_next = item->next;
-
-            /* item->clt (skipped, except for those explicitly flagged) */
-            if (item->free_type)
-                free_type(item->clt);
-
-            free(item);
-            item = item_next;
-        }
-    }
-    free(ptr_db->heads);
-}
-
-static bool
-redefine_stderr(int target_fd, FILE **backup_stderr)
-{
-    if (backup_stderr) {
-        *backup_stderr = fopen("/dev/stderr", "w");
-        if (!*backup_stderr)
-            return false;
-        else
-            setbuf(*backup_stderr, NULL);
-    }
-
-    if (close(STDERR_FILENO) == -1
-        || dup2(target_fd, STDERR_FILENO) == -1)
-        return false;
-    else
-        return true;
-}
-
-
-
-//
-// Options/arguments handling
-//
-
-
-struct cl_plug_options {
-    /* merely local */
-    bool        fork;
-    /* Code Listener */
-    bool        dump_types;
-    bool        dump_keep_switch;
-    bool        use_dotgen;
-    bool        use_pp;
-    bool        use_typedot;
-    const char  *gl_dot_file;
-    const char  *pp_out_file;
-    const char  *type_dot_file;
-};
-
-#define OPTPREFIX_SHORT  "-"
-#define OPTPREFIX_LONG   "--"
-#define OPTPREFIX_CL     "-cl-"
-
-#define _OPTPREFIXEQ(check, const_prefix, optprefix) \
-    (strncmp(check, optprefix const_prefix, strlen(optprefix const_prefix)) \
-    ? NULL : &check[strlen(optprefix const_prefix)])
-
-#define OPTPREFIXEQ_SHORT(check, const_prefix) \
-    _OPTPREFIXEQ(check, const_prefix, OPTPREFIX_SHORT)
-
-#define OPTPREFIXEQ_LONG(check, const_prefix) \
-    _OPTPREFIXEQ(check, const_prefix, OPTPREFIX_LONG)
-
-#define OPTPREFIXEQ_CL(check, const_prefix) \
-    _OPTPREFIXEQ(check, const_prefix, OPTPREFIX_CL)
-
-#define OPTVALUE(str) \
-    ((*str == '=' && *str++ != '\0') ? str : NULL)
-
-static void print_help(const char *cmd)
-{
-#define _(...)     printf(__VA_ARGS__); printf("\n");
-#define __         printf("\n");
-#define L(l, ...)  printf("%-32s", OPTPREFIX_LONG l); _(__VA_ARGS__)
-#define B(s, l, ...) \
-    printf("%-32s", OPTPREFIX_SHORT s ", " OPTPREFIX_LONG l); _(__VA_ARGS__)
-#define C(o, ...)  printf("%-32s", OPTPREFIX_CL o); _(__VA_ARGS__)
-    _("sparse-based code listener frontend"                                    )
-    __
-    _("usage: %s (cl frontend args | sparse args)*"                        ,cmd)
-    __
-    _("For `sparse args', see sparse documentation; these args are generally"  )
-    _("compatible with those for gcc and unrecognized ones are ignored anyway.")
-    __
-    _("This Code Listener fronted also defines few args/options on its own:"   )
-    __
-    B("h", "help"          , "Prints this help text"                           )
-    B("f", "fork"          , "Fork in order to separate output from sparse"    )
-    C("verbose[=MASK]"     , "Be verbose (selectively if MASK provided)"       )
-    __
-    _("specifically, these are passed to Code Listener:")
-    C("dump-pp"            , "Dump pretty-printed linearized code"             )
-    C("dump-types"         , "Add type information to pretty-printed code"     )
-    C("dump-keep-switch"   , "Keep switch statement \"as is\" (no unfolding)"  )
-    C("gen-dot[=MAIN_FILE]", "Generate control flow graphs"                    )
-    C("type-dot[=OUT_FILE]", "Generate type graphs"                            )
-#undef C
-#undef B
-#undef L
-#undef __
-#undef _
-    int i;
-    printf("\nMASK:\n");
-    for (i = 0; i < E_VERBOSE_LAST; i++)
-        printf("%d %s\n", 1 << i, verbose_mask_str[i]);
-}
-
-static int
-handle_cl_args(int argc, char *argv[], struct cl_plug_options *opt)
-{
-    char *value;
-
-    // initialize opt data (booleans are false, etc.)
-    memset(opt, 0, sizeof(*opt));
-
-    // handle plug-in args
-    int i = 0;
-    while (++i < argc) {
-
-        /* help and other merely local args */
-
-        if (((value = OPTPREFIXEQ_SHORT(argv[i],     "h"))
-              || (value = OPTPREFIXEQ_LONG(argv[i],  "help")))
-            && *value == '\0') {
-            print_help(argv[0]);
-            return EXIT_SUCCESS;
-        } else if ((value = OPTPREFIXEQ_SHORT(argv[i],     "f"))
-                    || (value = OPTPREFIXEQ_LONG(argv[i],  "fork")))
-            opt->fork = true;
-        } else if ((value = OPTPREFIXEQ_CL(argv[i],  "verbose"))) {
-            cl_verbose = OPTVALUE(value)
-                ? atoi(value)
-                : ~0;
-
-        /* args affecting Code Listener behaviour */
-
-        } else if ((value = OPTPREFIXEQ_CL(argv[i],  "dump-pp"))) {
-            opt->use_pp           = true;
-            opt->pp_out_file      = OPTVALUE(value);
-        } else if (OPTPREFIXEQ_CL(argv[i],           "dump-types")) {
-            opt->dump_types       = true; // XXX: ignoring extra value
-        } else if (OPTPREFIXEQ_CL(argv[i],           "dump-keep-switch")) {
-            opt->dump_keep_switch = true; // XXX: ignoring extra value
-        } else if ((value = OPTPREFIXEQ_CL(argv[i],  "gen-dot"))) {
-            opt->use_dotgen       = true;
-            opt->gl_dot_file      = OPTVALUE(value);
-        } else if ((value = OPTPREFIXEQ_CL(argv[i],  "type-dot"))) {
-            if (OPTVALUE(value)) {
-                opt->use_typedot    = true;
-                opt->type_dot_file  = value;
-            } else {
-                ERROR("mandatory value omitted for type-dot");
-                return EXIT_FAILURE;
-            }
-        }
-
-        // TODO: remove?
-        /*} else if ((value = OPTPREFIXEQ_CL(argv[i], "args"))) {
-            opt->peer_args = OPTVALUE(value)
-                ? value
-                : "";*/
-    }
-
-    return EXIT_SUCCESS;
-}
-
-
-
-//
-// Code listener setup and related helpers
-//
-
-
-/* cl messaging; XXX: suboptimal? */
-
-static int cnt_errors = 0;
-static int cnt_warnings = 0;
-
-static void
-dummy_printer(const char *msg)
-{
-    (void) msg;
-}
-
-static void
-trivial_printer(const char *msg)
-{
-    fprintf(real_stderr, "%s\n", msg);
-}
-
-static void
-cl_warn(const char *msg)
-{
-    trivial_printer(msg);
-    ++cnt_warnings;
-}
-
-static void
-cl_error(const char *msg)
-{
-    trivial_printer(msg);
-    ++cnt_errors;
-}
-
-/* cl chain */
-
-static bool
-cl_append_listener(struct cl_code_listener *chain, const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-
-    char *config_string;
-    int rv = vasprintf(&config_string, fmt, ap);
-    assert(0 < rv);
-    va_end(ap);
-
-    struct cl_code_listener *cl = cl_code_listener_create(config_string);
-    free(config_string);
-
-    if (!cl) {
-        // FIXME: deserves a big comment (subtle)
-        chain->destroy(chain);
-        return false;
-    }
-
-    cl_chain_append(chain, cl);
-    return true;
-}
-
-static bool
-cl_append_def_listener(struct cl_code_listener *chain, const char *listener,
-                       const char *args, const char *clf,
-                       const struct cl_plug_options *opt)
-{
-    if (!clf)
-        clf = (/*opt->use_peer*/ true)
-            ? "unfold_switch,unify_labels_gl"
-            : "unify_labels_fnc";
-
-    return cl_append_listener(chain,
-            "listener=\"%s\" listener_args=\"%s\" clf=\"%s\"",
-            listener, args, clf);
-}
-
-static struct cl_code_listener*
-create_cl_chain(const struct cl_plug_options *opt)
-{
-    struct cl_code_listener *chain = cl_chain_create();
-    if (!chain)
-        // error message already emitted
-        return NULL;
-
-    if (VERBOSE_LOCATION & cl_verbose) {
-        if (!cl_append_listener(chain, "listener=\"locator\""))
-            return NULL;
-    }
-
-    if (opt->use_pp) {
-        const char *use_listener = (opt->dump_types)
-            ? "pp_with_types"
-            : "pp";
-
-        const char *out = (opt->pp_out_file)
-            ? opt->pp_out_file
-            : "";
-
-        const char *clf = (opt->dump_keep_switch)
-            ? "unify_labels_gl"
-            : "unfold_switch,unify_labels_gl";
-
-        if (!cl_append_def_listener(chain, use_listener, out, clf, opt))
-            return NULL;
-    }
-
-    if (opt->use_dotgen) {
-        const char *gl_dot = (opt->gl_dot_file)
-            ? opt->gl_dot_file
-            : "";
-        if (!cl_append_def_listener(chain, "dotgen", gl_dot, NULL, opt))
-            return NULL;
-    }
-
-    if (opt->use_typedot
-        && !cl_append_def_listener(chain, "typedot", opt->type_dot_file, NULL,
-                                   opt))
-        return NULL;
-
-    /*if (opt->use_peer
-            && !cl_append_def_listener(chain, "easy", opt->peer_args, opt))
-        return NULL;*/
-
-    return chain;
-}
-
-
-
-//
-// Worker/master loops
-//
-
-
-// Worker loop (sparse -> linearized code -> processing -> code_listener)
-// Note: used in both fork and fork-free setups
-static int
-worker_loop(struct cl_plug_options *opt, int argc, char **argv)
+proceed_sparse(const struct options *opts)
 {
     char *file;
     struct string_list *filelist = NULL;
     struct symbol_list *symlist;
 
-    // initialize code listener
-    struct cl_init_data init = {
-        .debug       = trivial_printer,
-        .warn        = cl_warn,
-        .error       = cl_error,
-        .note        = trivial_printer,
-        .die         = trivial_printer,
-        .debug_level = cl_verbose,
-    };
-
-    cl_global_init(&init);
-    cl = create_cl_chain(opt);
-    if (!cl)
-        // error message already emitted
-        return EXIT_FAILURE;
-
-    // initialize sparse
-    symlist = sparse_initialize(argc, argv, &filelist);
-
-    // initialize type database
-    type_ptr_db_init(&type_ptr_db);
+    SPARSE_API(sparse_initialize, /*OUT*/ symlist, /*IN*/ SPARSEOPTS(set.argc),
+               SPARSEOPTS(set.argv), &filelist);
 
 #if DO_PROCEED_INTERNAL
-    // proceed internal symbols
-    cl->file_open(cl, "sparse-internal-symbols");
-    clean_up_symbols(symlist);
-    cl->file_close(cl);
+    // internal symbols
+    WITH_FILE_TO_EMIT(SPARSE_INTERNAL_SYMS_FILE)
+        proceed_symbols(symlist);
 #endif
 
-    // proceed the rest, file by file
+    // the rest, file by file
     FOR_EACH_PTR_NOTAG(filelist, file) {
-        if (0 < cl_verbose)
-            fprintf(real_stderr, "about to process '%s'...\n", file);
-        cl->file_open(cl, file);
-        clean_up_symbols(sparse(file));
-        cl->file_close(cl);
+        WITH_DEBUG_LEVEL(d_file)
+            PUT(debug, "about to proceed '%s'...\n", file);
+        WITH_FILE_TO_EMIT(file) {
+            SPARSE_API(sparse, /*OUT*/ symlist, /*IN*/ file);
+            proceed_symbols(symlist);
+        }
     } END_FOR_EACH_PTR_NOTAG(file);
 
-    // finalize and destroy
 #if DO_SPARSE_FREE
     free(input_streams);
 #endif
-    type_ptr_db_destroy(&type_ptr_db);
-    cl->acknowledge(cl);
-    cl->destroy(cl);
-    cl_global_cleanup();
+}
 
-    return EXIT_SUCCESS;
+static inline void
+setup_worker(struct options *opts)
+{
+    if (GLOBALS(unexposed.register_atexit)
+      && 0 != atexit(atexit_worker))
+        DIE("atexit");
+
+    setup_stream(&STREAM(debug), INTERNALS(imm.fd.debug));
+    setup_stream(&STREAM(cl),    INTERNALS(imm.fd.cl));
+
+    if (FD_DEFERRED != INTERNALS(imm.fd.sparse))
+        setup_stream(&STREAM(sparse), INTERNALS(imm.fd.sparse));
+    else {
+        // setup deferred output incl. atexit handler for printing it
+        if (GLOBALS(unexposed.register_atexit)
+          && 0 != atexit(atexit_sparse))
+            DIE("atexit");
+        STREAM(sparse) = open_memstream(&GLOBALS(deferred.buffer),
+                                        &GLOBALS(deferred.size));
+        if (!STREAM(sparse))
+            DIE( ERRNO("open_memstream") );
+    }
+}
+
+static bool
+clsp_append_via_config(struct cl_code_listener *chain,
+                       const char *config_string, const struct options *opts)
+{
+    struct cl_code_listener *cl = CL_API(code_listener_create, config_string);
+    if (!cl) {
+        chain->destroy(chain);
+        return false;
+    }
+    CL_API(chain_append, chain, cl);
+    return true;
+}
+
+static bool
+clsp_append_via_config_args(struct cl_code_listener *chain,
+                            const char *listener, const char *args,
+                            const char *clf, const struct options *opts)
+{
+    char config_string[CLSP_CONFIG_STRING_MAX];
+
+    if (!clf)
+        clf = (/*opts->use_peer*/ true)
+            ? "unfold_switch,unify_labels_gl"
+            : "unify_labels_fnc";
+
+    if (0 >= snprintf(config_string, CLSP_CONFIG_STRING_MAX,
+                      "listener=\"%s\" listener_args=\"%s\" clf=\"%s\"",
+                      listener, args, clf))
+        DIE("snprintf");
+
+    return clsp_append_via_config(chain, config_string, opts);
+}
+
+// NOTE: using the base Code Listener
+static struct cl_code_listener*
+clsp_chain_init(const struct options *opts)
+{
+    struct cl_code_listener *chain = CL_API(chain_create);
+    if (!chain)
+        return NULL;  // error message already emitted
+
+    // location as a first step throughout the run/locator
+    if (CLOPTS(imm.debug.location))
+        if (!clsp_append_via_config(chain, "listener=\"locator\"", opts))
+            return NULL;
+    // pretty printing/pp
+    if (CLOPTS(imm.pprint.enable)) {
+        const char *listener = CLOPTS(imm.pprint.types)
+            ? "pp_with_types"
+            : "pp";
+        const char *file = CLOPTS(imm.pprint.file)
+            ? CLOPTS(imm.pprint.file)
+            : "";
+        const char *clf = CLOPTS(imm.pprint.switch_to_if)
+            ? "unify_labels_gl"
+            : "unfold_switch,unify_labels_gl";
+        if (!clsp_append_via_config_args(chain, listener, file, clf, opts))
+            return NULL;
+    }
+    // control flow graphs generator/dotgen
+    if (CLOPTS(imm.gencfg.enable)) {
+        const char *file = CLOPTS(imm.gencfg.file)
+            ? CLOPTS(imm.gencfg.file)
+            : "";
+        if (!clsp_append_via_config_args(chain, "dotgen", file, NULL, opts))
+            return NULL;
+    }
+    // type graphs generator/typedot
+    if (CLOPTS(imm.gentype.enable))
+        if (!clsp_append_via_config_args(chain, "typedot",
+                                         CLOPTS(imm.gentype.file), NULL, opts))
+            return NULL;
+    /*if (OPTS(use_peer)
+        && !clsp_append_via_config_args(chain, "easy", OPTS(peer_args), opts))
+          return NULL;*/
+
+    // TODO: DLOPEN
+
+    return chain;
+}
+
+static inline void
+setup_cl(const struct options *opts)
+{
+    if (GLOBALS(unexposed.register_atexit)
+      && 0 != atexit(atexit_cl))
+        DIE("atexit");
+
+    GLOBALS(cl_libs.cnt) = CLOPTS(imm.listeners.cnt);
+    NORETWRN(MEM_ARR_RESIZE((GLOBALS(cl_libs.handles)), GLOBALS(cl_libs.cnt)));
+
+#ifndef HAS_CL
+    // use the symbols from the base Code Listener provided externally
+    // TODO: strip args ("lib:args")
+    void *handle = dlopen(CLOPTS(imm.listeners.arr)[0], DL_OPEN_FLAGS);
+    if (!handle)
+        DIE("dlopen: %s", dlerror());
+    GLOBALS(cl_libs.handles)[0] = handle;
+# define PROCEED(what)                                                        \
+    ((*(void **)(&GLOBALS(cl_api.what)) = dlsym(handle, TOSTRING(cl_##what))) \
+        ? (void) 0  /* NOOP */                                                \
+        : DIE("dlopen: %s", dlerror())                                        \
+    )
+    CL_API_PROCEED(PROCEED);
+# undef PROCEED
+#endif
+
+    if (CLOPTS(imm.default_output))
+        CL_API(global_init_defaults, CLSP_NAME, CLOPTS(imm.debug.level));
+    else {
+        struct cl_init_data init = {
+            .debug       = clmsg_print,
+            .warn        = clmsg_print,
+            .error       = clmsg_print,
+            .note        = clmsg_print,
+            .die         = clmsg_die,
+            .debug_level = CLOPTS(imm.debug.level),
+        };
+        CL_API(global_init, &init);
+    }
+
+    GLOBALS(cl) = clsp_chain_init(opts);
+    if (!GLOBALS(cl))
+        DIE("clsp_chain_init");
 }
 
 
-// Master loop (grab worker's stderr via read_fd, print it after work is over)
-static int
-master_loop(int read_fd, pid_t pid)
-#define MASTER_BUFFSIZE  (4096)
+/** master+worker top-level functions ************************************/
+
+
+/** Routine of worker (main proceeding).
+
+    @param[in] opts  Target options representation.
+
+    @todo setup_sparse here
+ */
+int
+worker(struct options *opts)
 {
-    int worker_status, ret = 0;
-    char *buffer = NULL;
-    size_t alloc_size = 0, remain_size = 0;
-    ssize_t read_size;
-    struct pollfd fds = { .fd = read_fd, .events = POLLIN };
+    setup_worker(opts);  /* incl. all the streams */
+    setup_cl(opts);
 
-    for (;;) {
-        if (poll(&fds, 1, -1) < 0) {
-            if (errno == EINTR)
-                continue;
-            ERR("pol", pid, 2);
-        } else if (fds.revents & POLLHUP)
-          // worker has finished
-          break;
+    WITH_OBJECT(type_ptr_db)
+        proceed_sparse(opts);
 
-        if (!remain_size) {
-            alloc_size += MASTER_BUFFSIZE;
-            remain_size = MASTER_BUFFSIZE;
-            buffer = MEM_RESIZE_ARR(buffer, alloc_size);
-            if (!buffer)
-                ERR("MEM_RESIZE_ARR", pid, 2);
+    /* rest of cleanup in registered atexit handler(s) */
+    EMIT(acknowledge);
+    return EXIT_SUCCESS;
+}
+
+/** Routine of master.
+
+    @note The only reason to use the "fork" arrangement is probably
+          showing the exit code of sparse explicitly.
+ */
+static int
+master(pid_t pid, const struct options *opts)
+{
+    int status, ret = 0;
+    pid_t p;
+
+    while ((pid_t) -1 == (p = waitpid(pid, &status, 0)) && EINTR != errno)
+        /* loop */
+        ;
+
+    if ((pid_t) -1 == p) {
+        ret = errno;
+        /* unchecked on purpose */
+        kill(pid, SIGKILL);
+        errno = ret;
+        DIE( ERRNO("wait") );
+    }
+
+    if (WIFEXITED(status)) {
+        ret = WEXITSTATUS(status);
+        PUT(debug, "sparse returned %i", ret);
+        return ret;
+    }
+
+    DIE("worker ended in an unexpected way");
+}
+
+
+/** options/arguments handling ********************************************/
+
+
+#define OPTISBIN(what)             APPLY(OPTISBIN_,OPT_##what)
+#define OPTPREFIX(what)            APPLY(OPTPREFIX_,OPT_##what)
+#define OPTPREFIX_(is_bin,prefix)  prefix
+#define OPTISBIN_(is_bin,prefix)   is_bin
+
+#define OPT_SHORT      false,"-"
+#define OPT_SHORT_BIN  true ,"-"
+#define OPT_LONG       false,"--"
+#define OPT_LONG_BIN   true ,"--"
+#define OPT_CL         false,"-cl-"
+#define OPT_CL_BIN     true ,"-cl-"
+
+/** Version printer.
+ */
+int
+print_version(const struct options *opts)
+{
+    PUT(out, "%s", GIT_SHA1);
+    return 0;
+}
+
+/** Help printer.
+ */
+int
+print_help(const char *cmd, const struct options *opts, int ret)
+{
+#define _(...)       PUT(out, __VA_ARGS__);
+#define __           PUT(out, "");
+#define ___          ""
+#define L(lo, cmt)   PUT(out, "%-32s%s", OPTPREFIX(LONG) lo, cmt);
+#define S(so, cmt)   PUT(out, "%-32s%s", OPTPREFIX(SHORT) so, cmt);
+#define I(ign, cmt)  PUT(out, "%-32s%s", ign, cmt);
+#define B(so, lo, cmt) \
+    PUT(out, "%-32s%s", OPTPREFIX(SHORT) so ", " OPTPREFIX(LONG) lo, cmt);
+#define C(co, cmt)   PUT(out, "%-32s%s", OPTPREFIX(CL) co, cmt);
+#define V(v, cmt)    PUT(out, "%-32d%s", v, cmt);
+    _("sparse-based Code Listener frontend, version"                           )
+    __                                                                         ;
+    _("usage: %s ( cl-global-opts | cl-plugin[:args] | sparse-opts-args )*",cmd)
+    __                                                                         ;
+#ifndef HAS_CL
+    _("As no Code Listener plugin was built-in (-> no one to serve as a base"  )
+    _("one at hand), at least one such has to be provided in the form of a"    )
+    _("shared library containing necessary symbols of Code Listener interface" )
+    _("(Code Listener based plugins for GCC are compatible);"                  )
+    _("see `%s' option below.",                          OPTPREFIX(CL) "plugin")
+#endif
+    __                                                                         ;
+    __                                                                         ;
+    _("This Code Listener front-end defines a few internal options:"           )
+    __                                                                         ;
+    B("h", "help"          , "Prints this help text"                           )
+    L("version"            , "Prints the version information"                  )
+    B("f", "fork"          , "Do fork (only to show sparse exit status {0,1})" )
+    _("[specification of file descriptors, use `FD>file' redirection for FD>2]")
+    L("cl-fd=FD"           , "Redefine stderr used to display to cl messages"  )
+    I(___                  , "(fatal errors are always produced on stderr)"    )
+    L("sparse-fd=FD"       , "Redefine stderr used by sparse, `D' for deferred")
+    L("debug-fd=FD"        , "Redefine stdout used for debugging messages"     )
+    __                                                                         ;
+    B("d", "debug[=MASK]"  , "Debug (selectively if MASK specified)"           )
+    _("MASK:")             ;              for (int i = d_first; i < d_last; i++)
+    V(DVALUE(i)            ,                                  d_str[DACCESS(i)])
+    __                                                                         ;
+    __                                                                         ;
+    _("From the options affecting the run through Code Listener interface,"    )
+    _("one particularly important is a way to import other Code Listener(s):"  )
+    __                                                                         ;
+    C("plugin=FILE[:ARGS]" , "Path to a shared library containg symbols of"    )
+    I(___                  , "Code Listener (for instance, GCC plugins can be" )
+#ifdef HAS_CL
+    I(___                  , "used directly), passing it optional ARGS"        )
+#else
+    I(___                  , "used directly), passing it optional ARGS;"       )
+    I(___                  , "the first one is a base one and must be provided")
+#endif
+    __                                                                         ;
+    __                                                                         ;
+#ifndef HAS_CL
+    _("and specifically these options are for a base (built-in) Code Listener:")
+#else
+    _("and specifically these options are for a base (provided) Code Listener:")
+#endif
+    __                                                                         ;
+    C("default-output"     , "Use Code Listener's built-ins to print messages" )
+    C("pprint[=FILE]"      , "Dump pretty-printed linearized code"             )
+    C("pprint-types"       , "Add type information to pretty-printed code"     )
+    C("pprint-switch-to-if", "Unfold `switch' into series of `if' statements " )
+    C("gen-cfg[=MAIN_FILE]", "Generate control flow graphs (as per MAIN_FILE)" )
+    C("gen-type[=FILE]"    , "Generate type graphs (to FILE if specified)"     )
+    C("debug-location"     , "Output location as first step throughout the run")
+    C("debug-level[=LEVEL]", "Debug (according to LEVEL if specified)"         )
+    __                                                                         ;
+    __                                                                         ;
+    _("For `sparse-opts-args' (including the specification of the target[s])," )
+    _("see sparse documentation;  generally, there is some level of"           )
+    _("compatibility with GCC and unrecognized options are ignored anyway."    )
+    _("To name a few notable notable ones (referring to current version):"     )
+    __                                                                         ;
+    S("v"                  , "Report more defects, more likely false positives")
+    S("m64"                , "Suppose 64bit architecture (32bit by default)"   )
+    S("DNAME[=VALUE]"      , "Define macro NAME (holding value VALUE if spec.)")
+    S("W[no[-]]WARNING"    , "Request/not to report WARNING-related issues;"   )
+    I(___                  , "`sparse-all' covers all available warnings"      )
+    _("%s"                 , "..."                                             )
+    __                                                                         ;
+    __                                                                         ;
+    _("Return values:")    ;            for (int i = ec_first; i < ec_last; i++)
+    V(ECVALUE(i)           ,                                ec_str[ECACCESS(i)])
+#undef V
+#undef C
+#undef B
+#undef I
+#undef S
+#undef L
+#undef ___
+#undef __
+#undef _
+    return ret;
+}
+
+/**  The first/initializing phase of gathering options.
+ */
+static void
+opts_initialize(struct options *opts, const struct globals *globals_obj)
+{
+    INTERNALS(imm.fork) = false;
+    INTERNALS(imm.fd)
+      = (struct oi_fd) { .cl=FD_UNDEF, .sparse=FD_UNDEF, .debug=FD_UNDEF };
+    INTERNALS(imm.debug) = 0;
+
+    CLOPTS(imm.listeners.cnt)  = 0;
+    CLOPTS(imm.listeners.arr)  = NULL;
+    CLOPTS(imm.default_output) = false;
+    CLOPTS(imm.pprint.enable)  = false;
+    CLOPTS(imm.gencfg.enable)  = false;
+    CLOPTS(imm.gentype.enable) = false;
+    CLOPTS(imm.debug) = (struct oc_debug) { .location=false, .level=0 };
+
+    /* const was meant to denote "no modification to globals" (yet) */
+    opts->globals = (struct globals*) globals_obj;
+}
+
+/** Positive number converter (from string).
+
+    @todo  More checks.
+ */
+static inline int
+get_positive_num(const char *what, const char *value,
+                 const struct options *opts)
+{
+    if (!isdigit(value[0]))
+        DIE( ECODE(ec_opt, "option %s: not a numeric value: %s", what, value) );
+    int ret = strtol(value, NULL, 10);
+    if (ret < 0)
+        DIE( ECODE(ec_opt, "option %s: must be positive number", what) );
+    return ret;
+}
+
+/** File descriptor specification converter (from string).
+
+    @note Single @c D characters stands for special "deferred" stream
+          available as per  @c accept_deferred argument.
+ */
+static inline int
+get_fd(const char *what, const char *value, bool accept_deferred,
+       const struct options *opts)
+{
+    if (accept_deferred && value[0] == 'D' && value[1] == '\0')
+        return FD_DEFERRED;
+    return get_positive_num(what, value, opts);
+}
+
+/** The main phase of gathering options.
+
+    We only handle known options/arguments and leave argv untouched
+    behind us (our options should be guaranteed not to collide with
+    sparse, though).
+ */
+static void
+proceed_options(int argc, char *argv[], struct options *opts)
+{
+#define OPTPREFIXEQ(argv, i, type, opt)                                      \
+    (strncmp(argv[i],OPTPREFIX(type) opt,strlen(OPTPREFIX(type) opt))        \
+        ? NULL                                                               \
+        : (((OPTISBIN(type) && argv[i][strlen(OPTPREFIX(type) opt)] != '\0') \
+            ? PUT(out, "option %s: binary option with argument (or clash?)", \
+                  argv[i])                                                   \
+            : 0)                                                             \
+            , &argv[i][strlen(OPTPREFIX(type) opt)]))
+#define OPTVALUE(argv, i, str)                                               \
+    (*str != '\0'                                                            \
+        ? (((*str != '=' || *++str != '\0')) ? str : NULL)                   \
+        : (argv[i+1][0] != '\0' && argv[i+1][0] != '-')                      \
+            ? (str = argv[++i])                                              \
+            : NULL)
+    if (1 >= argc)
+        return print_help(argv[0], opts, 1);
+
+    char *value;
+    for (int i=1; i < argc; i++) {
+
+        /* internal options */
+
+        if (OPTPREFIXEQ(argv,i,SHORT_BIN,"h")
+          || OPTPREFIXEQ(argv,i,LONG_BIN,"help")) {
+            return print_help(argv[0], opts, -1);
         }
-        read_size = read(read_fd, &buffer[alloc_size-remain_size],
-                         remain_size);
-        if (read_size < 0)
-            ERR("read", pid, 2);
-        remain_size -= read_size;
+        else if ((value = OPTPREFIXEQ(argv,i,LONG_BIN,"version"))) {
+            return print_version(opts);
+        }
+        else if ((value = OPTPREFIXEQ(argv,i,SHORT_BIN,"f"))
+          || (value = OPTPREFIXEQ(argv,i,LONG_BIN,"fork"))) {
+            INTERNALS(imm.fork) = true;
+        }
+        else if ((value = OPTPREFIXEQ(argv,i,LONG,"cl-fd"))
+          || (value = OPTPREFIXEQ(argv,i,LONG,"sparse-fd"))
+          || (value = OPTPREFIXEQ(argv,i,LONG,"debug-fd"))) {
+            char *arg = argv[i];  /* preserve across OPTVALUE */
+            if (OPTVALUE(argv,i,value)) {
+                /* exploiting the difference of initial chars */
+                int *to_set;
+                switch (arg[strlen(OPTPREFIX(LONG))]) {
+                    case 'c': to_set = &INTERNALS(imm.fd.cl);     break;
+                    case 's': to_set = &INTERNALS(imm.fd.sparse); break;
+                    case 'd': to_set = &INTERNALS(imm.fd.debug);  break;
+                    default: DIE("unexpected case");
+                }
+                *to_set = get_fd(arg, value,
+                                 (to_set == &INTERNALS(imm.fd.sparse)), opts);
+            } else
+                DIE( ECODE(ec_opt, "option %s: omitted value", arg) );
+        }
+        else if ((value = OPTPREFIXEQ(argv,i,SHORT,"d"))
+          || (value = OPTPREFIXEQ(argv,i,LONG,"debug"))) {
+            INTERNALS(imm.debug) = OPTVALUE(argv,i,value)
+                ? get_positive_num("debug", value, opts)
+                : ~0;
+        }
+
+        /* Code Listener options */
+
+        else if ((value = OPTPREFIXEQ(argv,i,CL,"plugin"))) {
+            *(MEM_ARR_APPEND(CLOPTS(imm.listeners.arr),
+                             CLOPTS(imm.listeners.cnt)))
+              = OPTVALUE(argv,i,value);
+        }
+        else if (OPTPREFIXEQ(argv,i,CL_BIN,"default-output")) {
+            CLOPTS(imm.default_output) = true;
+        }
+        else if ((value = OPTPREFIXEQ(argv,i,CL,"pprint"))) {
+            CLOPTS(imm.pprint.enable)       = true;
+            CLOPTS(imm.pprint.file)         = OPTVALUE(argv,i,value);
+            CLOPTS(imm.pprint.types)        = false;
+            CLOPTS(imm.pprint.switch_to_if) = false;
+        }
+        else if (OPTPREFIXEQ(argv,i,CL_BIN,"pprint-types")) {
+            if (!CLOPTS(imm.pprint.enable))
+                PUT(err, "option %s: cannot be used before %s",
+                    OPTPREFIX(CL) "pprint-types", OPTPREFIX(CL) "pprint");
+            else
+                CLOPTS(imm.pprint.types) = true;
+        }else if (OPTPREFIXEQ(argv,i,CL_BIN,"pprint-switch-to-if")) {
+            if (!CLOPTS(imm.pprint.enable))
+                PUT(err, "option %s: cannot be used before %s",
+                    OPTPREFIX(CL) "pprint-switch-to-if",
+                    OPTPREFIX(CL) "pprint");
+            else
+                CLOPTS(imm.pprint.switch_to_if) = true;
+        }
+        else if ((value = OPTPREFIXEQ(argv,i,CL,"gen-cfg"))) {
+            CLOPTS(imm.gencfg.enable) = true;
+            CLOPTS(imm.gencfg.file)   = OPTVALUE(argv,i,value);
+        }
+        else if ((value = OPTPREFIXEQ(argv,i,CL,"gen-type"))) {
+            CLOPTS(imm.gentype.enable) = true;
+            CLOPTS(imm.gentype.file)   = OPTVALUE(argv,i,value);
+        }
+        else if (OPTPREFIXEQ(argv,i,CL_BIN,"debug-location")) {
+            CLOPTS(imm.debug.location) = true;
+        }
+        else if ((value = OPTPREFIXEQ(argv,i,CL,"debug-level"))) {
+            CLOPTS(imm.debug.level) = OPTVALUE(argv,i,value)
+                ? get_positive_num("debug-level", value, opts)
+                : ~0;
+        }
+        /* TODO: remove? */
+        /*} else if ((value = OPTPREFIXEQ(argv,i,CL,"cl-args"))) {
+            OPTS(peer_args) = OPTVALUE(value)
+                ? value
+                : "";*/
     }
 
-    if (wait(&worker_status) == (pid_t)-1)
-        ERR("wait", pid, 2);
-    if (WIFEXITED(worker_status)) {
-        ret = WEXITSTATUS(worker_status);
-        fprintf(real_stderr, "sparse returned %i\n", ret);
-    } else {
-        ret = EXIT_FAILURE;
-        printf(real_stderr, "worker ended in an unexpected way\n");
-    }
+    return 0;
+#undef OPTPREFIXEQ
+#undef OPTVALUE
+}
 
-    if (alloc_size-remain_size) {
-        fprintf(real_stderr, "-------------------\nsparse diagnostics:\n");
-        write(STDERR_FILENO, buffer, alloc_size-remain_size);
-    }
-    free(buffer);
+/** The last/finalizing phase of gathering options.
+
+    @todo Check code listener if !HAS_CL, ...
+ */
+static void
+opts_initialize(struct options *opts, int argc, char *argv[])
+{
+#ifndef HAS_CL
+    if (0 == CLOPTS(imm.listeners.cnt))
+        DIE("no Code Listener specified");
+#endif
+    if (CLOPTS(imm.default_output) && FD_UNDEF != INTERNALS(imm.fd.cl))
+        PUT(err, "option %s: does not make sense with %s",
+            OPTPREFIX(CL) "pprint-switch-to-if",
+            OPTPREFIX(CL) "pprint");
+    SPARSEOPTS(set.argc) = argc;
+    SPARSEOPTS(set.argv) = argv;
+}
+
+/** Initializes values within object reprezenting globals.
+
+    @param[in,out]  globals_obj  Object representing globals.
+    @note Presumes empty object as in case of default static
+          initialization and only minimal set of values is treated here.
+ */
+struct globals *
+globals_init(struct globals *globals_obj)
+{
+    globals_obj->stream[stream_out] = stdout;
+    globals_obj->stream[stream_err] = stderr;
+    globals_obj->unexposed.register_atexit = true;
+#ifdef HAS_CL
+    /* set symbols we know are available out-of-the-box */
+# define PROCEED(what)  globals_obj->cl_api.what = &cl_##what
+    CL_API_PROCEED(PROCEED);
+# undef PROCEED
+#endif
+    return globals_obj;
+}
+
+/** Gather options in the structure which is also pre-initialized.
+
+    @param[out] opts         Target options representation.
+    @param[in]  globals_obj  Object (read-only in this stage) representing
+                             globals.
+    @param[in]  argc         argc
+    @param[in]  argv         argv
+    @return     0 = continue, <0 = exit ok, >0 = exit fail
+ */
+int
+gather_opts(struct options *opts, const struct globals *globals_obj,
+     int argc, char *argv[])
+{
+    int ret;
+
+    opts_initialize(opts, globals_obj);
+
+    if (!(ret = opts_proceed(opts, argc, argv))
+        opts_finalize(opts, argc, argv);
 
     return ret;
 }
 
-
-
-//
-// Main
-//
-
-
-int main(int argc, char *argv[])
+int
+main(int argc, char *argv[])
 {
-    // handle arguments specific for this Code Listener frontend
-    struct cl_plug_options opt;
-    int retval = handle_cl_args(argc, argv, &opt);
-    if (retval)
-        return retval;
+    struct options options, *opts = &options;
+    int ret;
+    pid_t pid;
 
-    real_stderr = stderr; // use this if you need "unfaked" stderr
+    if (!(ret = gather_opts(opts, globals_init(&globals), argc, argv));
+        return (ret < 0) ? EXIT_SUCCESS : ret;
 
-    if (!opt->fork)
-        retval = worker_loop(&opt, argc, argv);
-    else {
-        // set up pipe
-        int fildes[2];
-        if (pipe(fildes) < 0)
-            ERR("pipe", NOKILL, 2);
-        // master-worker fork
-        pid_t pid = fork();
-        if (pid == -1)
-            ERR("fork", NOKILL, 2);
-        else if (pid == 0) {
+    if (!INTERNALS(imm.fork))
+        ret = worker(opts);
+    else if ((pid_t) -1 == (pid = fork()))
+        DIE( ERRNO("fork") );
+    else if (pid == 0)
+        ret = worker(opts);
+    else
+        ret = master(pid, opts);
 
-            /* child = worker, uses fildes[1] for writing */
-
-            if (close(fildes[0]) < 0)
-                ERR("close", NOKILL, 2);
-            if (!redefine_stderr(fildes[1], &real_stderr))
-                ERR("Redefining stderr", NOKILL, 2);
-
-            // main processing loop
-            retval = worker_loop(&opt, argc, argv);
-
-            if (fclose(real_stderr) == EOF || close(fildes[1]) < 0)
-                ERR("fclose/close", NOKILL, 2);
-        } else {
-
-            /* parent = master, uses fildes[0] for reading */
-
-            if (close(fildes[1]) < 0)
-                ERR("close", pid, 2);
-            // master loop -- gather what sparse produce to stderr
-            retval = master_loop(fildes[0], pid);
-        }
-    }
-
-    return retval;
+    return ret;
 }
 
-// vim:ts=4:sts=4:sw=4:et
+/* vim:ts=4:sts=4:sw=4:et: */
