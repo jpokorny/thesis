@@ -17,50 +17,181 @@
  * You should have received a copy of the GNU General Public License
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef CLSP_H_GUARD
+#define CLSP_H_GUARD
 
-#ifndef CL_SPARSE_H_GUARD
-#define CL_SPARSE_H_GUARD
+#define _POSIX_C_SOURCE 200809L  /* fileno, open_memstream */
+
+#include <stdio.h>   /* FILE, fprintf, fileno */
+#include <stdlib.h>  /* malloc, exit */
+#include <string.h>  /* strerror */
+#include <errno.h>   /* errno */
+#include <unistd.h>  /* dup, close */
+
+#include "clsp_macros.h"
+#include "clsp_api_cl.h"
+#include "clsp_api_sparse.h"
+#include "type_enumerator.h"
+
+extern const char *GIT_SHA1;
+
+
+/** object representing globals ******************************************/
+
+
+enum streams {
+    stream_first,
+    stream_out = stream_first,
+    stream_err,
+    /* worker only */
+    stream_worker_first,
+    stream_sparse = stream_worker_first,
+    stream_cl,
+    stream_debug,
+    stream_worker_last,
+    stream_last = stream_worker_last
+};
+
+extern struct globals {
+    FILE            *stream[stream_last];
+    /* buffer for sparse deferred stream */
+    struct g_deferred {
+        char        *buffer;
+        size_t      size;
+    } deferred;
+    struct cl_code_listener  *cl;
+    /* API functions resolved in compile-/run-time set here */
+    struct g_cl_api {
+#define CL_DECL(prefix, item, cnt)                  \
+    APPLY(API_CL_RET, API_PROPS(prefix, item))      \
+    (*item)                                         \
+    APPLY(API_CL_ARGDECL, API_PROPS(prefix, item));
+        API_PROCEED(CL, CL_DECL)
+#undef CL_DECL
+    } cl_api;
+    /* handles to dynamically opened libraried */
+    struct g_cl_libs {
+        size_t      cnt;
+        void        **handles;  // !HAS_CL -> first is the main one
+    } cl_libs;
+    /* TODO typedb */
+    int             debug;
+    /* unexposed, but run-modifying options (e.g., for testing) */
+    struct {
+        bool        register_atexit;
+    } unexposed;
+} globals;
+
+/* convenient macros for accessing parts of globals */
+#define GLOBALS(what)  (globals.what)
+#define STREAM(which)  GLOBALS(stream[stream_##which])
 
 
 
 //
-// outputs
+// pointer and array DB, for building pointer* and array hierarchy in order to
+// prevent having two semantically same pointers/arrays as two different types
 //
 
-/* universal print macro with implicit newline
- *
- * usage: PUT(stream_index, [[fmt], ...])
- * NOTE:  fmt has to be compile-time constant
+struct arr_db_item {
+    int             arr_size;
+    struct cl_type  *clt;
+};
+
+struct ptr_db_item {
+    struct cl_type      *clt;
+    struct ptr_db_item  *next;
+    size_t              arr_cnt;
+    struct arr_db_item  **arr;
+    bool                free_type;  ///< whether we are responsible for clt
+};
+
+struct ptr_db_arr {
+    size_t              alloc_size;
+    size_t              last;
+    struct ptr_db_item  *heads;
+};
+
+
+
+extern struct type_ptr_db {
+    int                 last_base_type_uid;
+    struct typen_data   *type_db;
+    struct ptr_db_arr   ptr_db;
+} type_ptr_db;
+
+
+/** exit codes ************************************************************/
+
+
+#define ECNUM(c)              APPLY(ECNUM_, EC_##c)
+#define ECNUM_(num,name,desc) num
+#define ECVALUE               IDENTITY
+
+#define EC_OK       0,ok,     "run finished, no unrecoverable error encountered"
+#define EC_SPARSE   1,sparse, "sparse has not finished successfully"
+#define EC_GENERAL  2,general,"something general has failed"
+#define EC_OPT      3,opt,    "incorrect command-line"
+#define EC_MEM      4,mem,    "memory handling has failed (probably OOM)"
+#define EC_TDB      5,tdb,    "internal type database handling has failed"
+#define EC_CL       6,cl,     "Code Listener run has been aborted"
+#define ECLIST(x)        \
+    APPLY(x, EC_OK)      \
+    APPLY(x, EC_SPARSE)  \
+    APPLY(x, EC_GENERAL) \
+    APPLY(x, EC_OPT)     \
+    APPLY(x, EC_MEM)     \
+    APPLY(x, EC_TDB)     \
+    APPLY(x, EC_CL)
+
+enum {
+    /* compliance note: only POSIX guarantees 0 == EXIT_SUCCESS */
+    ec_first   = EXIT_SUCCESS,
+#define X(num,name,desc)  ec_##name = num,
+    ECLIST(X)
+#undef X
+    ec_last
+};
+
+
+/** outputs ***************************************************************/
+
+
+/*
+    Universal print macro with implicit newline
+
+    usage: PUT(stream_index, [[fmt], ...])
+    NOTE: fmt has to be compile-time constant
+    NOTE: last argument in order to allow format string as the only
+          argument; compensated appending "%s" later on
  */
-
-// NOTE: last argument in order to allow format string as the only
-//       argument; compensated appending "%s" later on
 #define PUT(which, ...)        PUT_(which, __VA_ARGS__, "")
 #define PUT_(which, fmt, ...)  PUT__(which, 0, fmt "%s", __VA_ARGS__)
 #define PUT__(which, skip, fmt, ...) \
     fprintf(STREAM(which), &(fmt "\n")[skip], __VA_ARGS__)
 
-/* pre-mortem print macro
- *
- * usage: DIE( WRAPPER(wrapper_args, [fmt, [...]]) )
- *        where WRAPPER is one of macros defined below
+/*
+    Pre-mortem print macro
+
+    Usage: DIE( WRAPPER(wrapper_args, [fmt, [...]]) )
+           where WRAPPER is either nothing or one of macros defined below
+
+    Note:  fmt should not start with any of DCHR_* characters (internal only)
  */
 
 #define DLOC \
     "\n" __FILE__ ":" TOSTRING(__LINE__) ": note: from %s [internal location]"
 
-#define ERRNO(...)             DCHR_ERRNO __VA_ARGS__
-// code (exit ~) can be [0,10), i.e., containing single digit
-#define ECODE_(flag,code,...)  flag STRINGIFY(code) __VA_ARGS__
-#define ECODE(...)             ECODE_(DCHR_ECODE, __VA_ARGS__)
-#define ERRNOCODE(...)         ECODE_(DCHR_ERRNOCODE, __VA_ARGS__)
-
-// NOTE: format string should not start with any of these (used internally):
 #define DCHR_ERRNO      "@"
 #define DCHR_ECODE      "$"
 #define DCHR_ERRNOCODE  "#"
 
-// see PUT
+#define ERRNO(...)             DCHR_ERRNO __VA_ARGS__
+/* Note: code (exit ~) can be [0,10), i.e., containing single digit */
+#define ECODE_(flag,c,...)  flag TOSTRING(ECNUM(c)) __VA_ARGS__
+#define ECODE(...)          ECODE_(DCHR_ECODE, __VA_ARGS__)
+#define ERRNOCODE(...)      ECODE_(DCHR_ERRNOCODE, __VA_ARGS__)
+
 #define DIE(...)         DIE_(__VA_ARGS__, "")
 #define DIE_(fmt, ...)   DIE__(fmt "%s", __VA_ARGS__)
 #define DIE__(fmt, ...)                                                       \
@@ -76,159 +207,260 @@
         ? exit((int) (fmt[1] - '0'))                                          \
         : exit(ec_general)))
 
+/*
+    Streams swapping
+ */
 
-// common exit codes (1 reserved for sparse)
-#define ECVALUE(arg)     arg
-#define ECACCESS(index)  index - ec_first
-#define ECMSG(suffix)    [ECACCESS(ec_##suffix)] = ec_##suffix()
-enum {
-    ec_first = 1,
-    ec_sparse = ec_first,
-#define ec_sparse()   "sparse has not finished successfully"
-    ec_general,
-#define ec_general()  "something general has failed"
-    ec_opt,
-#define ec_opt()      "incorrect command-line"
-    ec_mem,
-#define ec_mem()      "memory handling has failed (probably OOM)"
-    ec_tdb,
-#define ec_tdb()      "internal type database handling has failed"
-    ec_cl,
-#define ec_cl()       "Code Listener run has been aborted"
-    ec_last
-};
-static const char *ec_str[ec_last] = {
-    ECMSG(sparse),
-    ECMSG(general),
-    ECMSG(opt),
-    ECMSG(mem),
-    ECMSG(tdb),
-    ECMSG(cl),
-};
+static inline void
+swap_stream(FILE *f1, FILE *f2) {
+    int fd1 = fileno(f1), fd2 = fileno(f2);
+    if (fd1 == fd2)
+        return;
+    fflush(f1); fflush(f2);
+    int temp = dup(fd1);
 
-/* debugging */
+    if (-1 == temp
+     || -1 == close(fd1)
+     || -1 == dup2(fd2, fd1)
+     || -1 == dup2(temp, fd2)
+     || -1 == close(temp)
+    )
+        DIE( ERRNO("swap_stream") );
+}
 
-#define DACCESS(index)   index - d_first
-#define DVALUE(arg)       (1 << arg)
-#define DMSG(suffix)     [DACCESS(d_##suffix)] = d_##suffix()
+/* this (and other similar constructs) mimics context Managers ala Python */
+#define WITH_SWAPPED_STREAM(f1, f2)  \
+    for (int i=0; 0==i              \
+         ? (swap_stream(f1, f2), 1) \
+         : (swap_stream(f2, f1), 0) \
+         ; i++)
+
+/*
+    Debugging
+ */
+
+#define DACCESS(index)  index - d_first
+#define DMSG(suffix)    [DACCESS(d_##suffix)] = d_##suffix()
+#define DVALUE(arg)     (1 << arg)
+
+#define D_OPTIONS      0,options,    "dump gathered options"
+#define D_INSTRUCTION  1,instruction,"print instruction being processed"
+#define D_TYPE         2,type,       "print type being processed"
+#define D_INSERT_TYPE  3,insert_type,"print type being inserted into type DB"
+#define D_FILE         4,file,       "print current file to be proceeded"
+#define DLIST(x)            \
+    APPLY(x, D_OPTIONS)     \
+    APPLY(x, D_INSTRUCTION) \
+    APPLY(x, D_TYPE)        \
+    APPLY(x, D_INSERT_TYPE) \
+    APPLY(x, D_FILE)
+
 enum {
     d_first = 0,
-    d_instruction = d_first,
-#define d_instruction()  "print instruction being processed"
-    d_type,
-#define d_type()         "print type being processed"
-    d_insert_type,
-#define d_insert_type()  "print type being inserted into type DB"
-    d_file,
-#define d_file()         "print current file to be proceeded"
+#define X(num,name,desc)  d_##name = num,
+    DLIST(X)
+#undef X
     d_last
 };
-static const char *d_str[d_last] = {
-    DMSG(instruction),
-    DMSG(type),
-    DMSG(insert_type),
-    DMSG(file),
-};
+
+/* two forms of usage... */
+#define DLOG(level, ...)                \
+    if (GLOBALS(debug) & DVALUE(level)) \
+        PUT(debug, __VA_ARGS__)
+
+#define WITH_DEBUG_LEVEL(level)                            \
+    for (int i=0; 0==i && (GLOBALS(debug) & DVALUE(level)) \
+         ? 1                                               \
+         : 0                                               \
+         ; i++)
 
 
-enum streams {
-    // for both master and worker
-    stream_first,
-    stream_out = stream_first,
-    stream_err,
-    // worker only
-    stream_worker_first,
-    stream_sparse = stream_worker_first,
-    stream_cl,
-    stream_debug,
-    stream_worker_last,
-    stream_last = stream_worker_last
-};
+/** allocations ***********************************************************/
 
-struct globals {
-    FILE            *stream[stream_last];
-    /* buffer for sparse deferred stream */
-    struct g_deferred {
-        char        *buffer;
-        size_t      size;
-    } deferred;
-    struct cl_code_listener  *cl;
-    /* API functions resolved in compile- or run-time set here */
-    struct g_cl_api {
-        void (*global_init)(struct cl_init_data *);
-        void (*global_init_defaults)(const char *, int);
-        struct cl_code_listener *(*code_listener_create)(const char *);
-        struct cl_code_listener *(*chain_create)();
-        void (*chain_append)(struct cl_code_listener *,
-                             struct cl_code_listener *);
-        void (*global_cleanup)();
-    } cl_api;
-    struct g_cl_libs {
-        size_t      cnt;
-        void        **handles;  // !HAS_CL -> first is the main one
-    } cl_libs;
-    // TODO typedb
-    int             debug;
-    /* unexposed, but run-modifying options (e.g., for testing) */
-    struct {
-        bool        register_atexit;
-    } unexposed;
-};
 
-extern struct globals globals;
+/*  NOTE: use "MEM_NEW(foo)" for direct access ("MEM_NEW(foo).bar = 42")
+          and "(MEM_NEW(foo))" as a function parameter ("bar((MEM_NEW(foo)))")
+ */
+#define MEM_NEW(var)                        \
+   (((var) = malloc(sizeof(*(var))))        \
+     ? (void) 0  /* NOOP */                 \
+     : DIE( ERRNOCODE(MEM, "MEM_NEW") )     \
+   ) , (var)
 
-// shared object for initialization phase data exchange amongst functions
-// NOTE: imm -> immediate values; set -> values that were set up later on
-struct options {
-    /* internal options */
-    struct {
-        struct {
-            bool            fork;
-            struct oi_fd {
-                int         cl;
-                int         sparse;  // FD_DEFERRED for deferred output
-                int         debug;
-            } fd;
-            int             debug;
-        } imm;
-    } internals;
-    /* Code Listener */
-    struct {
-        struct {
-            struct {
-                size_t      cnt;
-                char        **arr;  // !HAS_CL -> first is the main one
-            } listeners;
-            bool            default_output;
-            struct {
-                bool        enable;
-                bool        types;
-                bool        switch_to_if;
-                const char  *file;
-            } pprint;
-            struct {
-                bool        enable;
-                const char  *file;
-            } gencfg;
-            struct {
-                bool        enable;
-                const char  *file;
-            } gentype;
-            struct oc_debug {
-                bool        location;
-                int         level;
-            } debug;
-        } imm;
-    } cl;
-    /* sparse */
-    struct {
-        struct {
-            int             argc;
-            char            **argv;
-        } set;
-    } sparse;
-    /* globals as a dependency injection */
-    struct globals          *globals;
-};
+#define MEM_ARR_RESIZE(arr, newcnt)                      \
+    (((arr) = realloc((arr), sizeof(*(arr)) * (newcnt))) \
+      ? (void) 0 /* NOOP */                              \
+      : DIE( ERRNOCODE(MEM, "MEM_ARR_RESIZE") )          \
+    ) , (arr)
 
+/* NOTE: one-liner for item append: *(MEM_ARR_APPEN(arr,size)) = item */
+#define MEM_ARR_APPEND(arr, oldcnt)                          \
+    (((arr) = realloc((arr), sizeof(*(arr)) * (++(oldcnt)))) \
+      ? (void) 0 /* NOOP */                                  \
+      : DIE( ERRNOCODE(MEM, "MEM_ARR_APPEND") )              \
+    ) , (arr + oldcnt - 1)
+
+
+/** internally mirrored API parts *****************************************/
+
+
+/*
+    sparse API:  API_SPARSE(item, ...)
+ */
+
+#define API_SPARSE(...)           API_SPARSE_MAP(__VA_ARGS__, IDENTITY)
+#define API_SPARSE_MAP(item,...)  API_SPARSE_HOW(item)(item, __VA_ARGS__)
+#define API_SPARSE_(...)          API_USE(SPARSE, __VA_ARGS__)
+#define API_SPARSE_HOW(item) \
+    API_SPARSE_HOW_(APPLY(API_SPARSE_OUT, API_PROPS(SPARSE, item)))
+#define API_SPARSE_HOW_(out)      JOIN(API_SPARSE_USE_, out)
+
+#define API_SPARSE_USE_X(fnc, ...)  API_SPARSE_(fnc, __VA_ARGS__)
+#define API_SPARSE_USE_D(fnc, ...)                                \
+    WITH_SWAPPED_STREAM(APPLY(STREAM,out), APPLY(STREAM,debug))   \
+        API_SPARSE_(fnc, __VA_ARGS__)
+#define API_SPARSE_USE_E(fnc, ...)                                \
+    WITH_SWAPPED_STREAM(APPLY(STREAM,sparse), APPLY(STREAM,err))  \
+        API_SPARSE_(fnc, __VA_ARGS__)
+
+
+/*
+    Code Listener API
+    NOTE: relying on availability of GLOBALS(cl/cl_api), see above
+ */
+
+/* global API of Code Listener:  API_CL(item, ...) */
+#define API_CL(...)           API_USE(CL,__VA_ARGS__,API_CL_GLOBALS)
+#define API_CL_GLOBALS(item)  GLOBALS(cl_api).item
+
+/*
+    per-listener part of Code Listener API:  EMIT(item, ...)
+    NOTE: injecting "self" as a first argument skipped by outer call
+    NOTE: works only until there is non-function or returning function
+ */
+#define API_EMIT(...)           API_EMIT_(__VA_ARGS__, API_EMIT_GLOBALS)
+#define API_EMIT_(item, ...)    API_USE(CLOBJ, item, GLOBALS(cl), __VA_ARGS__)
+#define API_EMIT_GLOBALS(item)  GLOBALS(cl)->item
+
+#define WITH_FILE_TO_EMIT(file)           \
+    for (int i=0; i==0                    \
+         ? (API_EMIT(file_open, file), 1) \
+         : (API_EMIT(file_close),      0) \
+         ; i++)
+
+#define WITH_CALL_TO_EMIT(loc, dst, fnc)                \
+    for (int i=0; 0==i                                  \
+         ? (API_EMIT(insn_call_open, loc, dst, fnc), 1) \
+         : (API_EMIT(insn_call_close),               0) \
+         ; i++)
+
+#define WITH_SWITCH_TO_EMIT(loc, op)                \
+    for (int i=0; 0==i                              \
+         ? (API_EMIT(insn_switch_open, loc, op), 1) \
+         : (API_EMIT(insn_switch_close),         0) \
+         ; i++)
+
+#define WITH_FNC_TO_EMIT(fnc)           \
+    for (int i=0; 0==i                  \
+         ? (API_EMIT(fnc_open, fnc), 1) \
+         : (API_EMIT(fnc_close),     0) \
+         ; i++)
+
+
+/**
+    Proceed sparse linearized code -> Code Listener conversion.
+
+    In case of unrecoverable error (on both local and sparse side),
+    dies immediately.
+
+    @param[in] filelist  List of files selected for proceeding.
+    @param[in] symlist   Internal symbols obtained by sparse_initialize call
+ */
+extern void proceed(struct string_list *filelist, struct symbol_list *symlist);
+
+
+extern struct cl_type
+    void_clt,
+    incomplete_clt,
+    bad_clt,
+    int_clt,  sint_clt,  uint_clt,     short_clt, sshort_clt, ushort_clt,
+    long_clt, slong_clt, ulong_clt,    llong_clt, sllong_clt, ullong_clt,
+    // lllong_clt, slllong_clt, ulllong_clt
+    char_clt, schar_clt, uchar_clt,
+    bool_clt,
+    float_clt, double_clt, ldouble_clt;
+
+
+/**
+    xxx
+ */
+extern void type_ptr_db_init(struct type_ptr_db *db);
+
+/**
+    xxx
+ */
+extern void type_ptr_db_destroy(struct type_ptr_db *db);
+
+
+/* type "constructor" */
+
+
+extern const struct cl_type pristine_cl_type;
+
+static inline struct cl_type *
+empty_type(struct cl_type* clt)
+{
+    *clt = pristine_cl_type;
+    return clt;
+}
+
+static inline struct cl_type *
+new_type(void)
+{
+    struct cl_type *retval;
+    return empty_type((MEM_NEW(retval)));  // guaranteed not to return NULL
+}
+
+
+
+static inline int
+sizeof_from_bits(int bits)
+{/* Alternative:
+  * bytes_to_bits (sparse/target.h)
+  *     - cons: we need the ceil value (1 bit ~ 1 byte), 0 in "strange" cases
+  */
+    return (bits > 0)
+        ? (bits + bits_in_char - 1) / bits_in_char
+        : 0;
+}
+
+
+// NOTE: clt->item_cnt can be uninitialized provided that clt->items is NULL
+static inline struct cl_type_item *
+type_append_item(struct cl_type *clt)
+{
+    if (!clt->items)
+        clt->item_cnt = 0;
+
+    // guaranteed to continue only in case of success
+    return MEM_ARR_APPEND(clt->items, clt->item_cnt);
+}
+
+
+extern struct cl_type *build_referenced_type(struct cl_type *orig_clt);
+
+
+extern struct cl_type *type_ptr_db_insert(struct type_ptr_db *db,
+                                          struct cl_type *clt,
+                                          const struct symbol *type,
+                                          struct ptr_db_item **ptr);
+
+extern struct cl_type *type_ptr_db_lookup_item(struct type_ptr_db *db,
+                                               const struct symbol *type,
+                                               struct ptr_db_item **ptr);
+
+extern struct ptr_db_item *new_ptr_db_item(void);
+
+
+#endif
 /* vim:set ts=4 sts=4 sw=4 et: */

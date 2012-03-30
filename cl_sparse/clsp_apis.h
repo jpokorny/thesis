@@ -16,352 +16,303 @@
  * You should have received a copy of the GNU General Public License
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-/* TODO: remove APPLY() in some cases? */
-
-/** External API functions are commonly not distinguished from local
-    ones.  This is straightforward usage.  But there is no flexibility
-    in it.  For instance, change the order of arguments in API call
-    requires editing each occurence separately (forgotting coccinelle
-    and similar tools for now).
-
-    Thus, seemingly inconvenient, following constructs allow us to
-    encapsulate external API dependencies into uniform "internalized" API,
-    which buys us great deal of flexibility.  Is there a need to log each
-    run-time call through particular API?  Hooking the log facility into
-    internalized API is much simpler than manually rewriting each instance.
-    Also lookup of calls from particular API in the code is much easier.
-
-    Many macros are being defined here, but mostly they are only private
-    dependencies for the one meant for public usage (they help to get
-    across some preprocessor language limitations).  Such internal macros
-    have trailing '_' in name.
-
-    The public parts of internalized APIs (call it FOO) commonly comprise:
-
-    - set of macros specifying properties of each required API function:
-
-      FOO_bar 1 ==> tells the consuming macro "bar" function takes 1 argument
-
-    - facade (as function-like macro) to perform actual external API call:
-
-      FOO(bar, baz) ==> translates into something like "bar(baz)"
-      alt. FOO(bar, r, baz) ==> translates into something like "r = bar(baz)"
-
-    - facade (as function-like macro) to access external variables of API:
-
-      FOO_VAR(spam) ==> translates into something "spam"
-
-    - function-like macro to proceed required API functions with another
-      function/macro (e.g., to fill the structure with function pointers)
-
-      FOO_PROCEED(proceed) ==> apply "proceed" to particular parts of FOO
-
-    NOTE: Function-like macros are considered as functions in the explanation
-          above.
- */
-
 #ifndef CLSP_APIS_H_GUARD
 #define CLSP_APIS_H_GUARD
+/**
+    External API functions are commonly not distinguished from local
+    ones.  This is straightforward usage.  But there is no flexibility
+    in it.  For instance, some or all the API calls need to be wrapped
+    by some setup--teardown code on the client (our) side (e.g., logging
+    of the call arguments and then of the return code).  This requires
+    taking care about the each such call separately (bad maintenance).
 
-#include "cl_sparse_general.h"
+    Thus, seemingly inconvenient, following constructs allow us to
+    encapsulate external API dependencies into uniform "internalized"
+    mirrored API, which buys us some deal of flexibility in terms of
+    having its local usage under control (decorating the calls, perhaps
+    even selectively, etc.).  Also lookup of calls from particular API
+    in the code is much easier using a single search query, but what's
+    more important is the in-code documentation aspect.
 
-#define API_SHOW
+    Many macros are being defined here (prefixed with "API_" for sanity),
+    but mostly they are only private dependencies for the ones meant for
+    public usage (they help to get across some preprocessor language
+    limitations).  Such internal macros start with "API__" and are not
+    intended to be used directly outside this file.
 
-#if defined(API_SHOW)
-# define SPARSE_API_SHOW 1
-# define CL_API_SHOW     1
-# define CL_OBJ_SHOW     1
-PRAGMA_MSGSTR("OVERVIEW OF APIs USED FOLLOWS; A/B=std/macro func,C=global")
+
+    Internally, each API (set of functions and other symbols) is tight
+    together around common prefix (e.g., FOO) which denotes the prefix
+    of macros (analogy to methods in OOP) expected to have meaningful
+    definition; such suffixes are (skipping interconnecting '_'):
+
+    - NAME: abitrary identifier of the whole API
+    - FQ:   function-like macro mapping internalized identifiers to
+            fully-qualified API identifiers for end use (e.g., add
+            a common, internally stripped prefix)
+    - KIND: function-like macro returning the kind of API item
+            based on its properties passed as arguments;  kind is encoded:
+            [SNR][0-9]; S = non-functional
+                        N = functional non-returing
+                        R = functional returning API item
+    - identifiers of API items (there can be a morphism of these
+      internalized identifiers used here and the identifiers for end use,
+      such as thecommon prefixes stripped -- they can be compensated back
+      with FQ method, see above) tied together with their properties
+      in the form of tuple of values;  first of them always denotes
+      the type of the item, specified by a single letter 'A' through 'W':
+      - A: function
+      - B: function-like macro
+      - C: global variable
+    - LAST: tuple of the same size as properties of API items (see above),
+            starting with 'Z' which denotes the last item
+    - LIST: comma-separated enumeration of the identifiers defined as per
+            above
+
+    What is defined here is only a common minimum.  When using facilities
+    provided by this file, specific function-like macros have to be defined
+    (also functions maybe used directly when it makes sense) and passed as
+    arguments to the main public macros:
+
+    - API_USE
+    - API_PROCEED[_SAFE]
+
+    Such usage-specific function-like macros can be built on top of these:
+
+    - API_NAME[_STR]
+    - API_PROPS
+    - API[_PROPS]_TYPE
+    - API_KIND
+    - API_FQ[_STR]
+
+    Additionally, these ready-to-use macros are available:
+
+    - API_PRAGMA_{OVERVIEW,DETAILS}
+
+    Also, there may be API-specific function where it makes sense (e.g.,
+    to access additional API item properties).
+ */
+
+#include "clsp_macros.h"
+#if !defined(IDENTITY)      \
+ || !defined(APPLY)         \
+ || !defined(JOIN)          \
+ || !defined(TOSTRING)      \
+ || !defined(PRAGMA_MSGSTR)
+# pragma message "Missing some macros that should be defined already"
 #endif
 
 
-/*  Each internalized API function is defined indirectly through one of
-    following macros.  Their form comes partly from effort to avoid
-    "ISO C99 requires rest arguments to be used" warning.  Name format:
+#if 0
+# define API_SHOW 1  /* 0=nothing, 1=overview only, 2=details */
+#endif
 
-    API_USE_DEF_<N/R:function has/not a return value><number of arguments>_
+#if (API_SHOW > 0)
+# if (API_SHOW > 1)
+PRAGMA_MSGSTR("OVERVIEW OF APIs USED FOLLOWS (A/B=std/macro func,C=global)")
+# else
+PRAGMA_MSGSTR("OVERVIEW OF APIs USED FOLLOWS:")
+# endif
+#endif
 
-    The last, esoteric argument "X" is nothing but a wrapper applied on
-    the "fnc".  This is useful in some cases, if not, just use identity:
 
-    #define IDENTITY(what)  (what)
+/*  (INTERNAL)
+    Each internalized use of covered API part is defined indirectly through
+    one of the following macros.  Their form comes partly from effort to avoid
+    "ISO C99 requires rest arguments to be used" warning.
+
+    The last argument "map" offers manipulation with the item before
+    actually using it.  This is useful in some cases and when not, just
+    use IDENTITY.
  */
+#define API__USE(...)        API__USE_(__VA_ARGS__)
+#define API__USE_(kind,...)  API__USE_##kind(__VA_ARGS__)
+/* non-functional symbol */
+#define API__USE_S0(sym,               map)  map(sym)
+/* non-returning function/function-like macro */
+#define API__USE_N0(fnc,               map)  map(fnc)(              )
+#define API__USE_N1(fnc,a1,            map)  map(fnc)(a1            )
+#define API__USE_N2(fnc,a1,a2,         map)  map(fnc)(a1,a2         )
+#define API__USE_N3(fnc,a1,a2,a3,      map)  map(fnc)(a1,a2,a3      )
+#define API__USE_N4(fnc,a1,a2,a3,a4,   map)  map(fnc)(a1,a2,a3,a4   )
+#define API__USE_N5(fnc,a1,a2,a3,a4,a5,map)  map(fnc)(a1,a2,a3,a4,a5)
+/* returning function/function-like macro */
+#define API__USE_R0(fnc,ret,...)  ret = API__USE_N0(fnc,__VA_ARGS__)
+#define API__USE_R1(fnc,ret,...)  ret = API__USE_N1(fnc,__VA_ARGS__)
+#define API__USE_R2(fnc,ret,...)  ret = API__USE_N2(fnc,__VA_ARGS__)
+#define API__USE_R3(fnc,ret,...)  ret = API__USE_N3(fnc,__VA_ARGS__)
+#define API__USE_R4(fnc,ret,...)  ret = API__USE_N4(fnc,__VA_ARGS__)
+#define API__USE_R5(fnc,ret,...)  ret = API__USE_N5(fnc,__VA_ARGS__)
 
 
-#define API_USE_DEF_N0_(fnc,               X)  X(fnc)(              )
-#define API_USE_DEF_N1_(fnc,a1,            X)  X(fnc)(a1            )
-#define API_USE_DEF_N2_(fnc,a1,a2,         X)  X(fnc)(a1,a2         )
-#define API_USE_DEF_N3_(fnc,a1,a2,a3,      X)  X(fnc)(a1,a2,a3      )
-#define API_USE_DEF_N4_(fnc,a1,a2,a3,a4,   X)  X(fnc)(a1,a2,a3,a4   )
-#define API_USE_DEF_N5_(fnc,a1,a2,a3,a4,a5,X)  X(fnc)(a1,a2,a3,a4,a5)
-#define API_USE_DEF_R0_(fnc,ret,...)  ret = API_USE_DEF_N0_(fnc,__VA_ARGS__)
-#define API_USE_DEF_R1_(fnc,ret,...)  ret = API_USE_DEF_N1_(fnc,__VA_ARGS__)
-#define API_USE_DEF_R2_(fnc,ret,...)  ret = API_USE_DEF_N2_(fnc,__VA_ARGS__)
-#define API_USE_DEF_R3_(fnc,ret,...)  ret = API_USE_DEF_N3_(fnc,__VA_ARGS__)
-#define API_USE_DEF_R4_(fnc,ret,...)  ret = API_USE_DEF_N4_(fnc,__VA_ARGS__)
-#define API_USE_DEF_R5_(fnc,ret,...)  ret = API_USE_DEF_N5_(fnc,__VA_ARGS__)
+/*  (INTERNAL)
+    Iteration (if it can be called like this) through the API items,
+    perfoming selected action (defined, e.g., via another macro) on each
+    (aka mapping).
+
+    The iteration is performed as a tail recursion, applying "map" on the
+    current "head" (and thus expanding it into final product) along.
+    It stops if API item of reserved type 'Z' ('A' through 'W' is used to
+    distinguish the type of the API item, see below) is encountered.
+    This stop-mark is appended (in two instances in order to suppress
+    mentioned "ISO C99" warning) by the facade function automatically.
+   
+    To incorporate this unavoidable branching, each iteration X consists
+    of two parts:
+    - API__PROCEED_X:  select whether to continue (see the next item) or end
+    - API__PROCEED_X_: perform "map" (makes the final product) on the "head"
+                       and recurse with the rest
+ */
+#define  API__PROCEED_BEGIN(...)  API__PROCEED_0(0,__VA_ARGS__)
+#define  API__PROCEED_0(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)( 1,map,prefix,head,__VA_ARGS__)
+#define  API__PROCEED_1(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)( 2,map,prefix,head,__VA_ARGS__)
+#define  API__PROCEED_2(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)( 3,map,prefix,head,__VA_ARGS__)
+#define  API__PROCEED_3(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)( 4,map,prefix,head,__VA_ARGS__)
+#define  API__PROCEED_4(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)( 5,map,prefix,head,__VA_ARGS__)
+#define  API__PROCEED_5(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)( 6,map,prefix,head,__VA_ARGS__)
+#define  API__PROCEED_6(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)( 7,map,prefix,head,__VA_ARGS__)
+#define  API__PROCEED_7(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)( 8,map,prefix,head,__VA_ARGS__)
+#define  API__PROCEED_8(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)( 9,map,prefix,head,__VA_ARGS__)
+#define  API__PROCEED_9(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(10,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_10(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(11,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_11(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(12,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_12(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(13,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_13(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(14,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_14(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(15,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_15(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(16,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_16(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(17,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_17(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(18,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_18(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(19,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_19(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(20,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_20(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(21,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_21(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(22,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_22(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(23,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_23(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(24,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_24(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(25,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_25(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(26,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_26(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(27,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_27(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(28,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_28(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(29,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_29(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(30,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_30(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(31,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_31(cnt,map,prefix,head,...) API__PROCEED_SELECT(API_TYPE(prefix,head),cnt)(32,map,prefix,head,__VA_ARGS__)
+#define API__PROCEED_32(cnt,map,prefix,head,...) "NOT IMPLEMENTED YET ;)"
+
+#define API__PROCEED_SELECT(type,cnt)   JOIN(API__PROCEED_SELECT_,type)(type,cnt)
+/* A-W: continue (add missing types when needed), Z: stop iteration/recursion */
+#define API__PROCEED_SELECT_A(type,cnt)  API__PROCEED_##cnt##_
+#define API__PROCEED_SELECT_B(type,cnt)  API__PROCEED_##cnt##_
+#define API__PROCEED_SELECT_C(type,cnt)  API__PROCEED_##cnt##_
+#define API__PROCEED_SELECT_Z(type,cnt)  API__PROCEED_END_
+
+#define  API__PROCEED_0_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define  API__PROCEED_1_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define  API__PROCEED_2_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define  API__PROCEED_3_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define  API__PROCEED_4_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define  API__PROCEED_5_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define  API__PROCEED_6_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define  API__PROCEED_7_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define  API__PROCEED_8_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define  API__PROCEED_9_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_10_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_11_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_12_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_13_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_14_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_15_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_16_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_17_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_18_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_19_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_20_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_21_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_22_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_23_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_24_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_25_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_26_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_27_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_28_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_29_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_30_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_31_(cnt,map,prefix,head,...) map(prefix,head,cnt) API__PROCEED_##cnt(cnt,map,prefix,__VA_ARGS__)
+#define API__PROCEED_END_(cnt,map,prefix,head,last)  /* NOOP */
 
 
-#define  API_USE_0(what,...)  what( 1,__VA_ARGS__)
-#define  API_USE_1(what,...)  what( 2,__VA_ARGS__)
-#define  API_USE_2(what,...)  what( 3,__VA_ARGS__)
-#define  API_USE_3(what,...)  what( 4,__VA_ARGS__)
-#define  API_USE_4(what,...)  what( 5,__VA_ARGS__)
-#define  API_USE_5(what,...)  what( 6,__VA_ARGS__)
-#define  API_USE_6(what,...)  what( 7,__VA_ARGS__)
-#define  API_USE_7(what,...)  what( 8,__VA_ARGS__)
-#define  API_USE_8(what,...)  what( 9,__VA_ARGS__)
-#define  API_USE_9(what,...)  what(10,__VA_ARGS__)
-#define API_USE_10(what,...)  what(11,__VA_ARGS__)
-#define API_USE_11(what,...)  what(12,__VA_ARGS__)
-#define API_USE_12(what,...)  what(13,__VA_ARGS__)
-#define API_USE_13(what,...)  what(14,__VA_ARGS__)
-#define API_USE_14(what,...)  what(15,__VA_ARGS__)
-#define API_USE_15(what,...)  what(16,__VA_ARGS__)
+/*  
+    Main mean of using the internally mirrored API.
+  
+    It is intended that the consumer compilation unit first makes
+    the specific instance, then it can be used uniformly to access
+    particular API:
+  
+    #include clsp_apis.h
+    #define FOO(...)   FOO_(__VA_ARGS__,IDENTITY)
+    #define FOO_(item,...)                   \
+        do {                                 \
+            printf("%s\n", STRINGIFY(item)); \
+            API_USE(FOO,item,__VA_ARGS__);   \
+        while (0)
+    #define FRU(...)   API_USE(FRU,__VA_ARGS__,IDENTITY)
+  
+    FOO(bar, frob);      ==> do { printf("%s\n", "bar"); bar(frob); };
+    FRU(fru, ret, baz);  ==> ret = fru(baz);
+ */
+#define API_USE(prefix,item,...)  \
+    API__USE(API_KIND(prefix,item),item,__VA_ARGS__)
 
-#define API_PROCEED_SAFE(prefix,fnc) \
-    do {                                          \
-        API_PROCEED_(fnc,prefix)     \
+
+/*  
+    A way to apply function/macro on each item of specified API.
+  
+    The second variant is a convenient wrapper to make expanded
+    part safe when used anywhere in the functional (but apparently,
+    cannot be used outside).
+ */
+#define API_PROCEED(prefix,map)      \
+    API__PROCEED_BEGIN(map,prefix,API_##prefix##_LIST,LAST,LAST)
+
+#define API_PROCEED_SAFE(prefix,map) \
+    do {                             \
+        API_PROCEED2(prefix,map)     \
     } while (0)
-#define API_PROCEED(prefix,fnc)  API_PROCEED2(fnc,prefix,prefix##_LIST,LAST,LAST)
-#define API_PROCEED2(...)  API_PROCEED0_(0,__VA_ARGS__)
-#define  API_PROCEED0_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define  API_PROCEED1_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define  API_PROCEED2_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define  API_PROCEED3_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define  API_PROCEED4_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define  API_PROCEED5_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define  API_PROCEED6_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define  API_PROCEED7_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define  API_PROCEED8_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define  API_PROCEED9_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define API_PROCEED10_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define API_PROCEED11_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define API_PROCEED12_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define API_PROCEED13_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define API_PROCEED14_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-#define API_PROCEED15_(c,f,p,h,...) API_USE_##c(API_PROCEED__(p##_##h,c),f,p,h,__VA_ARGS__)
-
-#define API_PROCEED__(props,cnt) API_PROCEED___(API_TYPE(props),cnt)
-#define API_PROCEED___(type,cnt)        APPLY(JOIN(API_PROCEED___,type),type,cnt)
-#define API_PROCEED___A(type,cnt)       API_PROCEED_##cnt##_
-#define API_PROCEED___B(type,cnt)       API_PROCEED_##cnt##_
-#define API_PROCEED___C(type,cnt)       API_PROCEED_##cnt##_
-#define API_PROCEED___Z(type,cnt)       API_PROCEED_END_
-
-#define API_TYPE(type,...)  type
-
-#define  API_PROCEED_0_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define  API_PROCEED_1_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define  API_PROCEED_2_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define  API_PROCEED_3_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define  API_PROCEED_4_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define  API_PROCEED_5_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define  API_PROCEED_6_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define  API_PROCEED_7_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define  API_PROCEED_8_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define  API_PROCEED_9_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define API_PROCEED_10_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define API_PROCEED_11_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define API_PROCEED_12_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define API_PROCEED_13_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define API_PROCEED_14_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define API_PROCEED_15_(cnt,fnc,prefix,head,...) fnc(head,prefix##_##head,cnt) API_PROCEED##cnt##_(cnt,fnc,prefix,__VA_ARGS__)
-#define API_PROCEED_END_(cnt,fnc,prefix,head,last)
 
 
-/*
- *  sparse API (subset used) via directly available symbols
- */
+/*  helper macros  */
 
-/*#include "sparse/lib.h"
-#include "sparse/expression.h"
-#include "sparse/linearize.h"
-#include "sparse/scope.h"
-#include "sparse/storage.h"*/
-/* #include "sparse/flow.h"
-   #include "sparse/parse.h"
-   #include "sparse/symbol.h"
-   #include "sparse/target.h"
-   #include "sparse/token.h" */
+/* get API name (raw or stringified) of specified API */
+#define API_NAME(prefix)         API_##prefix##_NAME
+#define API_NAME_STR(prefix)     TOSTRING(API_NAME(prefix))
 
-/*
-#undef UNUSED
-*/
+/* get properties of specified item of specified API */
+#define API_PROPS(prefix,item)    API_##prefix##_##item
 
-/* functions (A=std, B=macro) */
+/* get type specification of specified item of specified API/its properties */
+#define API_TYPE(prefix,item)     APPLY(API_PROPS_TYPE,API_PROPS(prefix,item))
+#define API_PROPS_TYPE(type,...)  type
 
-#define SPARSE_API(...)            SPARSE_API_(__VA_ARGS__,SPARSE_API_MAP)
-#define SPARSE_API_(fnc,...)       APPLY(SPARSE_API_OUT(fnc),SPARSE_API_KIND(fnc),fnc,__VA_ARGS__)
-#define SPARSE_API__(kind,fnc,...) API_USE_DEF_##kind##_(fnc,__VA_ARGS__)
-#define SPARSE_API_D(kind,fnc,...)           \
-    WITH_SWAPPED_STREAM(out, debug)          \
-        API_USE_DEF_##kind##_(fnc,__VA_ARGS__)
-#define SPARSE_API_E(kind,fnc,...)           \
-    WITH_SWAPPED_STREAM(sparse, err)         \
-        API_USE_DEF_##kind##_(fnc,__VA_ARGS__)
+/* get kind specification of specified item of specified API */
+#define API_KIND(prefix,item)     APPLY(API_##prefix##_KIND,API_PROPS(prefix,item))
 
-#define SPARSE_API_NAME(what)  IDENTITY(what)
-#define SPARSE_API_KIND(what)  APPLY(SPARSE_API_KIND_,SPARSE_API_##what)
-#define SPARSE_API_OUT(what)   APPLY(SPARSE_API_OUT_,SPARSE_API_##what)
-#define SPARSE_API_KIND_(type,kind,argcnt,out)  kind##argcnt
-#define SPARSE_API_OUT_(type,kind,argcnt,out)   SPARSE_API_##out
+/* internalized -> fully-qualified API identifier (raw/stringified) */
+#define API_FQ(prefix,item)       API_##prefix##_FQ(item)
+#define API_FQ_STR(prefix,item)   TOSTRING(API_FQ(prefix,item))
 
-#define SPARSE_API_sparse_initialize  A,R,3,E
-#define SPARSE_API_sparse             A,R,1,E
-#define SPARSE_API_expand_symbol      A,N,1,E
-#define SPARSE_API_linearize_symbol   A,R,1,E
-#define SPARSE_API_unssa              A,N,1,E
-#define SPARSE_API_set_up_storage     A,N,1,E
-#define SPARSE_API_free_storage       A,N,0,_
-#define SPARSE_API_show_symbol        A,N,1,D
-#define SPARSE_API_ptr_list_empty     B,N,1,_
 
-/* global variables (C) */
+/*  ready-to-use macros  */
 
-#define SPARSE_API_input_streams      C,_,_,_
+/* expose overview of specified API via pragma messages */
+#define API_PRAGMA_OVERVIEW(prefix)                    \
+    PRAGMA_MSGSTR("API:" API_NAME_STR(prefix) " =>"    \
+                  API_PROCEED(prefix,API__SHOW_STRING))
+#define API__SHOW_STRING(prefix,item,cnt)  " " API_FQ_STR(prefix,item) ","
 
-/* altogether */
-
-#define SPARSE_API_LAST               Z,_,_,_
-#define SPARSE_API_LIST        \
-    /* functions */            \
-    sparse_initialize,         \
-    sparse,                    \
-    expand_symbol,             \
-    linearize_symbol,          \
-    unssa,                     \
-    set_up_storage,            \
-    free_storage,              \
-    show_symbol,               \
-    /* function-like macros */ \
-    ptr_list_empty,            \
-    /* global variables */     \
-    input_streams
-
-#ifdef SPARSE_API_SHOW
-# define FNC(what,props,cnt)  PRAGMA_MSG(API:sparse:cnt:API_TYPE(props):what)
-PRAGMA_MSGSTR("[[[ sparse ]]]")
-API_PROCEED(SPARSE_API,FNC)
-# undef FNC
-#endif
-
-/*
- *  Code Listener API
- */
-
-//#include "code_listener.h"
-
-/*
-#undef UNUSED
-*/
-
-/*
- *  global Code Listener API via globals object
- */
-
-/* functions (A=std, B=macro) */
-
-#define CL_API(...)            CL_API_(__VA_ARGS__,CL_API_MAP)
-#define CL_API_(fnc, ...)      APPLY(CL_API__,CL_API_KIND(fnc),fnc,__VA_ARGS__)
-#define CL_API__(kind,fnc,...) API_USE_DEF_##kind##_(fnc,__VA_ARGS__)
-
-/*TODO: remove and comment*/
-#define CL_API_MAP(fnc)    (GLOBALS(cl_api).fnc)
-
-#define CL_API_NAME(what)  cl_##what  /* proper imported symbol name */
-#define CL_API_KIND(what)  APPLY(CL_API_KIND_,CL_API_##what)
-#define CL_API_KIND_(type,kind,argcnt)  kind##argcnt
-
-#define CL_API_global_init           A,N,1
-#define CL_API_global_init_defaults  A,N,2
-#define CL_API_code_listener_create  A,R,1
-#define CL_API_chain_create          A,R,0
-#define CL_API_chain_append          A,N,2
-#define CL_API_global_cleanup        A,N,0
-
-/* altogether */
-
-#define CL_API_LAST                  Z,_,_
-#define CL_API_LIST       \
-    /* functions */       \
-    global_init,          \
-    global_init_defaults, \
-    code_listener_create, \
-    chain_create,         \
-    chain_append,         \
-    global_cleanup
-
-#ifdef CL_API_SHOW
-# define FNC(what,props,cnt) \
-    PRAGMA_MSG(API:cl-api:cnt:API_TYPE(props):CL_API_NAME(what))
-PRAGMA_MSGSTR("[[[ cl-api ]]]")
-API_PROCEED(CL_API,FNC)
-# undef FNC
-#endif
-
-/*
- *  per-listener part of Code Listener API using listener in globals object
- */
-
-/* functions (A=std, B=macro) */
-
-#define CL_OBJ(...)            CL_OBJ_(__VA_ARGS__,CL_OBJ_MAP)
-#define CL_OBJ_(fnc,...)       APPLY(CL_OBJ__,CL_OBJ_KIND(fnc),fnc,__VA_ARCL_OBJ)
-#define CL_OBJ__(cnt,fnc,...)  API_USE_DEF_N##cnt##_(fnc,CL_OBJ_CL,__VA_ARGS__)
-
-/* #define CL_OBJ_MAP(fnc)        (GLOBALS(cl)->fnc) */
-/* CL_OBJ_CL */
-
-#define CL_OBJ_NAME(what)  IDENTITY(what)
-#define CL_OBJ_KIND(what)  APPLY(CL_OBJ_KIND_,CL_OBJ_##what)
-#define CL_OBJ_KIND_(type,kind,argcnt)  kind##argcnt
-
-/* NOTE: incl. common CL_OBJ_CL argument */
-#define CL_OBJ_file_open          A,N,2
-#define CL_OBJ_file_close         A,N,1
-#define CL_OBJ_fnc_open           A,N,2
-#define CL_OBJ_fnc_arg_decl       A,N,3
-#define CL_OBJ_fnc_close          A,N,1
-#define CL_OBJ_bb_open            A,N,2
-#define CL_OBJ_insn               A,N,2
-#define CL_OBJ_insn_call_open     A,N,4
-#define CL_OBJ_insn_call_arg      A,N,3
-#define CL_OBJ_insn_call_close    A,N,1
-#define CL_OBJ_insn_switch_open   A,N,3
-#define CL_OBJ_insn_switch_case   A,N,5
-#define CL_OBJ_insn_switch_close  A,N,1
-#define CL_OBJ_acknowledge        A,N,1
-#define CL_OBJ_destroy            A,N,1
-
-/* altogether */
-
-#define CL_OBJ_LAST               Z,_,_
-#define CL_OBJ_LIST    \
-    /* functions */    \
-    file_open,         \
-    file_close,        \
-    fnc_open,          \
-    fnc_arg_decl,      \
-    fnc_close,         \
-    bb_open,           \
-    insn,              \
-    insn_call_open,    \
-    insn_call_arg,     \
-    insn_call_close,   \
-    insn_switch_open,  \
-    insn_switch_case,  \
-    insn_switch_close, \
-    acknowledge,       \
-    destroy
-
-#ifdef CL_OBJ_SHOW
-# define FNC(what,props,cnt)  PRAGMA_MSG(API:cl-obj:cnt:API_TYPE(props):what)
-PRAGMA_MSGSTR("[[[ cl-obj ]]]")
-API_PROCEED(CL_OBJ,FNC)
-# undef FNC
-#endif
+/* expose details of specified API via pragma messages */
+#define API_PRAGMA_DETAILS(prefix)  API_PROCEED(prefix,API__PRAGMA_DETAILS)
+#define API__PRAGMA_DETAILS(prefix,item,cnt)                                  \
+    PRAGMA_MSGSTR("API:" API_NAME_STR(prefix) ":"                             \
+                  TOSTRING(API_TYPE(prefix,item)) ":" API_FQ_STR(prefix,item))
 
 
 #endif

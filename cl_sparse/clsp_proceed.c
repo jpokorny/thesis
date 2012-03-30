@@ -18,9 +18,9 @@
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _POSIX_C_SOURCE 200809L // snprintf
 
-//#include <stdarg.h>
+#include "clsp.h"      /* bootstrap all other dependencies */
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,22 +28,15 @@
 #include <limits.h>
 #include <unistd.h>
 #include <errno.h>
-#include <signal.h>    // kill
-#include <sys/wait.h>  // wait
+#include <stdint.h>    /* uintptr_t */
+#include <inttypes.h>  /* PRIxPTR */
 #include <assert.h>
-#include <dlfcn.h>     // dlopen, dlsym, dlclose
-#include <ctype.h>     // isdigit
 
 #define USE_INT3_AS_BRK
 #include "trap.h"
-#include "type_enumerator.h"
 
-#include "cl_sparse.h"
+#define  GLOBALS(what)  (globals.what)
 
-#include "cl_sparse_apis.h"
-#define CL_OBJ_MAP(fnc)        (GLOBALS(cl)->fnc)
-#define CL_OBJ_CL     GLOBALS(cl)
-#define EMIT  CL_OBJ  /* easier-to-read alias */
 
 /* compile options */
 
@@ -62,325 +55,14 @@
 
 /* symbolic values */
 
-#define DL_OPEN_FLAGS                  (RTLD_LAZY|RTLD_LOCAL)
-
-#define CLSP_CONFIG_STRING_MAX          512
-#define CLSP_NAME                       __FILE__
 #define CLSP_SPARSE_INTERNAL_SYMS_FILE  "sparse-internal-symbols"
 
-#define FD_UNDEF     -1
-#define FD_DEFERRED  -2
-
-#define UNFOLD(...)  OPT_##what
-
-
-// yo, Dawg...
-#define OR  : case
-#define IN(choices)  , choices
-#define COND_WHICH(cond, which) \
-    switch (cond) {             \
-        case which:
-#define BEGIN_WHEN(cond_which)  \
-        COND_WHICH(cond_which)
-#define END_WHEN                \
-            ; break;            \
-        default:                \
-            break;              \
-    }
-
-
-
-
-//
-// globals
-//
-
-static struct globals;
-
-// this is defined to allow a kind of encapsulation
-#define GLOBALS(what)  (globals.what)
-#define STREAM(which)  GLOBALS(stream[stream_##which])
-
-
-
-// output functions
-//static void clmsg_ignore(const char *msg) { (void) msg;                     }
-static void clmsg_print(const char *msg)  { PUT(cl, "%s", msg);             }
-static void clmsg_die(const char *msg)    { DIE( ECODE(ec_cl, "%s", msg) ); }
-
-
-//
-// pointer and array DB, for building pointer* and array hierarchy in order to
-// prevent having two semantically same pointers/arrays as two different types
-//
-
-struct arr_db_item {
-    int             arr_size;
-    struct cl_type  *clt;
-};
-
-struct ptr_db_item {
-    struct cl_type      *clt;
-    struct ptr_db_item  *next;
-    size_t              arr_cnt;
-    struct arr_db_item  **arr;
-    bool                free_type;  ///< whether we are responsible for clt
-};
-
-struct ptr_db_arr {
-    size_t              alloc_size;
-    size_t              last;
-    struct ptr_db_item  *heads;
-};
-
-// two forms of usage
-#define DLOG(level, ...)                \
-    if (GLOBALS(debug) & DVALUE(level)) \
-        PUT(debug, __VA_ARGS__)
-
-#define WITH_DEBUG_LEVEL(level)                            \
-    for (int i=0; 0==i && (GLOBALS(debug) & DVALUE(level)) \
-         ? 1                                               \
-         : 0                                               \
-         ; i++)
-
-static struct type_ptr_db {
-    int                 last_base_type_uid;
-    struct typen_data   *type_db;
-    struct ptr_db_arr   ptr_db;
-} type_ptr_db = {
-    .last_base_type_uid = 0,  // to prevent free of non-heap based types
-    .type_db            = NULL,
-    .ptr_db             = { .alloc_size=0, .last=0, .heads=NULL },
-};
-typedef struct type_ptr_db *type_ptr_db_t;
-
-
-
-/* Context Managers ala Python */
-
-#define SWAP_STREAM(f1, f2)  swap_stream(STREAM(f1), STREAM(f2))
-
-#define WITH_SWAPPED_STREAM(f1,f2)  \
-    for (int i=0; 0==i              \
-         ? (SWAP_STREAM(f1, f2), 1) \
-         : (SWAP_STREAM(f2, f1), 0) \
-         ; i++)
-
-#define WITH_OBJECT(object)               \
-    for (int i=0; 0==i                    \
-         ? (object##_init(&object), 1)    \
-         : (object##_destroy(&object), 0) \
-         ; i++)
-
-#define WITH_FILE_TO_EMIT(file)       \
-    for (int i=0; i==0                \
-         ? (EMIT(file_open, file), 1) \
-         : (EMIT(file_close),      0) \
-         ; i++)
-
-#define WITH_CALL_TO_EMIT(loc, dst, fnc)            \
-    for (int i=0; 0==i                              \
-         ? (EMIT(insn_call_open, loc, dst, fnc), 1) \
-         : (EMIT(insn_call_close),               0) \
-         ; i++)
-
-#define WITH_SWITCH_TO_EMIT(loc, op)            \
-    for (int i=0; 0==i                          \
-         ? (EMIT(insn_switch_open, loc, op), 1) \
-         : (EMIT(insn_switch_close),         0) \
-         ; i++)
-
-#define WITH_FNC_TO_EMIT(fnc)       \
-    for (int i=0; 0==i              \
-         ? (EMIT(fnc_open, fnc), 1) \
-         : (EMIT(fnc_close),     0) \
-         ; i++)
-
-
-//
-// Initialization/deinitialization functions
-//
-
-/* freeing resources connected with type */
-
-static void
-free_type(struct cl_type *clt)
-{
-    // skip base types that are not on heap
-    if (clt->uid > type_ptr_db.last_base_type_uid) {
-
-        /* clt->name */
-        free((char *) clt->name);
-
-        /* clt->items */
-        // selective approach can expose wrong usage through leaked memory
-        BEGIN_WHEN(clt->code IN (CL_TYPE_PTR    OR
-                                 CL_TYPE_STRUCT OR
-                                 CL_TYPE_UNION  OR
-                                 CL_TYPE_ARRAY  OR
-                                 CL_TYPE_FNC    ))
-        {
-            int i;
-            for (i = 0; i < clt->item_cnt; i++) {
-                /* clt->items[i].type (skipped) */
-
-                /* clt->items[i].name */
-                free((char *) clt->items[i].name);
-            }
-            free(clt->items);
-        }
-        END_WHEN
-
-        /* clt (heap!) */
-        free(clt);
-    }
-}
-
-static void
-type_ptr_db_destroy(type_ptr_db_t db)
-{
-    typen_destroy(db->type_db);
-
-    // destroy pointer hierarchy
-    struct ptr_db_arr *ptr_db = &db->ptr_db;
-    struct ptr_db_item *item, *item_next;
-    int i;
-    for (i = 0; i < ptr_db->last; i++) {
-        item = &ptr_db->heads[i];
-
-        /* item->clt (skipped, except for those explicitly flagged) */
-        if (item->free_type)
-            free_type(item->clt);
-
-        /* item->arr */
-        int j;
-        for (j = 0; j < item->arr_cnt; j++)
-            free(item->arr[j]);
-        free(item->arr);
-
-        // move onto next items, this one captured by `free(db->ptr_db.heads)'
-        item = item->next;
-
-        while (item) {
-            item_next = item->next;
-
-            /* item->clt (skipped, except for those explicitly flagged) */
-            if (item->free_type)
-                free_type(item->clt);
-
-            free(item);
-            item = item_next;
-        }
-    }
-    free(ptr_db->heads);
-}
-
-
-//
-// worker-initiated setup, mainly regarding Code Listener
-//
-
-// NOTE: stdout and stderr skipped
-static void
-atexit_worker(void)
-{
-#if 0
-    // TODO
-    type_ptr_db_destroy();
-#endif
-    // close the streams used by the worker
-    int fileno_cur;
-    for (enum streams s=stream_first; s < stream_last; s++) {
-        fileno_cur = fileno(GLOBALS(stream[s]));
-        if (GLOBALS(stream[s]) && fileno_cur > STDERR_FILENO) {
-            // prevent double-close of particular file descriptor
-            enum streams sn = s+1;
-            for ( ; sn < stream_last; sn++)
-                if (fileno_cur == fileno(GLOBALS(stream[sn])))
-                    break;
-            if (sn == stream_last)
-                fclose(GLOBALS(stream[s]));
-        }
-    }
-    // close the access to dynamic libraries
-    for (size_t i=0; i < GLOBALS(cl_libs.cnt); i++)
-        if (GLOBALS(cl_libs.handles)[i]
-          && 0 != dlclose(GLOBALS(cl_libs.handles)[i]))
-            PUT(err, "dlclose: %s", dlerror());
-}
-
-void
-atexit_cl(void) {
-    if (GLOBALS(cl)) {
-        EMIT(destroy);
-        GLOBALS(cl) = NULL;
-        CL_API(global_cleanup);
-    }
-}
-
-// close (->flush to buffer) deferred sparse output and print it
-// NOTE: more options here, e.g., extra line prefix
-// NOTE: must be called before atexit_worker
-void
-atexit_sparse(void) {
-    // to be sure if deferred stream was opened and used,
-    // we fflush the stream and examine size of respective buffer
-    errno = 0;
-    if (STREAM(sparse)
-      && EOF != fflush(STREAM(sparse))
-      && 0 < GLOBALS(deferred.size)) {
-        if (EOF == fclose(STREAM(sparse)))
-            PUT(err, "%s: could not fclose", __func__);
-        STREAM(sparse) = NULL;
-
-        PUT(err,"sparse output:");
-        PUT(err,"%.*s", (int) GLOBALS(deferred.size), GLOBALS(deferred.buffer));
-
-        free(GLOBALS(deferred.buffer));
-        GLOBALS(deferred) = (struct g_deferred) { .buffer=NULL, .size=0 };
-    } else if (0 != errno)
-        PUT(err, "%s: could not fflush", __func__);
-
-#if DO_SPARSE_FREE
-    free(SPARSE_VAR(input_streams));
-#endif
-}
-
-static inline void
-setup_stream(FILE **stream, int fd)
-{
-    switch (fd) {
-        case STDOUT_FILENO: *stream = stdout; break;
-        case STDERR_FILENO: *stream = stderr; break;
-        default:
-            *stream = fdopen(fd, "a");
-            if (!*stream)
-                // incl. FD_UNDEF
-                DIE( ERRNO("fdopen") );
-            break;
-    }
-}
 
 
 //
 // Empty composite values
 //
 
-// TODO: cl_loc_unknown
-#define EMPTY_LOC  { .file=NULL, .line=-1, .column=-1, .sysp=false }
-
-static const struct cl_type pristine_cl_type = {
-    .uid        = NEW_UID,  ///< in control of type_enumerator
-    .code       = CL_TYPE_UNKNOWN,
-    .loc        = EMPTY_LOC,
-    .scope      = CL_SCOPE_GLOBAL,
-    .name       = NULL,
-    .size       = 0,
-    .item_cnt   = 0,
-    .items      = NULL,
-    //.array_size = 0,
-};
 
 
 //
@@ -408,60 +90,38 @@ static const struct cl_type pristine_cl_type = {
 #define WARN_CASE_UNHANDLED(pos, what) \
     case what: WARN_UNHANDLED(pos, #what); break;
 
-static inline void
-swap_stream(FILE *f1, FILE *f2) {
-    int fd1 = fileno(f1), fd2 = fileno(f2);
-    if (fd1 == fd2)
-        return;
-
-    fflush(f1); fflush(f2);
-    int temp = dup(fd1);
-    if (-1 == temp
-     || -1 == close(fd1)
-     || -1 == dup2(fd2, fd1)
-     || -1 == dup2(temp, fd2)
-     || -1 == close(temp))
-        DIE( ERRNO("swap_stream") );
-}
 
 
 //
 // Mostly sparse related helper functions
 //
 
-// this should accommodate worst-case of pointer hexa reprezentation incl. \0
-#define PTR_STRING_MAX  21
+// this should accommodate worst-case of pointer hexa representation incl. \0
+// check in Python: [(x,len(x)) for x in hex(2**64-1).strip('L').partition('x')]
+#define PTR_STRING_MAX  17
 
 // incl. compile-time constraint check to make sure we fit into PTR_STRING_MAX
 struct ptr_string {
-    char str[sizeof(ptrdiff_t) <= 64 ? PTR_STRING_MAX : -1];
+    char str[sizeof(uintptr_t) <= 8 ? PTR_STRING_MAX : -1];
 };
 
-#define PTR_STRING(ptr)  (char const*const) ptr_string(ptr).str
+#define PTR_STRING(ptr)  (const char*) ptr_string(ptr).str
 
 // NOTE: returning a short array through stack, but should not hurt anything
 static inline struct ptr_string
 ptr_string(const void *ptr)
 {
     struct ptr_string ret;
-    if (0 >= snprintf(ret.str, PTR_STRING_MAX, "%p", ptr))
+    if (0 >= snprintf(ret.str, sizeof(ret.str), "%" PRIxPTR, (uintptr_t) ptr))
         DIE("snprintf");
     return ret;
 }
 
-static inline int
-sizeof_from_bits(int bits)
-{/* Alternative:
-  * bytes_to_bits (sparse/target.h)
-  *     - cons: we need the ceil value (1 bit ~ 1 byte), 0 in "strange" cases
-  */
-    return (bits > 0) ? (bits + bits_in_char - 1) / bits_in_char : 0;
-}
 
 static void
 sparse_location(struct cl_loc *cl_loc, struct position pos)
 {
-    cl_loc->file   = stream_name(pos.stream);
+    API_SPARSE(stream_name, /*out*/ cl_loc->file, /*int*/ pos.stream);
     cl_loc->line   = pos.line;
     cl_loc->column = pos.pos;
     cl_loc->sysp   = /* not used by SPARSE */ false;
@@ -523,121 +183,7 @@ sparse_fn_arg_at(struct symbol *fn, int pos)
 // Types handling
 //
 
-/* sparse - code listener types mapping */
 
-// associated with respective base types in `populate_with_base_types()'
-static struct cl_type
-    void_clt,
-    incomplete_clt,
-    bad_clt,
-    int_clt,  sint_clt,  uint_clt,     short_clt, sshort_clt, ushort_clt,
-    long_clt, slong_clt, ulong_clt,    llong_clt, sllong_clt, ullong_clt,
-    // lllong_clt, slllong_clt, ulllong_clt
-    char_clt, schar_clt, uchar_clt,
-    bool_clt,
-    float_clt, double_clt, ldouble_clt;
-
-
-static const struct {
-    struct cl_type  *ref;
-    struct symbol   *ctype;
-    enum cl_type_e  cl_type;
-    const char      *name;
-} base_types[] = {
-/* Synopsis:
- * sparse/symbol.c (ctype_declaration) + sparse/symbol.h
- *
- * Omitted:
- * - type_ctype
- * - string_ctype..lazy_ptr_type (should not be present at all [?])
- *
- * Note:
- * `lllong' represents non-standard "extra long" at specific platforms [?]
- */
-#define TYPE(sym, clt)  { &sym##_clt, &sym##_ctype, CL_TYPE_##clt, #sym }
-    /* CL_TYPE_VOID */
-    TYPE(void, VOID),
-
-    /* CL_TYPE_UNKNOWN */
-    TYPE(incomplete, UNKNOWN),
-    TYPE(bad,        UNKNOWN),
-
-    /* CL_TYPE_INT */
-    TYPE(int,    INT),   TYPE(sint,    INT),   TYPE(uint,    INT),
-    TYPE(short,  INT),   TYPE(sshort,  INT),   TYPE(ushort,  INT),
-    TYPE(long,   INT),   TYPE(slong,   INT),   TYPE(ulong,   INT),
-    TYPE(llong,  INT),   TYPE(sllong,  INT),   TYPE(ullong,  INT),
-    //TYPE(lllong, INT),   TYPE(slllong, INT),   TYPE(ulllong, INT),
-
-    /* CL_TYPE_CHAR */
-    TYPE(char,   CHAR),  TYPE(schar,   CHAR),  TYPE(uchar,  CHAR),
-
-    /* CL_TYPE_BOOL */
-    TYPE(bool, BOOL),
-
-    /* CL_TYPE_REAL */
-    TYPE(float,   REAL),
-    TYPE(double,  REAL),
-    TYPE(ldouble, REAL),
-#undef TYPE
-};
-
-/* type "constructor" */
-
-static inline struct cl_type *
-empty_type(struct cl_type* clt)
-{
-    *clt = pristine_cl_type;
-    return clt;
-}
-
-static inline struct cl_type *
-new_type(void)
-{
-    struct cl_type *retval;
-    return empty_type((MEM_NEW(retval)));  // guaranteed not to return NULL
-}
-
-static struct cl_type *
-type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
-                   const struct symbol *type, struct ptr_db_item **ptr);
-
-static void
-populate_with_base_types(type_ptr_db_t db)
-{
-    struct symbol *ctype;
-    struct cl_type *clt;
-    int i;
-    for (i = 0; i < ARRAY_SIZE(base_types); i++) {
-        clt = base_types[i].ref;
-        empty_type(clt);
-
-        ctype = base_types[i].ctype;
-
-        clt->code  = base_types[i].cl_type;
-        clt->scope = CL_SCOPE_GLOBAL;
-        clt->name  = base_types[i].name;
-        clt->size  = sizeof_from_bits(ctype->bit_size);
-
-        // insert into hash table + pointer hierarchy (at base level)
-        type_ptr_db_insert(db, clt, ctype, NULL);
-    }
-
-    // set uid of the last type inserted so we can skip the freeing for these
-    db->last_base_type_uid = clt->uid;
-}
-
-
-static void
-type_ptr_db_init(type_ptr_db_t db)
-{
-    db->type_db = typen_create(free_type);
-    if (!db->type_db)
-        DIE( ECODE(ec_tdb, "ht_create() failed") );
-
-    // fill with base types
-    populate_with_base_types(db);
-}
 
 
 /* various helpers */
@@ -678,16 +224,6 @@ type_match(const struct cl_type *t1, const struct cl_type *t2)
 #endif
 }
 
-// NOTE: clt->item_cnt can be uninitialized provided that clt->items is NULL
-static inline struct cl_type_item *
-type_append_item(struct cl_type *clt)
-{
-    if (!clt->items)
-        clt->item_cnt = 0;
-
-    // guaranteed to continue only in case of success
-    return MEM_ARR_APPEND(clt->items, clt->item_cnt);
-}
 
 
 /* read composite types */
@@ -792,11 +328,10 @@ read_type(struct cl_type *clt, const struct symbol *raw_symbol,
      * Note:
      * Unhandled types are denoted with CL_TYPE_UNKNOWN.
      */
-    #define TYPE_STD(spt, clt, conv) \
-        [SYM_##spt]={ .type_code=CL_TYPE_##clt, .prop.converter=conv }
-    #define TYPE_IGN(spt, _, __) \
-        [SYM_##spt]={ .type_code=CL_TYPE_UNKNOWN, .prop.string="SYM_"#spt }
-
+    #define TYPE_STD(spt, clt, conv)                                          \
+        [SYM_##spt] = { .type_code=CL_TYPE_##clt, .prop.converter=conv }
+    #define TYPE_IGN(spt, _, __)                                              \
+        [SYM_##spt] = { .type_code=CL_TYPE_UNKNOWN, .prop.string="SYM_"#spt }
         // how? | sparse type   | clt    | handler               |
         // -----+---------------+--------+-----------------------|
 
@@ -824,13 +359,15 @@ read_type(struct cl_type *clt, const struct symbol *raw_symbol,
         TYPE_IGN( FOULED        ,        ,                       ),
         TYPE_IGN( KEYWORD       ,        ,                       ),
         TYPE_IGN( BAD           ,        ,                       ),
+    #undef TYPE_IGN
+    #undef TYPE_STD
     };
 
     const struct type_conversion *conversion;
 
     WITH_DEBUG_LEVEL(d_type) {
         PUT(debug,"\t%d: type to be processed:", type->pos.line);
-        SPARSE_API(show_symbol, (struct symbol *) type);
+        API_SPARSE(show_symbol, (struct symbol *) type);
     }
 
     //assert(PARTIALLY_ORDERED( SYM_UNINITIALIZED , symbol->type , SYM_BAD ));
@@ -848,7 +385,7 @@ read_type(struct cl_type *clt, const struct symbol *raw_symbol,
         case CL_TYPE_UNKNOWN:
             CL_TRAP;
             WARN_UNHANDLED(type->pos, conversion->prop.string);
-            clt->name = strdup(show_typename((struct symbol *)type));
+            clt->name = strdup(API_SPARSE(show_typename, (struct symbol *)type));
             return clt;
         default:
             break;
@@ -863,148 +400,9 @@ read_type(struct cl_type *clt, const struct symbol *raw_symbol,
 
 /* pointer and array DB */
 
-static struct ptr_db_item *type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db,
-                                                  const struct cl_type *clt);
 
-static inline struct ptr_db_item *
-empty_ptr_db_item(struct ptr_db_item *item, struct cl_type *clt)
-{
-    item->clt       = clt;
-    item->next      = NULL;
-    item->arr_cnt   = 0;
-    item->arr       = NULL;
-    item->free_type = false;
 
-    return item;
-}
-
-static struct ptr_db_item *
-new_ptr_db_item(void)
-{
-    struct ptr_db_item *retval;
-    // guaranteed not to return NULL
-    return empty_ptr_db_item((MEM_NEW(retval)), NULL);
-}
-
-// Note: use `build_referenced_type' when possible
-static inline struct cl_type *
-referenced_type(const struct cl_type* orig_type)
-{/* Problems/exceptions/notes:
-  * 1. Reusing location and scope from `orig_type'.
-  */
-
-    struct cl_type *retval;
-    MEM_NEW(retval);  // guaranteed not to return NULL
-
-    retval->uid   = type_ptr_db.last_base_type_uid+1;
-    retval->code  = CL_TYPE_PTR;
-    retval->loc   = orig_type->loc;
-    retval->scope = orig_type->scope;
-    retval->name  = NULL;
-    retval->size  = sizeof_from_bits(bits_in_pointer);
-    retval->items = NULL;
-
-    struct cl_type_item *item = type_append_item(retval);
-    item->type    = orig_type;
-    item->name    = NULL;
-
-    // guaranteed not to return NULL
-    return retval;
-}
-
-static struct cl_type *
-build_referenced_type(struct cl_type *orig_clt)
-{
-    struct ptr_db_arr *ptr_db = &type_ptr_db.ptr_db;
-
-    struct ptr_db_item *prev;
-    prev = type_ptr_db_lookup_ptr(ptr_db, orig_clt);
-
-    if (!prev->next) {
-        prev->next = new_ptr_db_item();
-        prev->next->clt = referenced_type(orig_clt);
-        prev->next->free_type = true;
-    }
-
-    return prev->next->clt;
-}
-
-// for given type "clt", return respective item from pointer hierarchy;
-// it is called only when we know such item will be there (already added)
-static struct ptr_db_item *
-type_ptr_db_lookup_ptr(struct ptr_db_arr *ptr_db, const struct cl_type *clt)
-{
-    if (clt->code == CL_TYPE_PTR)
-        return type_ptr_db_lookup_ptr(ptr_db, clt->items->type)->next;
-
-    size_t i;
-    for (i = 0; i < ptr_db->last; i++)
-        if (ptr_db->heads[i].clt == clt)
-            break;
-
-    if (i < ptr_db->last)
-        return &ptr_db->heads[i];
-
-    // not found ... should not happen
-    CL_TRAP;
-    return NULL;
-}
-
-static inline struct cl_type *
-type_ptr_db_lookup_item(type_ptr_db_t db, const struct symbol *type,
-                        struct ptr_db_item **ptr)
-{
-    struct cl_type *clt = typen_get_by_key(db->type_db, (void *) type);
-    if (clt && ptr)
-        *ptr = type_ptr_db_lookup_ptr(&db->ptr_db, clt);
-
-    return clt;
-}
-
-static struct cl_type *
-type_ptr_db_insert(type_ptr_db_t db, struct cl_type *clt,
-                   const struct symbol *type, struct ptr_db_item **ptr)
-#define PTRDBARR_SIZE  (128)
-{
-    WITH_DEBUG_LEVEL(d_insert_type) {
-        PUT(debug,"add type (uid = %d, clt = %p): %p", clt->uid, (void *) clt,
-            (void *) type);
-        SPARSE_API(show_symbol, (struct symbol *) type);
-    }
-
-    struct cl_type *retval;
-    int uid = clt->uid;
-
-    retval = typen_insert_with_uid(db->type_db, clt, (void *) type);
-    if (!retval)
-        DIE( ECODE(ec_tdb, "typen_insert_with_uid() failed") );
-
-    if (uid == NEW_UID && type->type != SYM_PTR) {
-        // track this really new type also in the pointer hierarchy
-        // (at the base level, i.e. no pointer, and respective pointers
-        // will be captured in connected singly-linked list)
-        struct ptr_db_arr *ptr_db = &db->ptr_db;
-        if (!(ptr_db->alloc_size - ptr_db->last)) {
-            ptr_db->alloc_size += PTRDBARR_SIZE;
-            // guaranteed to continue only in case of success
-            MEM_ARR_RESIZE(ptr_db->heads, ptr_db->alloc_size);
-        }
-        empty_ptr_db_item(&ptr_db->heads[ptr_db->last], clt);
-
-        if (ptr)
-            *ptr = &ptr_db->heads[ptr_db->last];
-
-        ptr_db->last++;
-    } else if (type->type == SYM_ARRAY /* && uid != NEW_UID */) {
-        if (ptr)
-            *ptr = type_ptr_db_lookup_ptr(&db->ptr_db, clt);
-    }
-
-    // guaranteed to NOT return NULL
-    return retval;
-}
-
-static inline struct cl_type **
+struct cl_type **
 prepare_type_array_ptr(const struct symbol *raw_symbol,
                        struct ptr_db_item **ptr)
 {
@@ -1054,6 +452,9 @@ prepare_type_array_ptr(const struct symbol *raw_symbol,
 
     return clt_ptr;
 }
+
+
+
 
 // note: the only function that uses type_ptr_db global variable directly
 static struct cl_type *
@@ -1113,7 +514,7 @@ type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
         }
 #endif
 
-        if (PARTIALLY_ORDERED(OP_BINCMP, insn->opcodecase, OP_BINCMP_END))
+        if (PARTIALLY_ORDERED(OP_BINCMP, insn->opcode, OP_BINCMP_END))
             return &bool_clt;
 
         if (insn->opcode == OP_CALL) {
@@ -1190,22 +591,12 @@ static inline void free_op(struct cl_operand *op);
 static void
 op_free_initializers(struct cl_initializer *initial)
 {
-    // !!TODO API change
-    /* initial->type (skipped) */
-
-    if (!initial->nested_cnt) {
-        /* initial->data.value (heap-based!) */
-        free_op(initial->data.value);
-    } else {
-        /* initial->data.nested_initials */
-        int i;
-        for (i = 0; i < initial->nested_cnt; i++)
-            if (initial->data.nested_initials[i])
-                op_free_initializers(initial->data.nested_initials[i]);
-    }
-
     /* initial (heap!) */
     free(initial);
+
+    /* XXX: plain iteration */
+    if (initial->next)
+        op_free_initializers(initial->next);
 }
 
 static void
@@ -1526,7 +917,7 @@ new_cl_accessor()
 }
 
 static inline void
-accessor_array_index(struct cl_accessor *ac, struct cl_loc loc, int index)
+accessor_array_index(struct cl_accessor *ac, int index)
 {
     ac->code                  = CL_ACCESSOR_DEREF_ARRAY;
     ac->data.array.index      = op_make_cst_int(new_op(), index);
@@ -1604,7 +995,7 @@ op_dig_step(struct cl_operand *op, unsigned insn_offset)
             div_t indexes;
             indexes = div(insn_offset, op->type->size/op->type->array_size);
             // !!TODO API change
-            accessor_array_index(ac, op->loc, indexes.quot);
+            accessor_array_index(ac, indexes.quot);
             // the remainder serves for next index-based-dereferencing rounds
             retval = indexes.rem;
             break;
@@ -1616,7 +1007,7 @@ op_dig_step(struct cl_operand *op, unsigned insn_offset)
                 div_t indexes = div(insn_offset, op->type->items->type->size);
                 if (indexes.quot)
                     // !!TODO API change
-                    accessor_array_index(ac, op->loc, indexes.quot);
+                    accessor_array_index(ac, indexes.quot);
                 // the remainder serves for next index-based-deref. rounds
                 retval = indexes.rem;
             }
@@ -1770,7 +1161,7 @@ emit_insn_jmp(struct cl_insn *cli, const char *label)
     cli->code                = CL_INSN_JMP;
     cli->data.insn_jmp.label = label;
 
-    EMIT(insn, cli);
+    API_EMIT(insn, cli);
 }
 
 static inline void
@@ -1782,7 +1173,7 @@ emit_insn_cond(struct cl_insn *cli, struct cl_operand *op_cond,
     cli->data.insn_cond.then_label = then_label;
     cli->data.insn_cond.else_label = else_label;
 
-    EMIT(insn, cli);
+    API_EMIT(insn, cli);
 }
 
 static inline void
@@ -1954,7 +1345,7 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
     if (lhs->type != PSEUDO_SYM || rhs->type != PSEUDO_ARG
          || op_lhs.data.var->uid != op_rhs.data.var->uid)
 #endif
-        EMIT(insn, cli);
+        API_EMIT(insn, cli);
 #if FIX_SPARSE_EXTRA_ARG_TO_MEM
     else
         WARN_VA(insn->pos, "instruction omitted: %s",
@@ -2052,7 +1443,7 @@ handle_insn_cast(struct cl_insn *cli, const struct instruction *insn)
         cli->data.insn_binop.src1 = op_from_pseudo(&lhs, insn, insn->src);
         cli->data.insn_binop.src2 = op_from_value(&op_mask, insn, mask);
 
-        EMIT(insn, cli);
+        API_EMIT(insn, cli);
 
         op_free_data(&dst);
         op_free_data(&lhs);
@@ -2103,7 +1494,7 @@ handle_insn_setval(struct cl_insn *cli, const struct instruction *insn)
     cli->data.insn_unop.dst = op_from_pseudo(&dst, insn, insn->target);
     cli->data.insn_unop.src = op_from_expression(&src, insn, insn->val);
 
-    EMIT(insn, cli);
+    API_EMIT(insn, cli);
 
     op_free_data(&dst);
     op_free_data(&src);
@@ -2136,7 +1527,7 @@ handle_insn_unop(struct cl_insn *cli, const struct instruction *insn)
     if (src.type->code == CL_TYPE_INT && insn->opcode == OP_NEG)
         cli->data.insn_unop.code = CL_UNOP_MINUS;
 
-    EMIT(insn, cli);
+    API_EMIT(insn, cli);
 
     op_free_data(&dst);
     op_free_data(&src);
@@ -2180,7 +1571,7 @@ handle_insn_binop(struct cl_insn *cli, const struct instruction *insn)
         }
     }
 
-    EMIT(insn, cli);
+    API_EMIT(insn, cli);
 
     op_free_data(&dst);
     op_free_data(&op1);
@@ -2212,7 +1603,7 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
                       op_from_pseudo(&fnc, insn, insn->func)) {
         FOR_EACH_PTR(insn->arguments, arg) {
             // XXX: ++cnt repeated side-effect?
-            EMIT(insn_call_arg, ++cnt, op_from_pseudo(&arg_op, insn, arg));
+            API_EMIT(insn_call_arg, ++cnt, op_from_pseudo(&arg_op, insn, arg));
             op_free_data(&arg_op);
         } END_FOR_EACH_PTR(arg);
     }
@@ -2223,7 +1614,7 @@ handle_insn_call(struct cl_insn *cli, const struct instruction *insn)
     // special handling of non-returning function (end of BB)
     if (insn->func->sym->ctype.modifiers & MOD_NORETURN) {
         cli->code = CL_INSN_ABORT;
-        EMIT(insn, cli);
+        API_EMIT(insn, cli);
         return false;
     }
 
@@ -2289,17 +1680,17 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
     op_free_data(&op_cond);
 
     // first BB ("then" branch) with assignment and jump to merging BB
-    EMIT(bb_open, bb_label_true);
+    API_EMIT(bb_open, bb_label_true);
     emit_insn_copy(cli, insn, insn->target,  /* := */  insn->src2);
     emit_insn_jmp(cli, bb_label_merge);
 
     // second BB ("else" branch) with assignment and jump to merging BB
-    EMIT(bb_open, bb_label_false);
+    API_EMIT(bb_open, bb_label_false);
     emit_insn_copy(cli, insn, insn->target,  /* := */  insn->src3);
     emit_insn_jmp(cli, bb_label_merge);
 
     // merging BB
-    EMIT(bb_open, bb_label_merge);
+    API_EMIT(bb_open, bb_label_merge);
 
     return true;
 }
@@ -2344,8 +1735,8 @@ handle_insn_switch(struct cl_insn *cli, const struct instruction *insn)
                 // default case
                 op_make_void(&val_lo);
 
-            EMIT(insn_switch_case, &cli->loc, &val_lo, val_hi_ptr,
-                 PTR_STRING(jmp->target));
+            API_EMIT(insn_switch_case, &cli->loc, &val_lo, val_hi_ptr,
+                     PTR_STRING(jmp->target));
 
             // not necessary now, but ...
             op_free_data(&val_lo);
@@ -2381,7 +1772,7 @@ handle_insn_ret(struct cl_insn *cli, const struct instruction *insn)
         op_dig_for_type_match(&op, resulting_type, insn->offset);
     }
 
-    EMIT(insn, cli);
+    API_EMIT(insn, cli);
 
     op_free_data(&op);
     return true;
@@ -2524,6 +1915,10 @@ handle_insn(struct instruction *insn)
 
         /* Needed to translate SSA back to normal form */
         INSN_UNI( COPY            , ASSIGN              , handle_insn_copy   ),
+    #undef INSN_IGN
+    #undef INSN_BIN
+    #undef INSN_UNI
+    #undef INSN_STD
     };
 
     struct cl_insn cli;
@@ -2531,7 +1926,7 @@ handle_insn(struct instruction *insn)
 
     WITH_DEBUG_LEVEL(d_instruction)
         PUT(debug,"\t%d: instruction to be processed: %s",
-            insn->pos.line, show_instruction(insn));
+            insn->pos.line, API_SPARSE(show_instruction, insn));
 
     //assert(PARTIALLY_ORDERED( OP_BADOP , insn->opcode , OP_COPY ));
     conversion = &insn_conversions[insn->opcode];
@@ -2603,7 +1998,7 @@ static void handle_bb(struct basic_block *bb)
     if (!bb)
         return;
 
-    EMIT(bb_open, PTR_STRING(bb));
+    API_EMIT(bb_open, PTR_STRING(bb));
 
     FOR_EACH_PTR(bb->insns, insn) {
         if (!handle_bb_insn(insn))
@@ -2641,23 +2036,23 @@ static void handle_fnc_ep(struct entrypoint *ep)
 static void handle_fnc_body(struct symbol *sym)
 {
     struct entrypoint *ep;
-    SPARSE_API(linearize_symbol, /*OUT*/ ep, /*IN*/ sym);
+    API_SPARSE(linearize_symbol, /*out*/ep, /*in*/sym);
     if (!ep)
         CL_TRAP;
 
 #if DO_PER_EP_UNSAA
-    SPARSE_API(unssa, ep);
+    API_SPARSE(unssa, ep);
 #endif
 
 #if DO_PER_EP_SET_UP_STORAGE
-    SPARSE_API(set_up_storage, ep);
+    API_SPARSE(set_up_storage, ep);
 #endif
 
     handle_fnc_ep(ep);
 
 #if DO_PER_EP_SET_UP_STORAGE
     // no switch, vrfy_storage uses printf anyway
-    SPARSE_API(free_storage);
+    API_SPARSE(free_storage);
 #endif
 }
 
@@ -2668,7 +2063,7 @@ static void handle_fnc_arg_list(struct symbol_list *arg_list)
     struct cl_operand arg_op;
 
     FOR_EACH_PTR(arg_list, arg) {
-        EMIT(fnc_arg_decl, ++argc, op_from_symbol(&arg_op, arg));
+        API_EMIT(fnc_arg_decl, ++argc, op_from_symbol(&arg_op, arg));
         op_free_data(&arg_op);
     } END_FOR_EACH_PTR(arg);
 }
@@ -2749,7 +2144,7 @@ proceed_symbols(struct symbol_list *list)
     FOR_EACH_PTR(list, sym) {
 
 #if DO_EXPAND_SYMBOL
-        SPARSE_API(expand_symbol, sym);
+        API_SPARSE(expand_symbol, sym);
 #endif
 
         handle_top_level_sym(sym);
@@ -2757,8 +2152,9 @@ proceed_symbols(struct symbol_list *list)
 }
 
 
+/* see clsp.h */
 void
-proceed(struct symbol_list *filelist, struct symbol_list *symlist)
+proceed(struct string_list *filelist, struct symbol_list *symlist)
 {
     char *file;
 
@@ -2773,13 +2169,13 @@ proceed(struct symbol_list *filelist, struct symbol_list *symlist)
         WITH_DEBUG_LEVEL(d_file)
             PUT(debug, "about to proceed '%s'...\n", file);
         WITH_FILE_TO_EMIT(file) {
-            SPARSE_API(sparse, /*OUT*/ symlist, /*IN*/ file);
+            API_SPARSE(sparse, /*out*/symlist, /*in*/file);
             proceed_symbols(symlist);
         }
     } END_FOR_EACH_PTR_NOTAG(file);
 
 #if DO_SPARSE_FREE
-    free(SPARSE_VAR(input_streams));
+    free(input_streams);
 #endif
 }
 
