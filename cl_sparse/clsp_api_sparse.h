@@ -74,13 +74,13 @@
 /* access other properties */
 #define API_SPARSE_OUT(type,kind,argcnt,out)  out
 
+
 #if (API_SHOW > 0)
 API_PRAGMA_OVERVIEW(SPARSE)
 # if (API_SHOW > 1)
 API_PRAGMA_DETAILS(SPARSE)
 # endif
 #endif
-
 
 
 #if (API_TEST > 0)
@@ -108,4 +108,3 @@ API_SPARSE(linearize_symbol, ret, sym);
 
 
 #endif
-/* vim:set ts=4 sts=4 sw=4 et: */

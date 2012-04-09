@@ -201,6 +201,9 @@ type_unwrap(const struct symbol *raw_type)
            /*retval->type == SYM_ENUM */)
         retval = retval->ctype.base_type;
 
+    /* important, otherwise some info may be missing */
+    examine_symbol_type(retval);
+
     return retval;
 }
 
@@ -429,7 +432,7 @@ prepare_type_array_ptr(const struct symbol *raw_symbol,
         if (i == prev->arr_cnt) {
             // not found
             // 2x guaranteed to continue only in case of success
-            MEM_ARR_RESIZE(prev->arr, prev->arr_cnt);
+            MEM_ARR_APPEND(prev->arr, prev->arr_cnt);
             MEM_NEW(prev->arr[i]);
             prev->arr[i]->arr_size = size;
             prev->arr[i]->clt = NULL;
@@ -2178,7 +2181,3 @@ proceed(struct string_list *filelist, struct symbol_list *symlist)
     free(input_streams);
 #endif
 }
-
-#undef GLOBALS
-
-/* vim:set ts=4 sts=4 sw=4 et: */

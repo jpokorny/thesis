@@ -17,16 +17,38 @@
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ctype.h>     /* isdigit */
-#include <assert.h>    /* assert */
-
 #include "clsp.h"
+
+#include <ctype.h>   /* isdigit */
+#include <assert.h>  /* assert */
+
+#define USE_INT3_AS_BRK
+#include "trap.h"
+
 #include "clsp_options.h"
 
 /* see options_gather */
 #define EXIT_OK    -1
 #define EXIT_BAD   ec_opt
 #define CONTINUE   0
+
+/* defaults */
+#define DEF_FD_CL      STDERR_FILENO
+#define DEF_FD_SPARSE  STDERR_FILENO
+#define DEF_FD_DEBUG   STDOUT_FILENO
+
+#define DEF_FD_VAL(what)  DEF_FD_##what
+#define DEF_FD_STR(what)  STRINGIFY(DEF_FD_##what)
+
+#define DEF_CLR_CL      CLR_DARKGRAY
+#define DEF_CLR_SPARSE  CLR_RED
+#define DEF_CLR_DEBUG   CLR_LIGHTGRAY
+
+#define DEF_CLR_VAL_(name,code)  clr_##name
+#define DEF_CLR_VAL(what)        APPLY(DEF_CLR_VAL_, DEF_CLR_##what)
+
+#define DEF_CLR_STR_(name,code)  code #name CLR_TERMINATE
+#define DEF_CLR_STR(what)        APPLY(DEF_CLR_STR_, DEF_CLR_##what)
 
 /* "is binary option" X option prefix product */
 #define OPT_SHORT      false,"-"
@@ -42,20 +64,19 @@
 #define PREFIX_(isbin,prefix)  prefix
 
 
-static const char *ec_str[ec_last] = {
-#define X(num,name,desc)  [num] = desc,
-    ECLIST(X)
-#undef X
-};
-
 static const char *d_str[d_last] = {
-#define X(num,name,desc)  [num] = desc,
+#define X(name,desc)  [d_##name] = desc,
     DLIST(X)
 #undef X
 };
 
 
+/* command-line arguments used internally are exchanged for this */
+static const char *const empty = "";
+
+
 /** general helpers *******************************************************/
+
 
 /**
     Positive number converter (from string).
@@ -74,7 +95,7 @@ get_positive_num(const char *what, const char *value)
 }
 
 /**
-    File descriptor specification converter (from string).
+    File descriptor specification converter (from string to int).
 
     @note Single @c 'D' characters stands for special "deferred" stream
           available as per @c accept_deferred argument.
@@ -85,6 +106,23 @@ get_fd(const char *what, const char *value, bool accept_deferred)
     if (accept_deferred && value[0] == 'D' && value[1] == '\0')
         return opts_fd_deferred;
     return get_positive_num(what, value);
+}
+
+/**
+    Color specification converter (from string to enum color).
+ */
+static inline int
+get_clr(const char *what, const char *value)
+{
+#define X(name, code) \
+    else if (STREQ(value, clr_str[clr_##name])) return clr_##name;
+
+    if (!value)
+        return clr_undef;
+    CLRLIST(X)
+    else
+        DIE( ECODE(OPT,"option %s: must be enumerated color or empty",what) );
+#undef X
 }
 
 
@@ -111,44 +149,52 @@ print_help(const char *cmd)
 #define _(...)       PUT(out, __VA_ARGS__);
 #define __           PUT(out, "");
 #define ___          ""
-#define L(lo, cmt)   PUT(out, "%-30s%s", PREFIX(LONG) lo, cmt);
-#define S(so, cmt)   PUT(out, "%-30s%s", PREFIX(SHORT) so, cmt);
-#define I(ign, cmt)  PUT(out, "%-30s%s", ign, cmt);
+#define L(lo, cmt)   PUT(out, "  %-28s%s", PREFIX(LONG) lo, cmt);
+#define S(so, cmt)   PUT(out, "  %-28s%s", PREFIX(SHORT) so, cmt);
+#define I(ign, cmt)  PUT(out, "  %-28s%s", ign, cmt);
 #define B(so, lo, cmt) \
-    PUT(out, "%-30s%s", PREFIX(SHORT) so ", " PREFIX(LONG) lo, cmt);
-#define C(co, cmt)   PUT(out, "%-30s%s", PREFIX(CL) co, cmt);
+    PUT(out, "  %-28s%s", PREFIX(SHORT) so ", " PREFIX(LONG) lo, cmt);
+#define C(co, cmt)   PUT(out, "  %-28s%s", PREFIX(CL) co, cmt);
 #define V(v, cmt)    PUT(out, "%8d                      %s", v, cmt);
+#define X(stmt)      stmt
+#define O(cmt)       PUT(out, "[" cmt "]");
+    char buf[1024], *ptr = buf;
+    int i,j;
+    NORETWRN(setvbuf(STREAM(out), NULL, _IOFBF, 0));  /* flush block later */
     _("Sparse-based Code Listener frontend, version %s"               ,GIT_SHA1)
     __                                                                         ;
-    _("usage: %s (intern-opts|cl-opts|cl-plugin[:args]|sparse-opts)* files",cmd)
-    _("[files and option args may be ambiguous, use %s separator]",PREFIX(LONG))
+    _("usage: %s (INT-OPTS|CL-OPTS|CL-PLUGIN[:ARGS]|SPARSE-OPTS)* file ...",cmd)
     __                                                                         ;
 #ifndef HAS_CL
-    _("As no Code Listener plugin was built-in (-> no one to serve as a base"  )
-    _("one at hand), at least one such has to be provided in the form of a"    )
-    _("shared library containing necessary symbols of Code Listener interface" )
-    _("(Code Listener based plugins for GCC are compatible);"                  )
-    _("see `%s' option below.",                          PREFIX(CL) "plugin")
+    _("As no Code Listener plugin was built-in (no one to serve as a base one" )
+    _("at hand), at least one such has to be provided in the form of a shared" )
+    _("library containing the symbols of the interface (plugins targeted for"  )
+    _("GCC should be compatible);  see `%s' below.", PREFIX(CL) "plugin"       )
     __                                                                         ;
 #endif
     _("This Code Listener front-end defines a few internal options:"           )
-    __                                                                         ;
     B("h", "help"          , "Prints this help text"                           )
     L("version"            , "Prints the version information"                  )
     B("f", "fork"          , "Do fork (only to show sparse exit status {0,1})" )
-    _("[specification of file descriptors: use `FD>file' redirection for FD>2]")
-    L("cl-fd=FD"           , "Redefine stderr used to display to cl messages"  )
+    O("specification of file descriptors, use `FD>file' redirection for FD > 2")
+    L("fd-cl=FD"           , "for cl messages; def.: "           DEF_FD_STR(CL))
     I(___                  , "(fatal errors are always produced on stderr)"    )
-    L("sparse-fd=FD"       , "Redefine stderr used by sparse, `D' for deferred")
-    L("debug-fd=FD"        , "Redefine stdout used for debugging messages"     )
-    __                                                                         ;
-    B("d", "debug[=MASK]"  , "Debug (selectively if MASK specified)"           )
-    _("MASK:")             ;              for (int i = d_first; i < d_last; i++)
+    L("fd-sparse=FD"       , "for sparse, D=deferred; def.: "DEF_FD_STR(SPARSE))
+    L("fd-debug=FD"        , "for debugging messages; def.: " DEF_FD_STR(DEBUG))
+    O("specification of colors (see below), only used for terminal output"     )
+    L("clr-cl[=COLOR]"     , "for cl messages; def.: "          DEF_CLR_STR(CL))
+    L("clr-sparse[=COLOR]" , "for sparse; def.: "           DEF_CLR_STR(SPARSE))
+    L("clr-debug[=COLOR]"  , "for debugging messages; def.: "DEF_CLR_STR(DEBUG))
+    X(for (i = clr_first   ;                       i < (clr_last-1)/8 + 1; i++))
+    X(for (j=0, *ptr++='\n'; j < ((i+1)*8/clr_last ? i*8 % clr_last : 8);  j++))
+    X(ptr += snprintf(ptr,sizeof(buf)+buf-ptr,"%s%-10s%s",CLR_PRINTARG(i*8+j));)
+    X(*ptr = '\0'          ;                         ptr = buf; _("%s", ++ptr);)
+    B("d", "debug[=MASK]"  , "Debug, selectively if MASK specified (see below)")
+    X(for (i = d_first     ;                                   i < d_last; i++))
     V(DVALUE(i)            ,                                           d_str[i])
     __                                                                         ;
     _("From the options affecting the other end of Code Listener interface,"   )
     _("one particularly important is a way to load other listeners as plugins:")
-    __                                                                         ;
     C("plugin=FILE[:ARGS]" , "Path to a shared library containg symbols of"    )
     I(___                  , "Code Listener (for instance, GCC plugins can be" )
 #ifdef HAS_CL
@@ -158,12 +204,11 @@ print_help(const char *cmd)
     I(___                  , "the first one is a base one and must be provided")
 #endif
     __                                                                         ;
-#ifndef HAS_CL
+#ifdef HAS_CL
     _("and specifically these options are for a base (built-in) Code Listener:")
 #else
     _("and specifically these options are for a base (provided) Code Listener:")
 #endif
-    __                                                                         ;
     C("default-output"     , "Use Code Listener's built-ins to print messages" )
     C("pprint[=FILE]"      , "Dump pretty-printed linearized code"             )
     C("pprint-types"       , "Add type information to pretty-printed code"     )
@@ -177,16 +222,18 @@ print_help(const char *cmd)
     _("see sparse documentation;  generally, there is some level of"           )
     _("compatibility with GCC and unrecognized options are ignored anyway."    )
     _("To name a few notable notable ones (referring to current version):"     )
-    __                                                                         ;
     S("v"                  , "Report more defects, more likely false positives")
     S("m64"                , "Suppose 64bit architecture (32bit by default)"   )
     S("DNAME[=VALUE]"      , "Define macro NAME (holding value VALUE if spec.)")
     S("W[no[-]]WARNING"    , "Request/not to report WARNING-related issues;"   )
     I(___                  , "`sparse-all' covers all available warnings"      )
-    _("%s"                 , "[...]"                                           )
     __                                                                         ;
     _("Return values:")    ;            for (int i = ec_first; i < ec_last; i++)
     V(ECVALUE(i)           ,                                          ec_str[i])
+    NORETWRN(fflush(STREAM(out)));
+    /* about to exit -- no change in buffering */
+#undef O
+#undef X
 #undef V
 #undef C
 #undef B
@@ -214,9 +261,19 @@ print_help(const char *cmd)
 static void
 options_initialize(struct options *opts)
 {
+    opts->finalized = false;
+
     INTERNALS(fork) = false;
-    INTERNALS(fd) = (struct oi_fd)
-        { .cl=opts_fd_undef, .sparse=opts_fd_undef, .debug=opts_fd_undef };
+    INTERNALS(fd) = (struct oi_fd) {
+        .cl     = DEF_FD_VAL(CL),
+        .sparse = DEF_FD_VAL(SPARSE),
+        .debug  = DEF_FD_VAL(DEBUG)
+    };
+    INTERNALS(clr) = (struct oi_clr) {
+        .cl     = DEF_CLR_VAL(CL),
+        .sparse = DEF_CLR_VAL(SPARSE),
+        .debug  = DEF_CLR_VAL(DEBUG)
+    };
     INTERNALS(debug) = 0;
 
     CL(listeners.cnt)  = 0;
@@ -228,6 +285,185 @@ options_initialize(struct options *opts)
     CL(debug) = (struct oc_debug) { .location=false, .level=0 };
 }
 
+
+#define PREFIXEQ(argv, i, type, opt)                                          \
+    (strncmp(argv[i],PREFIX(type) opt,CONST_STRLEN(PREFIX(type) opt))         \
+        ? NULL                                                                \
+        : (((ISBIN(type) && argv[i][CONST_STRLEN(PREFIX(type) opt)] != '\0')  \
+            ? PUT(err, "option %s: binary option with argument (or clash?)",  \
+                  argv[i])                                                    \
+            : 0)                                                              \
+            , &argv[i][CONST_STRLEN(PREFIX(type) opt)]))
+#define VALUE_(argv, i, str, testnextchar)                                    \
+    (*str != '\0'                                                             \
+        ? (((*str != '=' || *++str != '\0')) ? str : (str = NULL))            \
+        : (argv[i+1] && testnextchar(argv[i+1][0]))                           \
+            ? (argv[i++] = empty, str = argv[i])                              \
+            : (argv[i] = empty, str = NULL))
+#define NONOPT(x)  x != '-'
+#define VALUE(argv, i, str)  VALUE_(argv, i, str, NONOPT)
+#define ISNUM(x)   isdigit(x)
+#define NUMVAL(argv, i, str)  VALUE_(argv, i, str, ISNUM)
+
+
+static inline int
+options_proceed_internal(struct options *opts,
+
+{
+    int ret = 1;  /* optimistic default */
+    const char *value;
+
+    if (PREFIXEQ(argv,i,SHORT_BIN,"h")
+      || PREFIXEQ(argv,i,LONG_BIN,"help")) {
+
+        print_help(argv[0]);
+        ret = -1;
+
+    } else if ((value = PREFIXEQ(argv,i,LONG_BIN,"version"))) {
+
+        print_version();
+        ret = -1;
+
+    } else if ((value = PREFIXEQ(argv,i,SHORT_BIN,"f"))
+      || (value = PREFIXEQ(argv,i,LONG_BIN,"fork"))) {
+
+        /* do not collide with "-fstrict-aliasing" etc. */
+        if (*value == '\0')
+           INTERNALS(fork) = true;
+        else
+            ret = 2;  /* return back as unconsumed */
+
+    } else if ((value = PREFIXEQ(argv,i,LONG,"fd-fd"))
+      || (value = PREFIXEQ(argv,i,LONG,"fd-sparse"))
+      || (value = PREFIXEQ(argv,i,LONG,"fd-debug"))) {
+
+        const char *arg = argv[i];  /* preserve across VALUE */
+        if (VALUE(argv,i,value)) {
+            /* exploiting the difference of initial chars */
+            int *to_set;
+            switch (arg[CONST_STRLEN(PREFIX(LONG))+3]) {
+                case 'c': to_set = &INTERNALS(fd.cl);     break;
+                case 's': to_set = &INTERNALS(fd.sparse); break;
+                case 'd': to_set = &INTERNALS(fd.debug);  break;
+                default: DIE( ECODE(OPT,"unexpected case") );
+            }
+            *to_set = get_fd(arg, value,
+                             (to_set == &INTERNALS(fd.sparse)));
+        } else {
+            DIE( ECODE(OPT,"option %s: omitted value",arg) );
+        }
+
+    } else if ((value = PREFIXEQ(argv,i,LONG,"clr-cl"))
+      || (value = PREFIXEQ(argv,i,LONG,"clr-sparse"))
+      || (value = PREFIXEQ(argv,i,LONG,"clr-debug"))) {
+
+        const char *arg = argv[i];  /* preserve across VALUE */
+        /* exploiting the difference of initial chars */
+        enum color *to_set;
+        switch (arg[CONST_STRLEN(PREFIX(LONG))+4]) {
+            case 'c': to_set = &INTERNALS(clr.cl);     break;
+            case 's': to_set = &INTERNALS(clr.sparse); break;
+            case 'd': to_set = &INTERNALS(clr.debug);  break;
+            default: DIE( ECODE(OPT,"unexpected case") );
+        }
+        *to_set = get_clr(arg, VALUE(argv,i,value));
+
+    } else if ((value = PREFIXEQ(argv,i,SHORT,"d"))
+      || (value = PREFIXEQ(argv,i,LONG,"debug"))) {
+
+        if (!NUMVAL(argv,i,value))
+            INTERNALS(debug) = ~0;
+        else
+            INTERNALS(debug) = get_positive_num("debug", value);
+
+    } else {
+        ret = 0;
+    }
+
+    return ret;
+}
+
+static inline int
+options_proceed_cl(struct options *opts,
+{
+    int ret = 1;  /* optimistic default */
+    const char *value;
+
+    if ((value = PREFIXEQ(argv,i,CL,"plugin"))) {
+
+        const char *arg = argv[i];  /* preserve across VALUE */
+        if (VALUE(argv,i,value))
+            *(MEM_ARR_APPEND(CL(listeners.arr), CL(listeners.cnt)))
+                = value;
+        else
+            DIE( ECODE(OPT,"option %s: omitted value",arg) );
+
+    } else if (PREFIXEQ(argv,i,CL_BIN,"default-output")) {
+
+        CL(default_output) = true;
+
+    } else if ((value = PREFIXEQ(argv,i,CL,"pprint"))) {
+
+        CL(pprint.enable)       = true;
+        CL(pprint.file)         = VALUE(argv,i,value);
+        CL(pprint.types)        = false;
+        CL(pprint.switch_to_if) = false;
+
+    } else if (PREFIXEQ(argv,i,CL_BIN,"pprint-types")) {
+
+        if (!CL(pprint.enable))
+            PUT(err, "option %s: cannot be used before %s",
+                PREFIX(CL) "pprint-types", PREFIX(CL) "pprint");
+        else
+            CL(pprint.types) = true;
+
+    } else if (PREFIXEQ(argv,i,CL_BIN,"pprint-switch-to-if")) {
+
+        if (!CL(pprint.enable))
+            PUT(err, "option %s: cannot be used before %s",
+                PREFIX(CL) "pprint-switch-to-if",
+                PREFIX(CL) "pprint");
+        else
+            CL(pprint.switch_to_if) = true;
+
+    } else if ((value = PREFIXEQ(argv,i,CL,"gen-cfg"))) {
+
+        CL(gencfg.enable) = true;
+        CL(gencfg.file)   = VALUE(argv,i,value);
+
+    } else if ((value = PREFIXEQ(argv,i,CL,"gen-type"))) {
+
+        CL(gentype.enable) = true;
+        CL(gentype.file)   = VALUE(argv,i,value);
+
+    } else if (PREFIXEQ(argv,i,CL_BIN,"debug-location")) {
+
+        CL(debug.location) = true;
+
+    } else if ((value = PREFIXEQ(argv,i,CL,"debug-level"))) {
+
+        if (!NUMVAL(argv,i,value))
+            CL(debug.level) = ~0;
+        else
+            CL(debug.level) = get_positive_num("debug-level", value);
+
+    }
+    /* TODO: remove? */
+    /*} else if ((value = PREFIXEQ(argv,i,CL,"cl-args"))) {
+        OPTS(peer_args) = VALUE(value)
+            ? value
+            : "";
+      }*/
+    else {
+
+        /* nothing we recognise */
+        ret = 0;
+
+    }
+
+    return ret;
+}
+
 /**
     The main phase of gathering options.
 
@@ -236,147 +472,51 @@ options_initialize(struct options *opts)
     sparse, though).
  */
 static int
-options_proceed(struct options *opts, int argc, char *argv[])
+options_proceed(struct options *opts, int argc, const char *argv[])
 {
-#define PREFIXEQ(argv, i, type, opt)                                         \
-    (strncmp(argv[i],PREFIX(type) opt,strlen(PREFIX(type) opt))              \
-        ? NULL                                                               \
-        : (((ISBIN(type) && argv[i][strlen(PREFIX(type) opt)] != '\0')       \
-            ? PUT(err, "option %s: binary option with argument (or clash?)", \
-                  argv[i])                                                   \
-            : 0)                                                             \
-            , &argv[i][strlen(PREFIX(type) opt)]))
-#define VALUE(argv, i, str)                                                  \
-    (*str != '\0'                                                            \
-        ? (((*str != '=' || *++str != '\0')) ? str : NULL)                   \
-        : (argv[i+1] && argv[i+1][0] != '-')                                 \
-            ? (str = argv[++i])                                              \
-            : NULL)
-    char *value;
-    int args = 0, ret = CONTINUE;
-    for (int i=1; i < argc; /*manually*/ ) {
+    bool consume_options = true, consumed;
+    int i = 1, kept = 1;
+    const char *value;
 
-        /* internal options */
+    while (i < argc) {
+        assert(empty != argv[i]);
 
-        if (PREFIXEQ(argv,i,SHORT_BIN,"h")
-          || PREFIXEQ(argv,i,LONG_BIN,"help")) {
-            return print_help(argv[0]), EXIT_OK;
-        }
-        else if ((value = PREFIXEQ(argv,i,LONG_BIN,"version"))) {
-            return print_version(opts), EXIT_OK;
-        }
-        else if ((value = PREFIXEQ(argv,i,SHORT_BIN,"f"))
-          || (value = PREFIXEQ(argv,i,LONG_BIN,"fork"))) {
-            INTERNALS(fork) = true;
-        }
-        else if ((value = PREFIXEQ(argv,i,LONG,"cl-fd"))
-          || (value = PREFIXEQ(argv,i,LONG,"sparse-fd"))
-          || (value = PREFIXEQ(argv,i,LONG,"debug-fd"))) {
-            char *arg = argv[i];  /* preserve across VALUE */
-            if (VALUE(argv,i,value)) {
-                /* exploiting the difference of initial chars */
-                int *to_set;
-                switch (arg[strlen(PREFIX(LONG))]) {
-                    case 'c': to_set = &INTERNALS(fd.cl);     break;
-                    case 's': to_set = &INTERNALS(fd.sparse); break;
-                    case 'd': to_set = &INTERNALS(fd.debug);  break;
-                    default: DIE( ECODE(OPT,"unexpected case") );
+        if (consume_options) {
+            consumed = true;
+
+            ret = options_proceed_internal(opts);
+            ret = ret ? ret : options_proceed_cl(opts);
+
+            if (ret) {
+                switch (ret) {
+                    case -1: return 0; /* help and the like, bail out */
+                    case 2:  consumed = false; break;
                 }
-                *to_set = get_fd(arg, value,
-                                 (to_set == &INTERNALS(fd.sparse)));
+            } else if (PREFIXEQ(argv,i,CL,"" /* prefix only */)) {
+                PUT(err, "option %s: this alone does not make sense", argv[i]);
+            } else if ((value = PREFIXEQ(argv,i,LONG,"" /* "--" sep. */))) {
+                if (*value == '\0')
+                    consume_options = false;
+                else
+                    consumed = false;
             } else {
-                DIE( ECODE(OPT,"option %s: omitted value",arg) );
+                /* unhandled opt/arg (probably for sparse) continue below */
+                consumed = false;
             }
-        }
-        else if ((value = PREFIXEQ(argv,i,SHORT,"d"))
-          || (value = PREFIXEQ(argv,i,LONG,"debug"))) {
-            if (!VALUE(argv,i,value)) {
-                INTERNALS(debug) = ~0;
+
+            if (consumed) {
+                /* current item consumed (maybe more previous, not our deal) */
+                argv[i++] = empty;
                 continue;
             }
-            INTERNALS(debug) = get_positive_num("debug", value);
         }
 
-        /* Code Listener options */
-
-        else if ((value = PREFIXEQ(argv,i,CL,"plugin"))) {
-            char *arg = argv[i];  /* preserve across VALUE */
-            if (VALUE(argv,i,value))
-                *(MEM_ARR_APPEND(CL(listeners.arr),
-                                 CL(listeners.cnt))) = VALUE(argv,i,value);
-            else
-                DIE( ECODE(OPT,"option %s: omitted value",arg) );
-        }
-        else if (PREFIXEQ(argv,i,CL_BIN,"default-output")) {
-            CL(default_output) = true;
-        }
-        else if ((value = PREFIXEQ(argv,i,CL,"pprint"))) {
-            CL(pprint.enable)       = true;
-            CL(pprint.file)         = VALUE(argv,i,value);
-            CL(pprint.types)        = false;
-            CL(pprint.switch_to_if) = false;
-        }
-        else if (PREFIXEQ(argv,i,CL_BIN,"pprint-types")) {
-            if (!CL(pprint.enable))
-                PUT(err, "option %s: cannot be used before %s",
-                    PREFIX(CL) "pprint-types", PREFIX(CL) "pprint");
-            else
-                CL(pprint.types) = true;
-        }
-        else if (PREFIXEQ(argv,i,CL_BIN,"pprint-switch-to-if")) {
-            if (!CL(pprint.enable))
-                PUT(err, "option %s: cannot be used before %s",
-                    PREFIX(CL) "pprint-switch-to-if",
-                    PREFIX(CL) "pprint");
-            else
-                CL(pprint.switch_to_if) = true;
-        }
-        else if ((value = PREFIXEQ(argv,i,CL,"gen-cfg"))) {
-            CL(gencfg.enable) = true;
-            CL(gencfg.file)   = VALUE(argv,i,value);
-        }
-        else if ((value = PREFIXEQ(argv,i,CL,"gen-type"))) {
-            CL(gentype.enable) = true;
-            CL(gentype.file)   = VALUE(argv,i,value);
-        }
-        else if (PREFIXEQ(argv,i,CL_BIN,"debug-location")) {
-            CL(debug.location) = true;
-        }
-        else if ((value = PREFIXEQ(argv,i,CL,"debug-level"))) {
-            if (!VALUE(argv,i,value)) {
-                CL(debug.level) = ~0;
-                continue;
-            }
-            CL(debug.level) = get_positive_num("debug-level", value);
-        }
-        /* TODO: remove? */
-        /*} else if ((value = PREFIXEQ(argv,i,CL,"cl-args"))) {
-            OPTS(peer_args) = VALUE(value)
-                ? value
-                : "";*/
-
-        else if (PREFIXEQ(argv,i,CL,"" /* prefix only */)) {
-            PUT(err, "option %s: this alone does not make sense", argv[i]);
-        }
-        else if (PREFIXEQ(argv,i,LONG,"" /* prefix only -> separator */)) {
-            ++i;
-            break;
-        }
-        else {
-            args++;
-        }
-        ++i;
+        /* probably sparse options/argument (may be forced with "--") */ 
+        argv[kept++] = argv[i];
+        argv[i++] = empty;
     }
 
-    if (!args) {
-        if (1 < argc)
-            PUT(err, "missing arguments (while some options specified)");
-        else
-            print_help(argv[0]);
-        ret = EXIT_BAD;
-    }
-
-    return ret;
+    return kept;
 }
 
 /**
@@ -400,8 +540,8 @@ options_finalize(struct options *opts, int argc, char *argv[])
         INTERNALS(fd.cl) = opts_fd_undef;
     }
 
-    if (opts_fd_undef == INTERNALS(fd.debug)
-      && 0 != INTERNALS(debug)) {
+    if (opts_fd_undef != INTERNALS(fd.debug)
+      && 0 == INTERNALS(debug)) {
         PUT(err, "option %s: does not make sense without %s",
                  PREFIX(LONG) "debug-fd",
                  PREFIX(LONG) "debug");
@@ -411,7 +551,7 @@ options_finalize(struct options *opts, int argc, char *argv[])
     SPARSE(argc) = argc;
     SPARSE(argv) = argv;
 
-    GLOBALS(debug) = INTERNALS(debug);
+    opts->finalized = true;
 }
 
 /* see clsp_options.h */
@@ -421,21 +561,44 @@ options_gather(struct options **opts, int argc, char *argv[])
     assert(opts);
     assert(argv != NULL);
 
-    struct options *new_opts;
     int ret;
+    struct options *new_opts;
 
     new_opts = malloc(sizeof(**opts));
     if (!new_opts)
         DIE( ERRNOCODE(OPT,"malloc") );
 
     options_initialize(new_opts);
+    ret = options_proceed(new_opts, argc, (const char **) argv);
 
-    ret = options_proceed(new_opts, argc, argv);
-    if (CONTINUE == ret)
-        options_finalize(new_opts, argc, argv);
+    switch (ret) {
+        case 0:
+            ret = EXIT_OK;
+            break;
+        case 1:
+            if (1 < argc)
+                PUT(err, "missing arguments (while some options specified)");
+            else
+                print_help(argv[0]);
+            ret = EXIT_BAD;
+            break;
+        default:
+            options_finalize(new_opts, ret, argv);
+            ret = CONTINUE;
+            break;
+    }
 
     *opts = new_opts;
     return ret;
+}
+
+void
+options_dispose(struct options *opts)
+{
+    CL(listeners.cnt) = 0;
+    free(CL(listeners.arr));
+
+    opts->finalized = false;
 }
 
 /* see clsp_options.h */
@@ -444,61 +607,76 @@ options_dump(const struct options *opts)
 {
 #define GET_YN(b)  (b) ? 'Y' : 'N'
 
-    assert(opts);
+    assert(opts && opts->finalized);
 
-    PUT(out, "------------\noptions dump\n------------");
+    char buf[256], *ptr = buf;
+
+    PUT(debug, "------------\noptions dump\n------------");
+
+    PUT(debug, "internals");
+    PUT(debug, "\tfork:\t%c", GET_YN(INTERNALS(fork)));
+    PUT(debug, "\tfd:\t{cl=%d, sparse=%d, debug=%d}",
+               INTERNALS(fd.cl),
+               INTERNALS(fd.sparse),
+               INTERNALS(fd.debug));
+    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%scl: %s",
+                    STREAMCLRBEGIN(debug), STREAMCLREND(debug));
+    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s%s%s",
+                    CLR_PRINTARG(INTERNALS(clr.cl)));
+    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s, sparse: %s",
+                    STREAMCLRBEGIN(debug), STREAMCLREND(debug));
+    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s%s%s",
+                    CLR_PRINTARG(INTERNALS(clr.sparse)));
+    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s, debug: %s",
+                    STREAMCLRBEGIN(debug), STREAMCLREND(debug));
+    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s%s%s",
+                    CLR_PRINTARG(INTERNALS(clr.debug)));
+    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s", STREAMCLRBEGIN(debug));
+    PUT(debug, "\tclr:\t{%s}", buf);
+    PUT(debug, "\tdebug:\t%d", INTERNALS(debug));
+    PUT(debug, "");
 
 
-    PUT(out, "internals");
-    PUT(out, "\tfork:\t%c", GET_YN(INTERNALS(fork)));
-    PUT(out, "\tfd:\t{cl=%d,sparse=%d,debug=%d}",
-             INTERNALS(fd.cl),
-             INTERNALS(fd.sparse),
-             INTERNALS(fd.debug));
-    PUT(out, "\tdebug:\t%d", INTERNALS(debug));
-    PUT(out, "");
-
-
-    PUT(out, "cl");
-    PUT(out, "\tlisteners:\t%zu", CL(listeners.cnt));
+    PUT(debug, "cl");
+    PUT(debug, "\tlisteners:\t%zu", CL(listeners.cnt));
     for (size_t i = 0; i < CL(listeners.cnt); i++)
-        PUT(out, "\t\t%s", CL(listeners.arr[i]));
-    PUT(out, "\tdefault_output:\t%c", GET_YN(CL(default_output)));
+        PUT(debug, "\t\t%s", CL(listeners.arr[i]));
+    PUT(debug, "\tdefault_output:\t%c", GET_YN(CL(default_output)));
 
     if (CL(pprint.enable))
-        PUT(out, "\tpprint:\t{types=%c, switch_to_if=%c, file=%s}",
-                 GET_YN(CL(pprint.types)),
-                 GET_YN(CL(pprint.switch_to_if)),
-                 CL(pprint.file));
+        PUT(debug, "\tpprint:\t{types=%c, switch_to_if=%c, file=%s}",
+                   GET_YN(CL(pprint.types)),
+                   GET_YN(CL(pprint.switch_to_if)),
+                   CL(pprint.file));
     else
-        PUT(out, "\tpprint:\tN/A");
+        PUT(debug, "\tpprint:\tN/A");
 
     if (CL(gencfg.enable))
-        PUT(out, "\tgencfg:\t{file=%s}",
-                 CL(gencfg.file));
+        PUT(debug, "\tgencfg:\t{file=%s}",
+                   CL(gencfg.file));
     else
-        PUT(out, "\tgencfg:\tN/A");
+        PUT(debug, "\tgencfg:\tN/A");
 
     if (CL(gentype.enable))
-        PUT(out, "\tgentype:\t{file=%s}",
-                 CL(gentype.file));
+        PUT(debug, "\tgentype:\t{file=%s}",
+                   CL(gentype.file));
     else
-        PUT(out, "\tgentype:\tN/A");
+        PUT(debug, "\tgentype:\tN/A");
 
-    PUT(out, "\tdebug:\t{location=%c, level=%d}",
-             GET_YN(CL(debug.location)),
-             CL(debug.level));
-    PUT(out, "");
+    PUT(debug, "\tdebug:\t{location=%c, level=%d}",
+               GET_YN(CL(debug.location)),
+               CL(debug.level));
+    PUT(debug, "");
 
 
-    PUT(out, "sparse");
-    PUT(out, "\targc:\t%d", SPARSE(argc));
-    PUT(out, "\targv:\t%s",SPARSE(argv[0]));
+    PUT(debug, "sparse");
+    PUT(debug, "\targc:\t%d", SPARSE(argc));
+    PUT(debug, "\targv:\t%s",SPARSE(argv[0]));
     for (int i = 1; i < SPARSE(argc); i++)
-        PUT(out, "\t\t%s", SPARSE(argv[i]));
+        PUT(debug, "\t\t%s", SPARSE(argv[i]));
 
 
-    PUT(out, "------------");
+    PUT(debug, "------------");
 }
 
 #ifdef TEST
@@ -524,5 +702,3 @@ main(int argc, char *argv[])
     return ret;
 }
 #endif
-
-/* vim:set ts=4 sts=4 sw=4 et: */

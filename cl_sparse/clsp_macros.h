@@ -34,6 +34,18 @@
 #define STRINGIFY(arg)         #arg
 #define TOSTRING(arg)          STRINGIFY(arg)
 
+/*
+    Compile-time (unless used on VLAs) strlen with several checks:
+    - arg is a pointer/array:          sizeof(*arg)
+    - arg is not a NULL pointer:       arg[sizeof(arg)-1]
+    - arg is array of "byte-type":     sizeof(char)-sizeof(*arg)
+    - last byte of arg has zero value (null-terminated string):
+                                       (result so far) - !!arg[sizeof(arg)-1]
+ */
+#define CONST_STRLEN(arg) \
+    sizeof(arg) - sizeof(char[1+sizeof(char)-sizeof(*arg)-!!arg[sizeof(arg)-1]])
+
+
 /* Pragma as a function-like macro (promoted from directive) */
 #define PRAGMA_MSG(arg)        PRAGMA_MSG_(arg)
 #define PRAGMA_MSG_(arg)       PRAGMA_MSGSTR(TOSTRING(arg))
@@ -42,6 +54,7 @@
 
 /*
 #define COMPILE_TIME_ASSERT(pred)   switch(0){case 0:case pred:;}
+#define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
 */
 
 /* NOTE: beware of side-effects */
@@ -54,4 +67,3 @@
 
 
 #endif
-/* vim:set ts=4 sts=4 sw=4 et: */

@@ -108,6 +108,7 @@ API_PRAGMA_DETAILS(CL)
 /* access other properties */
 #define API_CLOBJ_KINDONLY(type,kind,argcnt)  kind
 
+
 #if (API_SHOW > 0)
 API_PRAGMA_OVERVIEW(CLOBJ)
 # if (API_SHOW > 1)
@@ -139,4 +140,3 @@ API_PROCEED(CL, CL_DECL);
 
 
 #endif
-/* vim:set ts=4 sts=4 sw=4 et: */

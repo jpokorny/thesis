@@ -316,4 +316,3 @@ PRAGMA_MSGSTR("OVERVIEW OF APIs USED FOLLOWS:")
 
 
 #endif
-/* vim:set ts=4 sts=4 sw=4 et: */

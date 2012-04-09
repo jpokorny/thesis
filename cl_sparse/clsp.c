@@ -30,15 +30,12 @@
 #include <signal.h>    /* kill */
 
 
-
 /* maximum length of configuration string for creating Code Listener object */
 #define CLSP_CONFIG_STRING_MAX  512
 /* passed to cl_global_init_defaults */
 #define CLSP_NAME               __FILE__
 /* flags to dlopen(3) */
 #define CLSP_DLOPEN_FLAGS       (RTLD_LAZY|RTLD_LOCAL)
-
-
 
 
 /* Context Managers ala Python */
@@ -85,15 +82,15 @@ atexit_worker(void)
     /* close the streams used by the worker */
     int fileno_cur;
     for (enum streams s=stream_first; s < stream_last; s++) {
-        fileno_cur = fileno(GLOBALS(stream[s]));
-        if (GLOBALS(stream[s]) && fileno_cur > STDERR_FILENO) {
+        fileno_cur = fileno(GLOBALS(stream)[s].stream);
+        if (GLOBALS(stream)[s].stream && fileno_cur > STDERR_FILENO) {
             // prevent double-close of particular file descriptor
             enum streams sn = s+1;
             for ( ; sn < stream_last; sn++)
-                if (fileno_cur == fileno(GLOBALS(stream[sn])))
+                if (fileno_cur == fileno(GLOBALS(stream)[s].stream))
                     break;
             if (sn == stream_last)
-                fclose(GLOBALS(stream[s]));
+                fclose(GLOBALS(stream)[s].stream);
         }
     }
     /* close the access to dynamic libraries */
@@ -168,21 +165,34 @@ atexit_sparse(void) {
     @param[in]     fd      File descriptor number to be fdopen'd.
  */
 static inline void
-setup_stream(FILE **stream, int fd)
+setup_stream(struct outstream *stream, int fd, enum color clr)
 {
     /* this is why we don't close anything first */
-    assert(*stream == stdout || *stream == stderr);
+    FILE **s = &stream->stream;
     switch (fd) {
-        case STDOUT_FILENO:    *stream = stdout; break;
-        case STDERR_FILENO:    *stream = stderr; break;
-        case opts_fd_undef:    /*NOOP*/          break;
+        case STDOUT_FILENO:  *s = stdout;                 break;
+        case STDERR_FILENO:  *s = stderr;                 break;
+        case opts_fd_undef:  fd = fileno(stream->stream); break;
         default:
             /* opts_fd_deferred (unexpected) -> fail */
-            *stream = fdopen(fd, "a");
-            if (!*stream)
+            *s = fdopen(fd, "a");
+            if (!*s)
                 /* incl. opts_fd_undef */
                 DIE( ERRNO("fdopen") );
+#if 0
+            if (0 != setvbuf(*s, NULL, _IOLBF, 0))
+                DIE( ERRNO("setvbuf") );
+#endif
             break;
+    }
+
+    if (isatty(fd) && clr < clr_last) {
+        /* clr != clr_undef */
+        stream->clr_begin = clr_codes[clr];
+        stream->clr_end   = clr_codes[clr_terminate];
+    } else {
+        stream->clr_begin = "";
+        stream->clr_end   = "";
     }
 }
 
@@ -196,7 +206,8 @@ setup_sparse(const struct options *opts, struct string_list **filelist)
         DIE("atexit");
 
     if (opts_fd_deferred != OPTS_INTERNALS(fd.sparse))
-        setup_stream(&STREAM(sparse), OPTS_INTERNALS(fd.sparse));
+        setup_stream(&STREAMSTRUCT(sparse), OPTS_INTERNALS(fd.sparse),
+                     OPTS_INTERNALS(clr.sparse));
     else {
         /* setup deferred output incl. atexit handler for printing it */
         if (GLOBALS(unexposed.register_atexit)
@@ -300,6 +311,9 @@ clsp_chain_init(const struct options *opts)
 static inline void
 setup_cl(const struct options *opts)
 {
+    setup_stream(&STREAMSTRUCT(cl), OPTS_INTERNALS(fd.cl),
+                 OPTS_INTERNALS(clr.cl));
+
     if (GLOBALS(unexposed.register_atexit)
       && 0 != atexit(atexit_cl))
         DIE("atexit");
@@ -313,6 +327,13 @@ setup_cl(const struct options *opts)
     void *handle = dlopen(OPTS_CL(listeners.arr)[0], CLSP_DLOPEN_FLAGS);
     if (!handle)
         DIE("dlopen: %s", dlerror());
+
+    DLOG(d_plugin, "plugin %s loaded", OPTS_CL(listeners.arr)[0]);
+
+    if (!dlsym(handle, "plugin_is_GPL_compatible"))
+        DIE("Sorry, it seems the plugin is not GPL-compatible:\n%s",
+            dlerror());
+
     GLOBALS(cl_libs.handles)[0] = handle;
 # define PROCEED(pfx,item,cnt)                                                 \
     ((*(void **)(&GLOBALS(cl_api.item)) = dlsym(handle, API_FQ_STR(pfx,item))) \
@@ -358,12 +379,10 @@ worker(struct options *opts)
     struct string_list *filelist = NULL;
     struct symbol_list *symlist = NULL;
 
-    setup_stream(&STREAM(cl), OPTS_INTERNALS(fd.cl));
-
     symlist = setup_sparse(opts, &filelist);
     if (ptr_list_empty(filelist))
-        /* nothing to proceed */
-        return 2;
+        /* short-circuit when nothing to proceed */
+        return ec_general;
 
     setup_cl(opts);
 
@@ -375,7 +394,7 @@ worker(struct options *opts)
 
     /* rest of cleanup in registered atexit handler(s) */
     API_EMIT(acknowledge);
-    return 0;
+    return ec_ok;
 }
 
 /**
@@ -429,11 +448,9 @@ master(pid_t pid, struct options *opts)
 static void
 globals_initialize(struct globals *globals_obj)
 {
-    globals_obj->stream[stream_out]    = stdout;
-    globals_obj->stream[stream_err]    = stderr;
-    globals_obj->stream[stream_sparse] = stderr;
-    globals_obj->stream[stream_cl]     = stderr;
-    globals_obj->stream[stream_debug]  = stdout;
+    globals_obj->stream[stream_out]    = (struct outstream){ stdout, "", "" };
+    globals_obj->stream[stream_err]    = (struct outstream){ stderr, "", "" };
+
     globals_obj->unexposed.register_atexit = true;
 #ifdef HAS_CL
     /* set symbols we know are available at link-time */
@@ -456,7 +473,7 @@ globals_finalize(struct globals *globals_obj, const struct options *opts)
     globals_obj->debug = OPTS_INTERNALS(debug);
     if (globals_obj->debug)
         setup_stream(&globals_obj->stream[stream_debug],
-                     OPTS_INTERNALS(fd.debug));
+                     OPTS_INTERNALS(fd.debug), OPTS_INTERNALS(clr.debug));
 }
 
 int
@@ -486,7 +503,6 @@ main(int argc, char *argv[])
     else
         ret = master(pid, opts);
 
+    options_dispose(opts);
     return ret;
 }
-
-/* vim:set ts=4 sts=4 sw=4 et: */

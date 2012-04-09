@@ -1,0 +1,10 @@
+#!/bin/sh
+
+ANALYZER=fwnull
+LIB="../predator_cl/${ANALYZER}_build/lib${ANALYZER}.so"
+
+if test -n ANALYZER; then
+	LD_PRELOAD="$LIB" ./clsp "$@" -isystem $(echo|cpp -Wp,-v - 2>&1 >/dev/null|grep -E "^[ ]*/"|head -n1)
+else
+	./clsp -isystem $(echo|cpp -Wp,-v - 2>&1 >/dev/null|grep -E "^[ ]*/"|head -n1) "$@"
+fi

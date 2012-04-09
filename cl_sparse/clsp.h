@@ -20,6 +20,10 @@
 #ifndef CLSP_H_GUARD
 #define CLSP_H_GUARD
 
+/*
+    Common base to be included to the modules, but always as a first import!
+ */
+
 #define _POSIX_C_SOURCE 200809L  /* fileno, open_memstream */
 
 #include <stdio.h>   /* FILE, fprintf, fileno */
@@ -31,6 +35,8 @@
 #include "clsp_macros.h"
 #include "clsp_api_cl.h"
 #include "clsp_api_sparse.h"
+#include "clsp_enum_color.h"
+#include "clsp_enum_ec.h"
 #include "type_enumerator.h"
 
 extern const char *GIT_SHA1;
@@ -43,21 +49,27 @@ enum streams {
     stream_first,
     stream_out = stream_first,
     stream_err,
+    stream_debug,
     /* worker only */
     stream_worker_first,
     stream_sparse = stream_worker_first,
     stream_cl,
-    stream_debug,
     stream_worker_last,
     stream_last = stream_worker_last
 };
 
+struct outstream {
+    FILE        *stream;
+    const char  *clr_begin;
+    const char  *clr_end;
+};
+
 extern struct globals {
-    FILE            *stream[stream_last];
+    struct outstream stream[stream_last];
     /* buffer for sparse deferred stream */
     struct g_deferred {
-        char        *buffer;
-        size_t      size;
+        char          *buffer;
+        size_t        size;
     } deferred;
     struct cl_code_listener  *cl;
     /* API functions resolved in compile-/run-time set here */
@@ -71,20 +83,25 @@ extern struct globals {
     } cl_api;
     /* handles to dynamically opened libraried */
     struct g_cl_libs {
-        size_t      cnt;
-        void        **handles;  // !HAS_CL -> first is the main one
+        size_t        cnt;
+        void          **handles;  // !HAS_CL -> first is the main one
     } cl_libs;
     /* TODO typedb */
-    int             debug;
+    int               debug;
     /* unexposed, but run-modifying options (e.g., for testing) */
     struct {
-        bool        register_atexit;
+        bool          register_atexit;
     } unexposed;
 } globals;
 
 /* convenient macros for accessing parts of globals */
 #define GLOBALS(what)  (globals.what)
-#define STREAM(which)  GLOBALS(stream[stream_##which])
+#ifndef STREAM
+# define STREAMSTRUCT(which)    GLOBALS(stream)[stream_##which]
+# define STREAM(which)          GLOBALS(stream)[stream_##which].stream
+# define STREAMCLRBEGIN(which)  GLOBALS(stream)[stream_##which].clr_begin
+# define STREAMCLREND(which)    GLOBALS(stream)[stream_##which].clr_end
+#endif
 
 
 
@@ -113,45 +130,11 @@ struct ptr_db_arr {
 };
 
 
-
 extern struct type_ptr_db {
     int                 last_base_type_uid;
     struct typen_data   *type_db;
     struct ptr_db_arr   ptr_db;
 } type_ptr_db;
-
-
-/** exit codes ************************************************************/
-
-
-#define ECNUM(c)              APPLY(ECNUM_, EC_##c)
-#define ECNUM_(num,name,desc) num
-#define ECVALUE               IDENTITY
-
-#define EC_OK       0,ok,     "run finished, no unrecoverable error encountered"
-#define EC_SPARSE   1,sparse, "sparse has not finished successfully"
-#define EC_GENERAL  2,general,"something general has failed"
-#define EC_OPT      3,opt,    "incorrect command-line"
-#define EC_MEM      4,mem,    "memory handling has failed (probably OOM)"
-#define EC_TDB      5,tdb,    "internal type database handling has failed"
-#define EC_CL       6,cl,     "Code Listener run has been aborted"
-#define ECLIST(x)        \
-    APPLY(x, EC_OK)      \
-    APPLY(x, EC_SPARSE)  \
-    APPLY(x, EC_GENERAL) \
-    APPLY(x, EC_OPT)     \
-    APPLY(x, EC_MEM)     \
-    APPLY(x, EC_TDB)     \
-    APPLY(x, EC_CL)
-
-enum {
-    /* compliance note: only POSIX guarantees 0 == EXIT_SUCCESS */
-    ec_first   = EXIT_SUCCESS,
-#define X(num,name,desc)  ec_##name = num,
-    ECLIST(X)
-#undef X
-    ec_last
-};
 
 
 /** outputs ***************************************************************/
@@ -165,8 +148,9 @@ enum {
     NOTE: last argument in order to allow format string as the only
           argument; compensated appending "%s" later on
  */
-#define PUT(which, ...)        PUT_(which, __VA_ARGS__, "")
-#define PUT_(which, fmt, ...)  PUT__(which, 0, fmt "%s", __VA_ARGS__)
+#define PUT(which, ...)        PUT_(which, __VA_ARGS__, STREAMCLREND(which))
+#define PUT_(which, fmt, ...) \
+    PUT__(which, 0, "%s" fmt "%s", STREAMCLRBEGIN(which), __VA_ARGS__)
 #define PUT__(which, skip, fmt, ...) \
     fprintf(STREAM(which), &(fmt "\n")[skip], __VA_ARGS__)
 
@@ -207,8 +191,49 @@ enum {
         ? exit((int) (fmt[1] - '0'))                                          \
         : exit(ec_general)))
 
+
 /*
-    Streams swapping
+    Debugging
+ */
+
+#define DVALUE(arg)    (1 << arg)
+
+#define D_OPTIONS      options,    "dump gathered options"
+#define D_PLUGIN       plugin,     "print diagnostics regarding plugins"
+#define D_INSTRUCTION  instruction,"print instruction being processed"
+#define D_TYPE         type,       "print type being processed"
+#define D_INSERT_TYPE  insert_type,"print type being inserted into type DB"
+#define D_FILE         file,       "print current file to be proceeded"
+#define DLIST(x)            \
+    APPLY(x, D_OPTIONS    ) \
+    APPLY(x, D_PLUGIN     ) \
+    APPLY(x, D_INSTRUCTION) \
+    APPLY(x, D_TYPE       ) \
+    APPLY(x, D_INSERT_TYPE) \
+    APPLY(x, D_FILE       )
+
+enum {
+#define X(name,desc)  d_##name,
+    DLIST(X)
+#undef X
+    d_last,
+    d_first = 0
+};
+
+/* two forms of usage... */
+#define DLOG(level, ...)                \
+    if (GLOBALS(debug) & DVALUE(level)) \
+        PUT(debug, __VA_ARGS__)
+
+#define WITH_DEBUG_LEVEL(level)                              \
+    for (int i_=0; 0==i_ && (GLOBALS(debug) & DVALUE(level)) \
+         ? 1                                                 \
+         : 0                                                 \
+         ; i_++)
+
+
+/*
+    Stream mangling
  */
 
 static inline void
@@ -216,6 +241,7 @@ swap_stream(FILE *f1, FILE *f2) {
     int fd1 = fileno(f1), fd2 = fileno(f2);
     if (fd1 == fd2)
         return;
+
     fflush(f1); fflush(f2);
     int temp = dup(fd1);
 
@@ -229,50 +255,17 @@ swap_stream(FILE *f1, FILE *f2) {
 }
 
 /* this (and other similar constructs) mimics context Managers ala Python */
-#define WITH_SWAPPED_STREAM(f1, f2)  \
-    for (int i=0; 0==i              \
-         ? (swap_stream(f1, f2), 1) \
-         : (swap_stream(f2, f1), 0) \
-         ; i++)
+#define WITH_SWAPPED_STREAM(s1, s2)                 \
+    for (int i_=0; 0==i_                            \
+         ? (swap_stream(STREAM(s1), STREAM(s2)), 1) \
+         : (swap_stream(STREAM(s2), STREAM(s1)), 0) \
+         ; i_++)
 
-/*
-    Debugging
- */
-
-#define DACCESS(index)  index - d_first
-#define DMSG(suffix)    [DACCESS(d_##suffix)] = d_##suffix()
-#define DVALUE(arg)     (1 << arg)
-
-#define D_OPTIONS      0,options,    "dump gathered options"
-#define D_INSTRUCTION  1,instruction,"print instruction being processed"
-#define D_TYPE         2,type,       "print type being processed"
-#define D_INSERT_TYPE  3,insert_type,"print type being inserted into type DB"
-#define D_FILE         4,file,       "print current file to be proceeded"
-#define DLIST(x)            \
-    APPLY(x, D_OPTIONS)     \
-    APPLY(x, D_INSTRUCTION) \
-    APPLY(x, D_TYPE)        \
-    APPLY(x, D_INSERT_TYPE) \
-    APPLY(x, D_FILE)
-
-enum {
-    d_first = 0,
-#define X(num,name,desc)  d_##name = num,
-    DLIST(X)
-#undef X
-    d_last
-};
-
-/* two forms of usage... */
-#define DLOG(level, ...)                \
-    if (GLOBALS(debug) & DVALUE(level)) \
-        PUT(debug, __VA_ARGS__)
-
-#define WITH_DEBUG_LEVEL(level)                            \
-    for (int i=0; 0==i && (GLOBALS(debug) & DVALUE(level)) \
-         ? 1                                               \
-         : 0                                               \
-         ; i++)
+#define WITH_COLORED_STREAM(s1, s2)                   \
+    for (int i_=0; 0==i_                              \
+         ? (fputs(STREAMCLRBEGIN(s1), STREAM(s2)), 1) \
+         : (fputs(STREAMCLREND(s1), STREAM(s2)), 0)   \
+         ; i_++)
 
 
 /** allocations ***********************************************************/
@@ -316,12 +309,14 @@ enum {
 #define API_SPARSE_HOW_(out)      JOIN(API_SPARSE_USE_, out)
 
 #define API_SPARSE_USE_X(fnc, ...)  API_SPARSE_(fnc, __VA_ARGS__)
-#define API_SPARSE_USE_D(fnc, ...)                                \
-    WITH_SWAPPED_STREAM(APPLY(STREAM,out), APPLY(STREAM,debug))   \
+#define API_SPARSE_USE_D(fnc, ...)        \
+    WITH_SWAPPED_STREAM(out,debug)        \
+        WITH_COLORED_STREAM(debug, debug) \
         API_SPARSE_(fnc, __VA_ARGS__)
-#define API_SPARSE_USE_E(fnc, ...)                                \
-    WITH_SWAPPED_STREAM(APPLY(STREAM,sparse), APPLY(STREAM,err))  \
-        API_SPARSE_(fnc, __VA_ARGS__)
+#define API_SPARSE_USE_E(fnc, ...)        \
+    WITH_SWAPPED_STREAM(sparse, err)      \
+        WITH_COLORED_STREAM(sparse, err)  \
+            API_SPARSE_(fnc, __VA_ARGS__)
 
 
 /*
@@ -343,28 +338,28 @@ enum {
 #define API_EMIT_GLOBALS(item)  GLOBALS(cl)->item
 
 #define WITH_FILE_TO_EMIT(file)           \
-    for (int i=0; i==0                    \
+    for (int i_=0; i_==0                  \
          ? (API_EMIT(file_open, file), 1) \
          : (API_EMIT(file_close),      0) \
-         ; i++)
+         ; i_++)
 
 #define WITH_CALL_TO_EMIT(loc, dst, fnc)                \
-    for (int i=0; 0==i                                  \
+    for (int i_=0; 0==i_                                \
          ? (API_EMIT(insn_call_open, loc, dst, fnc), 1) \
          : (API_EMIT(insn_call_close),               0) \
-         ; i++)
+         ; i_++)
 
 #define WITH_SWITCH_TO_EMIT(loc, op)                \
-    for (int i=0; 0==i                              \
+    for (int i_=0; 0==i_                            \
          ? (API_EMIT(insn_switch_open, loc, op), 1) \
          : (API_EMIT(insn_switch_close),         0) \
-         ; i++)
+         ; i_++)
 
 #define WITH_FNC_TO_EMIT(fnc)           \
-    for (int i=0; 0==i                  \
+    for (int i_=0; 0==i_                \
          ? (API_EMIT(fnc_open, fnc), 1) \
          : (API_EMIT(fnc_close),     0) \
-         ; i++)
+         ; i_++)
 
 
 /**
@@ -463,4 +458,3 @@ extern struct ptr_db_item *new_ptr_db_item(void);
 
 
 #endif
-/* vim:set ts=4 sts=4 sw=4 et: */

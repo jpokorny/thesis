@@ -20,15 +20,16 @@
 #define CLSP_OPTIONS_H_GUARD
 
 #include <stdbool.h>
-#include "clsp.h"
+#include "clsp_enum_color.h"
 
 /**
     Special values for file descriptors.
  */
 enum opts_fd_extra {
-    opts_fd_undef    = -1,  ///< Undefined descriptor.
-    opts_fd_deferred = -2,  ///< Future deferred descriptor (sparse only).
+    opts_fd_undef    = -1,  /**< Undefined descriptor. */
+    opts_fd_deferred = -2,  /**< Future deferred descriptor (sparse only). */
 };
+
 
 /**
     Object representing gathered options.
@@ -37,20 +38,26 @@ enum opts_fd_extra {
  */
 struct options {
     /* internal options */
+    bool                finalized;
     struct {
         bool            fork;
         struct oi_fd {
             int         cl;
-            int         sparse;  /* options_fd_deferred is an option */
+            int         sparse;  /* options_fd_deferred is an extra option */
             int         debug;
         } fd;
+        struct oi_clr {
+            enum color cl;
+            enum color sparse;
+            enum color debug;
+        } clr;
         int             debug;
     } internals;
     /* Code Listener */
     struct {
         struct {
             size_t      cnt;
-            char        **arr;  /* !HAS_CL -> first is the main one */
+            const char  **arr;  /* !HAS_CL -> first is the main one */
         } listeners;
         bool            default_output;
         struct {
@@ -92,6 +99,13 @@ struct options {
 extern int options_gather(struct options **opts, int argc, char *argv[]);
 
 /**
+    Free memory acquired while gathering options.
+
+    @param[in,out] opts Options to be disposed.
+ */
+extern void options_dispose(struct options *opts);
+
+/**
     Dump options.
 
     @param[in] opts Options to dump.
@@ -100,4 +114,3 @@ extern void options_dump(const struct options *opts);
 
 
 #endif
-/* vim:set ts=4 sts=4 sw=4 et: */

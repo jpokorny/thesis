@@ -21,6 +21,8 @@
 
 #include "clsp.h"          /* bootstrap all other dependencies... */
 
+
+#define USE_INT3_AS_BRK
 #include "trap.h"
 
 // yo, Dawg...

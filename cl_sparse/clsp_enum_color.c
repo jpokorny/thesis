@@ -17,21 +17,17 @@
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include 
+#include "clsp_enum_color.h"
 
-inline void
-swap_stream(FILE *f1, FILE *f2) {
-    int fd1 = fileno(f1), fd2 = fileno(f2);
-    if (fd1 == fd2)
-        return;
+const char *clr_codes[clr_last_all] = {
+#define X(name,code)  [clr_##name] = code,
+    CLRLIST(X)
+#undef X
+    [clr_terminate] = CLR_TERMINATE
+};
 
-    fflush(f1); fflush(f2);
-    int temp = dup(fd1);
-    if (-1 == temp
-     || -1 == close(fd1)
-     || -1 == dup2(fd2, fd1)
-     || -1 == dup2(temp, fd2)
-     || -1 == close(temp)
-    )
-        DIE( ERRNO("swap_stream") );
-}
+const char *clr_str[clr_last] = {
+#define X(name,code)  [clr_##name] = #name,
+    CLRLIST(X)
+#undef X
+};
