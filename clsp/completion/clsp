@@ -1,0 +1,26 @@
+# clsp bash completion start
+# add me to ~/.profile persistently or eval on-the-fly in the bash
+
+_clsp()
+{
+    local prev cur opts colors
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    opts="-h --help --version --bash -k --keep-going -t --try-hard -n --dry-run -E --preprocessor --fd-warn --fd-debug --fd-sp --fd-cl --fd-cl-debug --clr-warn --clr-debug --clr-sp --clr-cl --clr-cl-debug -d --debug -cl-plugin -cl-default-output -cl-pprint -cl-pprint-types -cl-pprint-switch-to-if -cl-gen-cfg -cl-gen-type -cl-debug-location -cl-debug-level -v -m64 "
+    colors="none dark red green brown blue purple cyan lightgray darkgray boldred boldgreen boldbrown boldblue boldpurple boldcyan white black darkred darkgreen darkbrown darkblue darkpurple darkcyan gray "
+
+    if [[ ${cur} == -* ]]; then
+        COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+    elif [[ ${prev} == --clr-[a-z-]* ]]; then
+        COMPREPLY=( $(compgen -W "${colors}" -- ${cur}) )
+    elif [[ ${prev} == -cl-plugin ]]; then
+        COMPREPLY=( $(compgen -f -X '!*.so' ${cur}) )
+    else
+        COMPREPLY=( $(compgen -f -X '!*.c' ${cur}) )
+    fi
+}
+complete -o plusdirs -F _clsp "clsp"
+
+# clsp bash completion end
