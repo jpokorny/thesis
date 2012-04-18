@@ -20,28 +20,47 @@
 #define CLSP_ENUM_EC_H_GUARD
 
 #include <stdlib.h>       /* EXIT_SUCCESS */
-#include "clsp_macros.h"  /* APPLY, IDENTITY */
+#include "clsp-macros.h"  /* APPLY, IDENTITY */
+
+
+/** function return value level *******************************************/
+
+
+/**
+    Generalized common return values.
+ */
+enum retval {
+    ret_fail     =  1,   /**< Denotes failure-based exit. */
+    ret_continue =  0,  /**< Denotes continuing in the run. */
+    ret_bye      = -1,  /**< Denotes immediate graceful exit. */
+};
+
+
+/** program exit value level **********************************************/
+
 
 #define ECNUM(c)              APPLY(ECNUM_, EC_##c)
 #define ECNUM_(num,name,desc) num
 #define ECVALUE               IDENTITY
 
 /* numbering as macro needed due to "DIE( ECODE() )" internals */
-#define EC_OK       0,ok,     "run finished, no unrecoverable error encountered"
-#define EC_SPARSE   1,sparse, "sparse has not finished successfully"
-#define EC_GENERAL  2,general,"something general has failed"
-#define EC_OPT      3,opt,    "incorrect command-line"
-#define EC_MEM      4,mem,    "memory handling has failed (probably OOM)"
-#define EC_TDB      5,tdb,    "internal type database handling has failed"
-#define EC_CL       6,cl,     "Code Listener run has been aborted"
+#define EC_OK           0,ok,          "run was successful (e.g., Code Listener fed)"
+#define EC_SPARSE_FATAL 1,sparse_fatal,"sparse fatal error"
+#define EC_SPARSE_CODE  2,sparse_code, "sparse detected error in the code"
+#define EC_GENERAL      3,general,     "general failure"
+#define EC_OPT          4,opt,         "incorrect command-line"
+#define EC_MEM          5,mem,         "memory handling failed (probably OOM)"
+#define EC_TDB          6,tdb,         "internal type database handling failed"
+#define EC_CL           7,cl,          "Code Listener run has been aborted"
 #define ECLIST(x)        \
     APPLY(x, EC_OK     ) \
-    APPLY(x, EC_SPARSE ) \
-    APPLY(x, EC_GENERAL) \
-    APPLY(x, EC_OPT    ) \
-    APPLY(x, EC_MEM    ) \
-    APPLY(x, EC_TDB    ) \
-    APPLY(x, EC_CL     )
+    APPLY(x, EC_SPARSE_FATAL ) \
+    APPLY(x, EC_SPARSE_CODE  ) \
+    APPLY(x, EC_GENERAL      ) \
+    APPLY(x, EC_OPT          ) \
+    APPLY(x, EC_MEM          ) \
+    APPLY(x, EC_TDB          ) \
+    APPLY(x, EC_CL           )
 
 enum {
     /* compliance note: only POSIX guarantees 0 == EXIT_SUCCESS */

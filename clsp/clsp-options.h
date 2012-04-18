@@ -20,38 +20,43 @@
 #define CLSP_OPTIONS_H_GUARD
 
 #include <stdbool.h>
-#include "clsp_enum_color.h"
+#include <limits.h>          /* INT_MIN */
+#include "clsp-enum-color.h"
+#include "clsp-enum-ec.h"    /* enum retval */
+
 
 /**
     Special values for file descriptors.
  */
-enum opts_fd_extra {
-    opts_fd_undef    = -1,  /**< Undefined descriptor. */
-    opts_fd_deferred = -2,  /**< Future deferred descriptor (sparse only). */
+enum fd_extra {
+    fd_undef           = -1,       /**< Undefined descriptor. */
+    fd_deferred_unspec = INT_MIN,  /**< Deferred descriptor without destination. */
 };
 
 
 /**
     Object representing gathered options.
-
-    @note  imm -> immediate values; set -> values that were set up later on
  */
 struct options {
     /* internal options */
     bool                finalized;
     struct {
-        bool            fork;
         struct oi_fd {
-            int         cl;
-            int         sparse;  /* options_fd_deferred is an extra option */
+            int         warn;
             int         debug;
+            int         sp;
+            int         cl;
+            int         cl_debug;
         } fd;
         struct oi_clr {
-            enum color cl;
-            enum color sparse;
-            enum color debug;
+            struct palette  warn;
+            struct palette  debug;
+            struct palette  sp;
+            struct palette  cl;
+            struct palette  cl_debug;
         } clr;
         int             debug;
+        int             emit_props;
     } internals;
     /* Code Listener */
     struct {
@@ -83,6 +88,7 @@ struct options {
     struct {
         int             argc;
         char            **argv;
+        bool            preprocess;
     } sparse;
 };
 
@@ -94,16 +100,10 @@ struct options {
     @param[in,out] opts Target options representation.
     @param[in]     argc Common argc.
     @param[in]     argv Common argv.
-    @return     0 = continue, <0 = exit ok (help, etc.), >0 = fail w/ this code
+    @return        See enum @retval.
  */
-extern int options_gather(struct options **opts, int argc, char *argv[]);
-
-/**
-    Free memory acquired while gathering options.
-
-    @param[in,out] opts Options to be disposed.
- */
-extern void options_dispose(struct options *opts);
+extern enum retval options_gather(struct options **opts, int argc,
+                                  char *argv[]);
 
 /**
     Dump options.
@@ -112,5 +112,11 @@ extern void options_dispose(struct options *opts);
  */
 extern void options_dump(const struct options *opts);
 
+/**
+    Free memory acquired while gathering options.
+
+    @param[in,out] opts Options to be disposed.
+ */
+extern void options_dispose(struct options *opts);
 
 #endif

@@ -21,9 +21,7 @@
 
 #include "clsp.h"          /* bootstrap all other dependencies... */
 
-
-#define USE_INT3_AS_BRK
-#include "trap.h"
+#include "clsp-emit.h"
 
 // yo, Dawg...
 #define OR  : case
@@ -262,9 +260,18 @@ type_ptr_db_insert(struct type_ptr_db *db, struct cl_type *clt,
 #define PTRDBARR_SIZE  (128)
 {
     WITH_DEBUG_LEVEL(d_insert_type) {
-        PUT(debug,"add type (uid = %d, clt = %p): %p", clt->uid, (void *) clt,
-            (void *) type);
-        API_SPARSE(show_symbol, (struct symbol *) type);
+        if (clt->loc.file)
+            PUT(debug, CLPOSFMT_1 ": " HIGHLIGHT("type-db") ": add "
+                       HIGHLIGHT(_4(s)) " (uid="_5(d)", clt="_6(p)
+                       ", type="_7(p)")",
+                       CLPOS(clt->loc), SP(show_typename, type),
+                       clt->uid, (void *) clt, (void *) type);
+        else
+            PUT(debug, "\t" HIGHLIGHT("type-db") ": add "
+                       HIGHLIGHT(_1(s))
+                       " (uid="_2(d)", clt="_3(p)", type="_4(p)")",
+                       SP(show_typename, type),
+                       clt->uid, (void *) clt, (void *) type);
     }
 
     struct cl_type *retval;
@@ -367,8 +374,11 @@ type_ptr_db_destroy(struct type_ptr_db* db)
 
         /* item->arr */
         int j;
-        for (j = 0; j < item->arr_cnt; j++)
-            free(item->arr[j]);
+
+        /* XXX off-by-one error */
+        //PUT(err, "cnt is:" _1(d), item->arr_cnt);
+        //for (j = 1; j < item->arr_cnt; j++)
+        //    free(item->arr[j-1]);
         free(item->arr);
 
         // move onto next items, this one captured by `free(db->ptr_db.heads)'

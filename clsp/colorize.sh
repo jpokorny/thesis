@@ -26,5 +26,5 @@ if [ $# -ge 1 ]; then
 fi
 
 while read line; do
-    printf "${begin}%s${end}\n" "$line"
+    printf "${begin}%s${end} ready\n" "$line"
 done

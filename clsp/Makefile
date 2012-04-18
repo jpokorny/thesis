@@ -16,85 +16,117 @@
 # along with predator.  If not, see <http://www.gnu.org/licenses/>.
 
 CC         = c99
-CFLAGS     = -Wall -Wextra -pedantic
+CFLAGS    += -Wall -Wextra -Wwrite-strings -pedantic #-errors
+#CFLAGS    += -Werror
 CFLAGS    += -pipe
-LDFLAGS    = -Wl,--as-needed
+LDFLAGS   += -Wl,--as-needed
 LDFLAGS   += -ldl  # dlopen,...
+DBGCFLAGS  = -O0 -gdwarf-4 -g3
 
 RELEASE    = 0
-# available: cl, fwnull, sl, fa or <empty>
-ANALYZER   = 
+USE_LTO    = 1
+
+ANALYZERS  = cl_test fwnull sl fa
+# one from above or <empty>
+ANALYZER   = cl_test
+CL_OPTS   :=
 
 ifeq (1,${RELEASE})
   CFLAGS  += -O2 -march=native -mtune=native
+  CFLAGS  += -Wno-format  # or -DC99STRICT, both to suppress "%n$" warnings
   LDFLAGS += -Wl,-O1
 else
-  CFLAGS  += -g -ggdb3
+  CFLAGS  += ${DBGCFLAGS}
+  CFLAGS  += -Wno-format
+  SP_OPTS  = "CFLAGS += ${DBGCFLAGS}"
+  CL_OPTS += CL_DEBUG=1
 endif
-
 ifneq (,${ANALYZER})
-  CFLAGS += -DHAS_CL
+  CFLAGS  += -DHAS_CL
 else
-  CFLAGS += -rdynamic  # required for symbol resolving "back against us"
+  CFLAGS  += -rdynamic  # required for symbol resolving "back against us"
+endif
+ifeq (1,${USE_LTO})
+    LTOFLAGS = -flto
+    CFLAGS += ${LTOFLAGS}
+    LDFLAGS += -fuse-linker-plugin ${LTOFLAGS}
 endif
 
-# sparse
+# this test and dependency usage borrowed from sparse's Makefile
+HAVE_GCC_DEP:=$(shell touch .gcc-test.c                                  \
+                && $(CC) -c -MD,.gcc-test.d .gcc-test.c &>/dev/null      \
+                && echo 'yes'; rm -f .gcc-test.d .gcc-test.o .gcc-test.c)
+ifeq ($(HAVE_GCC_DEP),yes)
+  OBJECTS_CFLAGS  += -Wp,-MD,$(@D)/.$(@F).d
+  DEP_FILES := $(wildcard .*.o.d)
+endif
 
-SPARSE_DIR      = ../sparse-llvm
-SPARSE_LIB      = sparse
-SPARSE_LIB_PATH = ${SPARSE_DIR}/lib${SPARSE_LIB}.a
+GETLDFLAGS = -L$(dir $(1)) -l$(basename $(patsubst lib%,%,$(notdir $(1))))
 
-LDFLAGS        += -L${SPARSE_DIR} -l${SPARSE_LIB}
-INCLUDES       += ${SPARSE_DIR}
+# sparse (using static library, shared is also possible)
+
+SPARSE_DIR       = ../sparse-llvm
+INCLUDE_DIRS    += ${SPARSE_DIR}
+SPARSE_LIB_NAME  = sparse
+SPARSE_LIB      := ${SPARSE_DIR}/lib${SPARSE_LIB_NAME}.a
+LDFLAGS         += $(call GETLDFLAGS,${SPARSE_LIB})
 
 # Code Listener + analyzers
-PREDATOR_DIR    =  ../predator_cl
-INCLUDES       +=  ${PREDATOR_DIR}/include/cl ${PREDATOR_DIR}/cl
+
+PREDATOR_DIR     = ../predator_cl
+INCLUDE_DIRS    += ${PREDATOR_DIR}/include/cl ${PREDATOR_DIR}/cl
+CL_OPTS         += GCC_HOST='$(shell PATH=/usr/bin:$PATH which gcc)'
+CL_OPTS         := $(foreach cl_opt,${CL_OPTS},-D ${cl_opt})
 
 # do not warn about C99 and similar issues in included headers
-CFLAGS         += $(foreach dir,${INCLUDES},-isystem $(dir))
-#CFLAGS         +=  -Wno-system-headers
+CFLAGS          += $(foreach dir,${INCLUDE_DIRS},-isystem ${dir})
+#CFLAGS          +=  -Wno-system-headers
 
 # local code
 
 PROGRAM  = clsp
-OBJECTS  = clsp.o   \
-  clsp_options.o    \
-  clsp_proceed.o    \
-  clsp_types.o      \
-  clsp_enum_color.o \
-  clsp_enum_ec.o \
-  type_enumerator.o \
-  hash_table.o      \
-  clsp_gccplugstub.o
+OBJECTS  = clsp.o    \
+  clsp-options.o     \
+  clsp-emit.o        \
+  clsp-types.o       \
+  clsp-enum-color.o  \
+  clsp-enum-ec.o     \
+  clsp-gccplugstub.o \
+  type_enumerator.o  \
+  hash_table.o
 
 TEST_PROGRAMS += test_swapfd
 
 
 all:: ${PROGRAM}
 
-${SPARSE_LIB_PATH}:
-	$(MAKE) -C ${SPARSE_DIR} $(notdir $@)
+
+${SPARSE_LIB}:
+	$(if {$SP_OPTS},$(shell echo "${SP_OPTS}" > ${SPARSE_DIR}/local.mk))
+	$(MAKE) -C ${SPARSE_DIR} V=1 $(@F)
+	$(RM) ${SPARSE_DIR}/local.mk
 
 define ANALYZER_template =
-  $(1)_dir := $${PREDATOR_DIR}/$(1)
-  $(1)_path := $${PREDATOR_DIR}/$(1)_build/lib$(1).so
-  $(1):: $(1)_path
-  $(1)_path:
-	$(MAKE) -C $${$(1)_dir} CMAKE="cmake -D GCC_HOST='$${GCC_HOST}'"
-  PHONIES        += $(1) $(1)_dir $(1)_path
+  # following patsubst does: cl_test -> cl
+  $(1)_dir :=  $$(patsubst %_test,%,$${PREDATOR_DIR}/$(1))
+  $(1)_path := $${$(1)_dir}_build/lib$(1).so
+  $(1):: $${$(1)_path}
+  $${$(1)_path}:
+	$(MAKE) -C $${$(1)_dir} CMAKE="cmake $${CL_OPTS}"
+  PHONIES        += $(1)
   ANALYZER_CLEAN += $${$(1)_dir}
-  LDFLAGS        += -L$${PREDATOR_DIR}/$(1)_build -l$(1)
+  ifeq (${ANALYZER},$(1))
+    LDFLAGS        += $$(call GETLDFLAGS,$${$(1)_path})
+  endif
 endef
-ifneq (,${ANALYZER})
-  GCC_HOST := $(shell PATH=/usr/bin:$PATH which gcc)
-  $(eval $(call ANALYZER_template,${ANALYZER}))
-endif
+$(foreach analyzer,${ANALYZERS},$(eval $(call ANALYZER_template,${analyzer})))
 
-${OBJECTS}:: %.o : %.c
-	$(CC) $(CFLAGS) -o $@ -c $<
+$(if ${DEP_FILES},$(eval include ${DEP_FILES}))
 
-${PROGRAM}:: ${OBJECTS} ${ANALYZER} ${SPARSE_LIB_PATH}
+${OBJECTS}: %.o : %.c
+	$(CC) $(CFLAGS) $(OBJECTS_CFLAGS) -o $@ -c $<
+
+${PROGRAM}:: ${OBJECTS} ${SPARSE_LIB} ${ANALYZER}
 	g++ $(CFLAGS) -o $@ ${OBJECTS} $(LDFLAGS)
 
 ${TEST_PROGRAMS}:: % : %.c
@@ -104,7 +136,7 @@ check:: $(PROGRAM)
 	./tests.sh
 
 clean: clean-check
-	$(RM) -f -- $(OBJECTS) ${TEST_PROGRAMS} core vgcore.*
+	$(RM) -f -- $(OBJECTS) ${TEST_PROGRAMS} ${DEP_FILES} core vgcore.*
 
 clean-sparse:
 	$(MAKE) -C $(SPARSE_DIR) clean

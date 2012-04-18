@@ -1,17 +1,18 @@
 # to be placed at /etc/bash_completion.d (or similar...)
 
-_cl_sparse()
+_clsp()
 {
-    local cur prev opts
+    local cur opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    #prev="${COMP_WORDS[COMP_CWORD-1]}"
     opts="-h --help -cl-verbose -cl-dump-pp -cl-dump-types -cl-dump-keep-switch -cl-gen-dot -cl-type-dot"
 
-
-    if [[ ${cur} == -* ]] ; then
+    if [[ ${cur} == -* ]]; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+        return 0
+    else
+        COMPREPLY=( $(compgen -G "${*.c}") )
         return 0
     fi
 }
-complete -F _cl_sparse cl_sparse
+complete -F _clsp cl_sparse

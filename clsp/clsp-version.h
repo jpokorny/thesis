@@ -16,18 +16,16 @@
  * You should have received a copy of the GNU General Public License
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef CLSP_VERSION_H_GUARD
+#define CLSP_VERSION_H_GUARD
 
-#include "clsp_enum_color.h"
+#ifdef HAS_CL
+#  define VER_HAS_CL "CL part built-in"
+#else
+#  define VER_HAS_CL "no CL part built-in"
+#endif
 
-const char *clr_codes[clr_last_all] = {
-#define X(name,code)  [clr_##name] = code,
-    CLRLIST(X)
-#undef X
-    [clr_terminate] = CLR_TERMINATE
-};
+#define VER_DETAILS_  VER_HAS_CL ""
+#define VER_DETAILS   (VER_DETAILS_[0] == '\0') ? "" : " (" VER_DETAILS_ ")"
 
-const char *clr_str[clr_last] = {
-#define X(name,code)  [clr_##name] = #name,
-    CLRLIST(X)
-#undef X
-};
+#endif

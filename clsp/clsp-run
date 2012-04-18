@@ -1,10 +1,43 @@
-#!/bin/sh
+#!/bin/bash
 
-ANALYZER=fwnull
-LIB="../predator_cl/${ANALYZER}_build/lib${ANALYZER}.so"
+set -eu
+shopt -s extglob
 
-if test -n ANALYZER; then
-	LD_PRELOAD="$LIB" ./clsp "$@" -isystem $(echo|cpp -Wp,-v - 2>&1 >/dev/null|grep -E "^[ ]*/"|head -n1)
+: ${EXEC:=./clsp}
+: ${PREDATOR_DIR:=../predator_cl}
+# currently available: cl_test, fwnull, sl, fa or <empty>
+: ${ANALYZER:=cl_test}
+
+INT_ARGS=
+
+# WRAPPER (e.g., "gdb -args")
+# GCC_INCLUDES
+# NOCOLOR
+
+LIB="${PREDATOR_DIR}/${ANALYZER%_test}_build/lib${ANALYZER}.so"
+
+if [ ${GCC_INCLUDES:=0} -ne 0 ]; then
+    USE_ARGS+=" -isystem $(echo|cpp -Wp,-v - 2>&1 >/dev/null|grep -E "^[ ]*/"|head -n1|sed 's/^ *//')"
+fi
+
+# gdb and extensions do not like colors
+if [[ "${WRAPPER:=}" = *gdb* ]] && [ ${NOCOLOR:=1} -eq 1 ]; then
+    NOCOLOR=1
+fi
+
+if [ ${NOCOLOR:=0} -ne 0 ]; then
+    INT_ARGS+=" --clr-debug --clr-sp --clr-cl"
+fi
+
+verbosely () {
+    test ${VERBOSE:=0} -eq 0 || echo "${*}"
+    exec -a "$0" ${@}
+}
+
+# or parse ${EXEC} --version
+if LANG=C ldd ${EXEC} | grep -q "not found"; then
+    export LD_PRELOAD="${LIB}"
+    verbosely "${WRAPPER}" "${EXEC}" ${INT_ARGS} "${@}"
 else
-	./clsp -isystem $(echo|cpp -Wp,-v - 2>&1 >/dev/null|grep -E "^[ ]*/"|head -n1) "$@"
+    verbosely "${WRAPPER}" "${EXEC}" -cl-plugin="${LIB}" ${INT_ARGS} "${@}"
 fi

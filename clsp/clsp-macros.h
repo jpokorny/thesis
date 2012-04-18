@@ -25,8 +25,9 @@
 /* Makes ignoring return value explicit */
 #define NORETWRN(expr)         (void)(expr)
 
-/* Basic "functions". */
+/* Basic "functions" */
 #define APPLY(next,...)        next(__VA_ARGS__)
+#define APPLY_INNER(next,...)  next(__VA_ARGS__)
 #define IDENTITY(what)         what
 
 /* Preprocessor lexical manipulations */
@@ -35,7 +36,7 @@
 #define TOSTRING(arg)          STRINGIFY(arg)
 
 /*
-    Compile-time (unless used on VLAs) strlen with several checks:
+    Compile-time (unless applied on VLAs) strlen with several checks:
     - arg is a pointer/array:          sizeof(*arg)
     - arg is not a NULL pointer:       arg[sizeof(arg)-1]
     - arg is array of "byte-type":     sizeof(char)-sizeof(*arg)
@@ -64,6 +65,16 @@
 #ifndef STREQ
 # define STREQ(s1, s2)  (!strcmp(s1, s2))
 #endif
+
+/* Variable length arguments macros */
+
+/*
+  see, e.g.,
+  http://cplusplus.co.il/2010/07/17/variadic-macro-to-count-number-of-arguments/
+  but the technique is wide-spread
+*/
+#define VA_ARGS_CNT(...)  VA_ARGS_CNT_IMPL(__VA_ARGS__,9,8,7,6,5,4,3,2,1,_)
+#define VA_ARGS_CNT_IMPL(_1,_2,_3,_4,_5,_6,_7,_8,_9,N,...)  N
 
 
 #endif

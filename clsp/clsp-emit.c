@@ -18,8 +18,7 @@
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
-#include "clsp.h"      /* bootstrap all other dependencies */
+#include "clsp.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -32,8 +31,7 @@
 #include <inttypes.h>  /* PRIxPTR */
 #include <assert.h>
 
-#define USE_INT3_AS_BRK
-#include "trap.h"
+#include "clsp-emit.h"
 
 #define  GLOBALS(what)  (globals.what)
 
@@ -41,22 +39,87 @@
 /* compile options */
 
 // general
-#define DO_EXTRA_CHECKS              1
+#define DO_EXTRA_CHECKS              0
 #define USE_EXTENDED_TYPE_CMP        0
 #define SHOW_PSEUDO_INSNS            0
 
 // sparse
-#define DO_PROCEED_INTERNAL          0
+#define DO_PROCEED_ORIGIN            1
 #define DO_EXPAND_SYMBOL             1
 #define DO_PER_EP_UNSAA              1
 #define DO_PER_EP_SET_UP_STORAGE     1
 #define DO_SPARSE_FREE               1
 #define FIX_SPARSE_EXTRA_ARG_TO_MEM  1
 
-/* symbolic values */
 
-#define CLSP_SPARSE_INTERNAL_SYMS_FILE  "sparse-internal-symbols"
+/* a bit esoteric filename as emitted if DO_PROCEED_ORIGIN set */
+const char *const sparse_origin_file = "<meta-origin>";
 
+
+enum emit_props_internal {
+    /* internal use only (with per-file granularity) */
+    emit_file_meta        = emit_props_last << 1,
+    emit_file_expand_only = emit_file_meta  << 1
+};
+
+
+#define CST(op)      (&op->data.cst)
+#define CST_INT(op)  (&CST(op)->data.cst_int)
+#define CST_STR(op)  (&CST(op)->data.cst_string)
+#define CST_FNC(op)  (&CST(op)->data.cst_fnc)
+#define CST_REAL(op) (&CST(op)->data.cst_real)
+
+#define VAR(op)      (op->data.var)
+
+
+#define WITH_FILE_TO_EMIT(file, symref, expand_only)                  \
+    for (int i_=0; i_==0                                              \
+        ? (                                                           \
+          (sparse_origin_file == file                                 \
+            ? DLOG(d_file, _1(s)": " HIGHLIGHT("file") ": begin"      \
+                           " (various files may be involved)", file)  \
+            : DLOG(d_file, SPARSEPOSFMT_1 ": " HIGHLIGHT("file")      \
+                           ": begin (first symbol)",                  \
+                           SPARSEPOS((symref)->pos))),                \
+          expand_only ? (void) 0 : API_EMIT(file_open, file),         \
+          1                                                           \
+        ) : (                                                         \
+          expand_only ? (void) 0 : API_EMIT(file_close),              \
+          (sparse_origin_file == file                                 \
+            ? DLOG(d_file, _1(s)": " HIGHLIGHT("file") ": end", file) \
+            : DLOG(d_file, SPARSEPOSFMT_1 ": " HIGHLIGHT("file")      \
+                           ": end (last symbol)",                     \
+                           SPARSEPOS((symref)->endpos))),             \
+          0                                                           \
+        ) ; i_++)
+
+#define WITH_CALL_TO_EMIT(loc, dst, fnc)                \
+    for (int i_=0; 0==i_                                \
+         ? (API_EMIT(insn_call_open, loc, dst, fnc), 1) \
+         : (API_EMIT(insn_call_close),               0) \
+         ; i_++)
+
+#define WITH_SWITCH_TO_EMIT(loc, op)                \
+    for (int i_=0; 0==i_                            \
+         ? (API_EMIT(insn_switch_open, loc, op), 1) \
+         : (API_EMIT(insn_switch_close),         0) \
+         ; i_++)
+
+#define WITH_FNC_TO_EMIT(fnc)                                        \
+    for (int i_=0; 0==i_                                             \
+        ? (                                                          \
+          DLOG(d_fnc, CLPOSFMT_1 ": " HIGHLIGHT("fnc") ": begin "    \
+                      HIGHLIGHT(_4(s)),                              \
+                      CLPOS(CST_FNC(fnc)->loc), CST_FNC(fnc)->name), \
+          API_EMIT(fnc_open, fnc),                                   \
+          1                                                          \
+        ) : (                                                        \
+          API_EMIT(fnc_close),                                       \
+          DLOG(d_fnc, _1(s)":?:?: " HIGHLIGHT("fnc") ": end "        \
+                      HIGHLIGHT(_2(s)),                              \
+               CST_FNC(fnc)->loc.file, CST_FNC(fnc)->name),          \
+          0                                                          \
+        ) ; i_++)
 
 
 //
@@ -69,27 +132,15 @@
 // Warnings, failures handling
 //
 
-// TODO: pos
-#define WARN_UNHANDLED(pos, what) do { \
-    /*warn(pos, "warning: '%s' not handled", what);*/ \
-    fprintf(stderr, \
-            "%s:%d: note: raised from function '%s' [internal location]\n", \
-            __FILE__, __LINE__, __FUNCTION__); \
-} while (0)
+#define WARN_UNHANDLED(pos, what)                                          \
+    WARN("unhandled " HIGHLIGHT(_1(s)) "\n" SPARSEPOSFMT_2 ": note: here", \
+         what, SPARSEPOS(pos))
 
 #define WARN_UNHANDLED_SYM(sym) \
     WARN_UNHANDLED((sym)->pos, show_ident((sym)->ident))
 
-#define WARN_VA(pos, fmt, ...) do {\
-    /*warn(pos, "warning: " fmt, __VA_ARGS__);*/ \
-    fprintf(stderr, \
-            "%s:%d: note: raised from function '%s' [internal location]\n", \
-            __FILE__, __LINE__, __FUNCTION__); \
-} while (0)
-
 #define WARN_CASE_UNHANDLED(pos, what) \
     case what: WARN_UNHANDLED(pos, #what); break;
-
 
 
 //
@@ -121,22 +172,22 @@ ptr_string(const void *ptr)
 static void
 sparse_location(struct cl_loc *cl_loc, struct position pos)
 {
-    API_SPARSE(stream_name, /*out*/ cl_loc->file, /*int*/ pos.stream);
+    cl_loc->file   = SP(stream_name, pos.stream);
     cl_loc->line   = pos.line;
-    cl_loc->column = pos.pos;
+    cl_loc->column = pos.pos + 1;  /* sparse starts at column 0 */
     cl_loc->sysp   = /* not used by SPARSE */ false;
 }
 
 static void
 sparse_scope(enum cl_scope_e *cl_scope, struct scope *scope)
 {
-    if (!scope || scope == global_scope)
+    if (!scope || scope == SP(global_scope))
         *cl_scope = CL_SCOPE_GLOBAL;
-    else if (scope == file_scope)
+    else if (scope == SP(file_scope))
         *cl_scope = CL_SCOPE_STATIC;
-    else if (scope == function_scope)
+    else if (scope == SP(function_scope))
         CL_TRAP;
-    else if (scope == block_scope)
+    else if (scope == SP(block_scope))
         CL_TRAP;
     else
         // FIXME
@@ -153,12 +204,14 @@ sparse_string(const struct string *str)
 }
 
 static inline const char *
-sparse_ident(const struct ident *ident)
+sparse_ident(const struct ident *ident, const char *def)
 {/* Alternative:
   * show_ident (sparse/token.h)
   *     - cons: is debug about empty identifier string
   */
-    return (ident && ident->len) ? strndup(ident->name, ident->len) : NULL;
+    return (ident /*&& ident->len*/)
+            ? strndup(ident->name, ident->len)
+            : strdup(def ? def : "");
 }
 
 static struct symbol *
@@ -202,7 +255,7 @@ type_unwrap(const struct symbol *raw_type)
         retval = retval->ctype.base_type;
 
     /* important, otherwise some info may be missing */
-    examine_symbol_type(retval);
+    SP(examine_symbol_type, retval);
 
     return retval;
 }
@@ -239,7 +292,7 @@ read_and_append_subtype(struct cl_type *clt, struct symbol *subtype)
 {
     struct cl_type_item *subtype_item = type_append_item(clt);
     subtype_item->type = type_from_symbol(subtype, NULL);
-    subtype_item->name = sparse_ident(subtype->ident);
+    subtype_item->name = sparse_ident(subtype->ident, NULL);
 
     if (clt->code == CL_TYPE_STRUCT || clt->code == CL_TYPE_UNION)
         subtype_item->offset = subtype->offset;
@@ -274,7 +327,7 @@ read_type_array(struct cl_type *clt, const struct symbol *raw_symbol,
     int sub_size;
 
     //CL_TRAP;
-    //clt->name = sparse_ident(type->ident);
+    //clt->name = sparse_ident(type->ident, NULL);
 
     if (raw_symbol->type == SYM_NODE)
         // normalize size of the "outer" dimension as well as missing size
@@ -288,7 +341,7 @@ static inline void
 read_type_struct(struct cl_type *clt, const struct symbol *raw_symbol,
                  const struct symbol *type)
 {
-    clt->name = sparse_ident(type->ident);
+    clt->name = sparse_ident(type->ident, NULL);
     read_and_append_subtypes(clt, type->symbol_list);
 }
 
@@ -297,7 +350,7 @@ read_type_union(struct cl_type *clt, const struct symbol *raw_symbol,
                 const struct symbol *type)
 {
     //CL_TRAP;
-    clt->name     = sparse_ident(type->ident);
+    clt->name     = sparse_ident(type->ident, NULL);
     //TODO:
     read_and_append_subtypes(clt, type->symbol_list);
     //clt->item_cnt = /* TODO */ 0;
@@ -308,7 +361,7 @@ static inline void
 read_type_enum(struct cl_type *clt, const struct symbol *raw_symbol,
                const struct symbol *type)
 {
-    clt->name = sparse_ident(type->ident);
+    clt->name = sparse_ident(type->ident, NULL);
 }
 
 static struct cl_type *
@@ -353,6 +406,7 @@ read_type(struct cl_type *clt, const struct symbol *raw_symbol,
         TYPE_STD( ENUM          , ENUM   , read_type_enum        ),
 
         /* what about these? */
+        /* TODO restrict: fouled_bitwise.c */
         TYPE_IGN( TYPEDEF       ,        ,                       ),
         TYPE_IGN( TYPEOF        ,        ,                       ),
         TYPE_IGN( MEMBER        ,        ,                       ),
@@ -368,10 +422,9 @@ read_type(struct cl_type *clt, const struct symbol *raw_symbol,
 
     const struct type_conversion *conversion;
 
-    WITH_DEBUG_LEVEL(d_type) {
-        PUT(debug,"\t%d: type to be processed:", type->pos.line);
-        API_SPARSE(show_symbol, (struct symbol *) type);
-    }
+    DLOG(d_type, SPARSEPOSFMT_1 ": " HIGHLIGHT("type") ": handle "
+                 HIGHLIGHT(_4(s)),
+                 SPARSEPOS(type->pos), SP(show_typename, type));
 
     //assert(PARTIALLY_ORDERED( SYM_UNINITIALIZED , symbol->type , SYM_BAD ));
     conversion = &type_conversions[type->type];
@@ -388,7 +441,7 @@ read_type(struct cl_type *clt, const struct symbol *raw_symbol,
         case CL_TYPE_UNKNOWN:
             CL_TRAP;
             WARN_UNHANDLED(type->pos, conversion->prop.string);
-            clt->name = strdup(API_SPARSE(show_typename, (struct symbol *)type));
+            clt->name = strdup(SP(show_typename, (struct symbol *)type));
             return clt;
         default:
             break;
@@ -432,8 +485,7 @@ prepare_type_array_ptr(const struct symbol *raw_symbol,
         if (i == prev->arr_cnt) {
             // not found
             // 2x guaranteed to continue only in case of success
-            MEM_ARR_APPEND(prev->arr, prev->arr_cnt);
-            MEM_NEW(prev->arr[i]);
+            NORETWRN(MEM_NEW(*(MEM_ARR_APPEND(prev->arr, prev->arr_cnt))));
             prev->arr[i]->arr_size = size;
             prev->arr[i]->clt = NULL;
         }
@@ -543,13 +595,6 @@ type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
 // operands handling
 //
 
-#define CST(op)      (&op->data.cst)
-#define CST_INT(op)  (&CST(op)->data.cst_int)
-#define CST_STR(op)  (&CST(op)->data.cst_string)
-#define CST_FNC(op)  (&CST(op)->data.cst_fnc)
-#define CST_REAL(op) (&CST(op)->data.cst_real)
-
-#define VAR(op)      (op->data.var)
 
 /* Sparse operands = pseudos */
 
@@ -693,10 +738,11 @@ static inline struct cl_operand *
 op_make_cst_fnc(struct cl_operand *op, const struct symbol *sym)
 {
     op_make_cst(op);
+    sparse_location(&CST_FNC(op)->loc, sym->pos);
 
     op->type               = type_from_symbol(sym, NULL);
     CST(op)->code          = CL_TYPE_FNC;
-    CST_FNC(op)->name      = sparse_ident(sym->ident);
+    CST_FNC(op)->name      = sparse_ident(sym->ident, "<anon-fnc>");
     CST_FNC(op)->is_extern = MOD_EXTERN & sym->ctype.modifiers;
     CST_FNC(op)->uid       = (int)(long) sym;
 
@@ -729,7 +775,7 @@ op_make_cst_real(struct cl_operand *op, double value)
 
 // TODO: make it accepting const char *
 static inline struct cl_operand *
-op_make_cst_string(struct cl_operand *op, struct expression *expr)
+op_make_cst_string(struct cl_operand *op, const struct expression *expr)
 {
     op_make_cst(op);
 
@@ -750,30 +796,47 @@ op_make_var(struct cl_operand *op)
     MEM_NEW(VAR(op));  // guaranteed to continue only in case of success
 
     // initialize pointers checked by freeing helper
-    VAR(op)->name       = NULL;
-    VAR(op)->initial    = NULL;
-    VAR(op)->artificial = true;
+    VAR(op)->name        = NULL;
+    VAR(op)->initial     = NULL;
+    VAR(op)->artificial  = true;
+    VAR(op)->initialized = false;
 
     // guaranteed not to return NULL
     return VAR(op);
 }
 
-static struct cl_operand *
-op_use_initializer(struct cl_operand *op, struct expression *expr)
-{
-    if (!expr) {
-        CL_TRAP;
-        return op;
-    }
-
-    //CL_TRAP;
+static inline struct cl_operand *
+op_from_expression(struct cl_operand *op /*, const struct instruction *insn*/,
+                   const struct expression *expr)
+{/* Synopsis:
+  * sparse/linearize.c: show_instruction: case OP_SETVAL
+  * sparse/show-parse.c: show_expression
+  *
+  * Problems/exceptions/notes:
+  * FIXME: currently only EXPR_FVALUE handled
+  */
+    // !!TODO: simplify/API change
     switch (expr->type) {
+        case EXPR_INITIALIZER:
+            /*
+                seems to be ok doing nothing (initialization is also
+                explicit in the form of instructions modifying memory,
+                or maybe we should iterate over expr->expr_list to find
+                out more
+            */
+            return NULL;
         case EXPR_STRING:
             return op_make_cst_string(op, expr);
+        case EXPR_VALUE:
+            return op_make_cst_int(op, /*XXX: from long double */
+                                        (double) expr->value);
+        case EXPR_FVALUE:
+            return op_make_cst_real(op, /*XXX: from long double */
+                                        (double) expr->fvalue);
         default:
             CL_TRAP;
-            return op;
     }
+    return op_make_void(op);
 }
 
 static struct cl_operand *
@@ -789,18 +852,17 @@ op_from_symbol_base(struct cl_operand *op, struct symbol *sym)
         return op_make_cst_fnc(op, sym);
 
     // string literal
-    if (!sym->ident)
-        return op_use_initializer(op, sym->initializer);
+    //if (!sym->ident)
+    if (sym->initializer)
+        if (op_from_expression(op, sym->initializer))
+            return op;
 
     op->type = type_from_symbol(sym, NULL);
 
     struct cl_var *var = op_make_var(op);
     var->uid        = (int)(long) sym;
-    var->name       = sparse_ident(sym->ident);
-    var->artificial = false;
-#if DO_EXTRA_CHECKS
-    assert(var->name);
-#endif
+    var->name       = sparse_ident(sym->ident, NULL);
+    var->artificial = var->name ? true : false;
 
     return op;
 }
@@ -887,27 +949,6 @@ op_from_pseudo(struct cl_operand *op, const struct instruction *insn,
             CL_TRAP;
             return op;
     }
-}
-
-static inline struct cl_operand *
-op_from_expression(struct cl_operand *op, const struct instruction *insn,
-                   const struct expression *expr)
-{/* Synopsis:
-  * sparse/linearize.c: show_instruction: case OP_SETVAL
-  * sparse/show-parse.c: show_expression
-  *
-  * Problems/exceptions/notes:
-  * FIXME: currently only EXPR_FVALUE handled
-  */
-    // !!TODO: simplify/API change
-    switch (expr->type) {
-        case EXPR_FVALUE:
-            return op_make_cst_real(op, /*XXX: from long double */
-                                        (double) expr->fvalue);
-        default:
-            CL_TRAP;
-    }
-    return op_make_void(op);
 }
 
 static struct cl_accessor *
@@ -1035,6 +1076,9 @@ op_accessible(const struct cl_operand *op)
 {/* Problems/exceptions/notes:
   * None.
   */
+    if (op->code == CL_OPERAND_VOID)
+        return false;
+
     switch (op->type->code) {
         case CL_TYPE_STRUCT:
         case CL_TYPE_UNION:
@@ -1351,8 +1395,8 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
         API_EMIT(insn, cli);
 #if FIX_SPARSE_EXTRA_ARG_TO_MEM
     else
-        WARN_VA(insn->pos, "instruction omitted: %s",
-                show_instruction((struct instruction *) insn));
+        WARN("instruction omitted: " HIGHLIGHT(_1(s)),
+             show_instruction((struct instruction *) insn));
 #endif
 
     op_free_data(&op_lhs);
@@ -1424,15 +1468,17 @@ handle_insn_cast(struct cl_insn *cli, const struct instruction *insn)
   *     insn->src
   *     insn->type
   *     insn->orig_type
+  *     insn->size (?)
   *
   * Problems/exceptions/notes:
   * May end up with with emitting CL_BINOP_BIT_AND when casting "smaller"
   * type to "bigger" type (currently, for bitfields only) to be sure we get
   * rid of unwanted garbage (e.g., data from the next bitfield item).
   */
-    if (insn->orig_type->bit_size == insn->type->bit_size)
+    if (insn->orig_type->bit_size <= insn->type->bit_size) {
         handle_insn_copy(cli, insn);
-    else if (insn->orig_type->bit_size < insn->type->bit_size
+        return true;
+    } else if (insn->orig_type->bit_size < insn->type->bit_size
              && insn->orig_type->ctype.base_type->type == SYM_BITFIELD) {
         // we have to apply CL_BINOP_BIT_AND on `insn->src' using mask
         // (currently of int size XXX?) with additional higher bits zeroed
@@ -1495,7 +1541,7 @@ handle_insn_setval(struct cl_insn *cli, const struct instruction *insn)
     struct cl_operand dst, src;
 
     cli->data.insn_unop.dst = op_from_pseudo(&dst, insn, insn->target);
-    cli->data.insn_unop.src = op_from_expression(&src, insn, insn->val);
+    cli->data.insn_unop.src = op_from_expression(&src, /*insn,*/ insn->val);
 
     API_EMIT(insn, cli);
 
@@ -1648,7 +1694,7 @@ handle_insn_br(struct cl_insn *cli, const struct instruction *insn)
 
     op_from_pseudo(&op, insn, insn->cond);
     emit_insn_cond(cli, &op,
-                   PTR_STRING(insn->bb_true), PTR_STRING(insn->bb_true));
+                   PTR_STRING(insn->bb_true), PTR_STRING(insn->bb_false));
 
     op_free_data(&op);
     return true;
@@ -1673,9 +1719,9 @@ handle_insn_sel(struct cl_insn *cli, const struct instruction *insn)
     struct cl_operand op_cond;
 
     // local BB labels
-    char const*const bb_label_true  = PTR_STRING(((char *) insn) + 0);
-    char const*const bb_label_false = PTR_STRING(((char *) insn) + 1);
-    char const*const bb_label_merge = PTR_STRING(((char *) insn) + 2);
+    const char *const bb_label_true  = PTR_STRING(((char *) insn) + 0);
+    const char *const bb_label_false = PTR_STRING(((char *) insn) + 1);
+    const char *const bb_label_merge = PTR_STRING(((char *) insn) + 2);
 
     // cond instruction
     op_from_pseudo(&op_cond, insn, insn->src1);
@@ -1901,7 +1947,7 @@ handle_insn(struct instruction *insn)
         INSN_UNI( SCAST           , ASSIGN              , handle_insn_cast   ),
         INSN_IGN( FPCAST          , ASSIGN /*not sure*/ , handle_insn_copy   ),
         INSN_UNI( PTRCAST         , ASSIGN              , handle_insn_ptrcast),
-        INSN_IGN( INLINED_CALL    ,                     ,                    ),
+        INSN_STD( INLINED_CALL    , NOP /*another way*/ , handle_insn_call   ),
         INSN_STD( CALL            , NOP /*another way*/ , handle_insn_call   ),
         INSN_IGN( VANEXT          ,                     ,                    ),
         INSN_IGN( VAARG           ,                     ,                    ),
@@ -1913,6 +1959,7 @@ handle_insn(struct instruction *insn)
         INSN_IGN( ASM             ,                     ,                    ),
 
         /* Sparse tagging (line numbers, context, whatever) */
+        // TODO CONTEXT -> skip/ignore
         INSN_IGN( CONTEXT         ,                     ,                    ),
         INSN_IGN( RANGE           ,                     ,                    ),
 
@@ -1927,9 +1974,9 @@ handle_insn(struct instruction *insn)
     struct cl_insn cli;
     const struct insn_conversion *conversion;
 
-    WITH_DEBUG_LEVEL(d_instruction)
-        PUT(debug,"\t%d: instruction to be processed: %s",
-            insn->pos.line, API_SPARSE(show_instruction, insn));
+    DLOG(d_instruction, SPARSEPOSFMT_1 ": " HIGHLIGHT("insn") ": \n\t"
+                        HIGHLIGHT(_4(s)),
+                        SPARSEPOS(insn->pos), SP(show_instruction, insn));
 
     //assert(PARTIALLY_ORDERED( OP_BADOP , insn->opcode , OP_COPY ));
     conversion = &insn_conversions[insn->opcode];
@@ -1939,6 +1986,7 @@ handle_insn(struct instruction *insn)
 
     switch (conversion->insn_code) {
         case CL_INSN_ABORT:
+            CL_TRAP;
             WARN_UNHANDLED(insn->pos, conversion->prop.string);
             return true;
         case CL_INSN_UNOP:
@@ -1974,7 +2022,7 @@ static bool handle_bb_insn(struct instruction *insn)
 
     if (!insn->bb) {
 #if SHOW_PSEUDO_INSNS
-        WARN_VA(insn->pos, "ignoring pseudo: %s", show_instruction(insn));
+        WARN("ignoring pseudo: %s", show_instruction(insn));
 #endif
         return true;
     }
@@ -2039,23 +2087,23 @@ static void handle_fnc_ep(struct entrypoint *ep)
 static void handle_fnc_body(struct symbol *sym)
 {
     struct entrypoint *ep;
-    API_SPARSE(linearize_symbol, /*out*/ep, /*in*/sym);
+    SP(linearize_symbol, /*out*/ep, /*in*/sym);
     if (!ep)
         CL_TRAP;
 
-#if DO_PER_EP_UNSAA
-    API_SPARSE(unssa, ep);
+#if DO_PER_EP_SET_UP_STORAGE
+    SP(set_up_storage, ep);
 #endif
 
-#if DO_PER_EP_SET_UP_STORAGE
-    API_SPARSE(set_up_storage, ep);
+#if DO_PER_EP_UNSAA
+    SP(unssa, ep);
 #endif
 
     handle_fnc_ep(ep);
 
 #if DO_PER_EP_SET_UP_STORAGE
     // no switch, vrfy_storage uses printf anyway
-    API_SPARSE(free_storage);
+    SP(free_storage);
 #endif
 }
 
@@ -2099,85 +2147,174 @@ static void handle_sym_fn(struct symbol *sym)
     WARN_UNHANDLED_SYM(sym);
 }
 
-static void handle_top_level_sym(struct symbol *sym)
+static void consider_symbol(struct symbol *sym)
 {
     struct symbol *base_type;
 
-    if (!sym)
+    assert(sym);
+
+    WITH_DEBUG_LEVEL(d_symbol) {
+        PUT(debug, SPARSEPOSFMT_1 ": " HIGHLIGHT("sym") ": begin "
+                   HIGHLIGHT(_4(s)), SPARSEPOS(sym->pos),
+                   sym->ident ? sym->ident->name : "<anon-sym>");
+        SP(show_symbol, sym);
+    }
+
+    if (!sym) {
+        WARN(HIGHLIGHT("no symbol"));
         return;
+    }
 
     base_type = sym->ctype.base_type;
-    if (!base_type)
+    if (!base_type) {
+        WARN(HIGHLIGHT("no base type"));
         return;
+    }
 
     switch (base_type->type) {
         WARN_CASE_UNHANDLED(sym->pos, SYM_UNINITIALIZED)
         WARN_CASE_UNHANDLED(sym->pos, SYM_PREPROCESSOR)
-        WARN_CASE_UNHANDLED(sym->pos, SYM_BASETYPE)
         WARN_CASE_UNHANDLED(sym->pos, SYM_NODE)
-        WARN_CASE_UNHANDLED(sym->pos, SYM_PTR)
-        WARN_CASE_UNHANDLED(sym->pos, SYM_ARRAY)
-        WARN_CASE_UNHANDLED(sym->pos, SYM_STRUCT)
-        WARN_CASE_UNHANDLED(sym->pos, SYM_UNION)
         WARN_CASE_UNHANDLED(sym->pos, SYM_ENUM)
         WARN_CASE_UNHANDLED(sym->pos, SYM_TYPEDEF)
         WARN_CASE_UNHANDLED(sym->pos, SYM_TYPEOF)
         WARN_CASE_UNHANDLED(sym->pos, SYM_MEMBER)
         WARN_CASE_UNHANDLED(sym->pos, SYM_BITFIELD)
         WARN_CASE_UNHANDLED(sym->pos, SYM_LABEL)
-        WARN_CASE_UNHANDLED(sym->pos, SYM_RESTRICT)
         WARN_CASE_UNHANDLED(sym->pos, SYM_FOULED)
         WARN_CASE_UNHANDLED(sym->pos, SYM_KEYWORD)
         WARN_CASE_UNHANDLED(sym->pos, SYM_BAD)
 
+
+        WARN_CASE_UNHANDLED(sym->pos, SYM_RESTRICT)
+        WARN_CASE_UNHANDLED(sym->pos, SYM_BASETYPE)
+
+        WARN_CASE_UNHANDLED(sym->pos, SYM_PTR)
+
+        WARN_CASE_UNHANDLED(sym->pos, SYM_ARRAY)
+        WARN_CASE_UNHANDLED(sym->pos, SYM_STRUCT)
+        WARN_CASE_UNHANDLED(sym->pos, SYM_UNION)
+
         case SYM_FN:
             handle_sym_fn(sym);
             break;
+
     }
 
     if (sym->initializer)
         WARN_UNHANDLED(sym->pos, "sym->initializer");
+
+
+    WITH_DEBUG_LEVEL(d_symbol)
+        PUT(debug, SPARSEPOSFMT_1 ": " HIGHLIGHT("sym") ": end "
+                   HIGHLIGHT(_4(s)), SPARSEPOS(sym->endpos),
+                   sym->ident ? sym->ident->name : "<anon-sym>");
 }
 
-static void
-proceed_symbols(struct symbol_list *list)
+/**
+    Consider available symbols for emitting.
+
+    @param[in] symlist     Symbols to be considered
+    @param[in] file        Respective file (NULL for symbols expansion only)
+    @param[in] emit_props  OR'ed @c emit_props and @c emit_props_internal
+                           enumerations values
+    @return    False means stop due to the detected error, true the opposit
+    @note  The caller should clear @c die_if_error before subsequently
+           calling @c sparse function (which may set it back again, or not)
+ */
+static inline int
+consider_symbols(struct symbol_list *symlist, const char *file, int emit_props)
 {
+    int ret = 0;
+    bool expand_only;
     struct symbol *sym;
 
-    FOR_EACH_PTR(list, sym) {
+    /* only if no error detected when parsing the file (or we try harder)
+       and provided that there are some symbols to proceed */
+    if (!ptr_list_empty(symlist)
+      && (!SP(die_if_error) || emit_props & emit_try_hard)) {
 
+        if (SP(die_if_error))
+            PUT(err, _1(s)": sparse-roundtrip: allegedly defective, but trying...",
+                     file);
+
+        expand_only = (emit_props & emit_file_expand_only);
+        sym = SP(first_ptr_list, symlist);  /* look ahead */
+
+        WITH_FILE_TO_EMIT(file, sym, expand_only)
+            FOR_EACH_PTR(symlist, sym) {
 #if DO_EXPAND_SYMBOL
-        API_SPARSE(expand_symbol, sym);
+                SP(expand_symbol, sym);
 #endif
+                if (!expand_only) {
+                    /*
+                        assert the symbol comes from the file being considered
 
-        handle_top_level_sym(sym);
-    } END_FOR_EACH_PTR(sym);
+                        input_stream_nr-2 as (only if files run sequentially):
+                        * input_stream_nr   = not allocated yet
+                        * input_stream_nr-1 = "preprocess" for that file
+                        * input_stream_nr-2 = the file being proceeded itself
+                    */
+                    assert(sym->pos.stream == SP(input_stream_nr)-2
+                           || emit_props & emit_file_meta);
+                    consider_symbol(sym);
+                }
+            } END_FOR_EACH_PTR(sym);
+    }
+
+    /* may be set even if it wasn't at the beginning */
+    if (SP(die_if_error)) {
+        if (!(emit_props & emit_keep_going)) {
+            PUT(err, _1(s)": sparse-roundtrip: allegedly defective,"
+                     " time to stop", file);
+            ret = -1;
+        } else {
+            PUT(err, _1(s)": sparse-roundtrip: allegedly defective,"
+                     " continuing though", file);
+            ret = 1;
+        }
+    }
+
+    return ret;
 }
 
 
-/* see clsp.h */
-void
-proceed(struct string_list *filelist, struct symbol_list *symlist)
+/* see clsp_emit.h */
+enum retval
+emit(struct string_list *filelist, struct symbol_list *symlist, int emit_props)
 {
+    int errors = 0, files = 0, origin_props;
     char *file;
 
-#if DO_PROCEED_INTERNAL
-    /* internal symbols */
-    WITH_FILE_TO_EMIT(SPARSE_INTERNAL_SYMS_FILE)
-        proceed_symbols(symlist);
+    /*
+        just for a (strange) case the initial includes defined functions;
+        if DO_PROCEED_ORIGIN compile-time option is set, do emit them as well
+     */
+    origin_props = emit_props | emit_file_meta;
+#if !DO_PROCEED_ORIGIN
+    origin_props |= emit_file_skip;
+#else
+    ++files;
 #endif
+    errors += consider_symbols(symlist, sparse_origin_file, origin_props);
+    if (0 > errors)
+        return ret_fail;
 
-    /* the rest, file by file */
+    /* regular input files proceeding */
+
     FOR_EACH_PTR_NOTAG(filelist, file) {
-        WITH_DEBUG_LEVEL(d_file)
-            PUT(debug, "about to proceed '%s'...\n", file);
-        WITH_FILE_TO_EMIT(file) {
-            API_SPARSE(sparse, /*out*/symlist, /*in*/file);
-            proceed_symbols(symlist);
-        }
+        SP(die_if_error) = 0;
+        SP(sparse, /*out*/symlist, /*in*/file);
+
+        errors += consider_symbols(symlist, file, emit_props);
+        if (0 > errors)
+            return ret_fail;
+        ++files;
     } END_FOR_EACH_PTR_NOTAG(file);
 
-#if DO_SPARSE_FREE
-    free(input_streams);
-#endif
+    if (1 < errors)
+        PUT(err, _1(s)": sparse-roundtrip: last file proceeded, "_2(d)"/"_3(d)
+                 " files allegedly defective", file, errors, files);
+
+    return errors ? ret_bye : ret_continue;
 }
