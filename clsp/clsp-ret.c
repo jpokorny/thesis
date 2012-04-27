@@ -17,9 +17,9 @@
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "clsp-enum-ec.h"
+#include "clsp-ret.h"
 
-const char *ec_str[ec_last] = {
+const char *const ec_str[ec_cnt] = {
 #define X(num,name,desc)  [ec_##name] = desc,
     ECLIST(X)
 #undef X

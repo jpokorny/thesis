@@ -27,7 +27,6 @@
 #include "clsp-options.h"
 #include "clsp-version.h"
 #include "clsp-defaults.h"
-#include "clsp-output.h"     /* GET_YN */
 #include "clsp-emit.h"       /* enum emit_props */
 #include "clsp-api-sparse.h" /* SPARSE_OPT_PP */
 
@@ -50,12 +49,6 @@
 #define PREFIX_(isbin,prefix)  prefix
 
 
-static const char *d_str[d_last] = {
-#define X(name,desc)  [d_##name] = desc,
-    DLIST(X)
-#undef X
-};
-
 
 /* command-line arguments used internally are exchanged for this */
 static const char *const empty = "";
@@ -70,7 +63,7 @@ static const char *const empty = "";
     @todo  More checks.
  */
 static inline int
-get_positive_num(const char *what, const char *value)
+get_nonnegative_num(const char *what, const char *value)
 {
     if (!isdigit(value[0]))
         DIE( ECODE(OPT,"option %s: not a numeric value: %s",what,value) );
@@ -96,9 +89,9 @@ get_fd(const char *what, const char *value, bool accept_deferred)
         if (value[1] == '\0')
             return fd_deferred_unspec;
         else
-            return -get_positive_num(what, &value[1]);
+            return -get_nonnegative_num(what, &value[1]);
     }
-    return get_positive_num(what, value);
+    return get_nonnegative_num(what, value);
 }
 
 /**
@@ -124,10 +117,11 @@ get_palette(const char *what, const char *value)
     clr = &palette.high;
 
     if (':' == *idx) {
+        PUT(err, "FOUND");
         ++idx;
 #define X(norm, high, code)                            \
-    if (!strncmp(idx, #high, CONST_STRLEN(#high))) {   \
-        *clr = clr_##high; idx += CONST_STRLEN(#high); \
+    if (!strncmp(idx, #norm, CONST_STRLEN(#norm))) {   \
+        *clr = clr_##norm; idx += CONST_STRLEN(#norm); \
     } else
         CLRLIST(X) /*else*/ DIE( ECODE(OPT,"option %s: unknown color",what) );
 #undef X
@@ -165,19 +159,21 @@ print_help(const char *cmd)
 #define ___          ""
 #define L(lo, cmt)   PUT(out, "  "_1(-28s)_2(s), PREFIX(LONG) lo, cmt);
 #define S(so, cmt)   PUT(out, "  "_1(-28s)_2(s), PREFIX(SHORT) so, cmt);
-#define I(ign, cmt)  PUT(out, "  "_1(-28s)_2(s), ign, cmt);
+#define I(ign, cmt)  PUT(out, "  "_1(-28s)_2(s), "", cmt);
 #define B(so, lo, cmt) \
     PUT(out, "  "_1(-28s)_2(s), PREFIX(SHORT) so ", " PREFIX(LONG) lo, cmt);
 #define C(co, cmt)   PUT(out, "  "_1(-28s)_2(s), PREFIX(CL) co, cmt);
 #define V(v, cmt)    PUT(out, _1(8d)"                      "_2(s), v, cmt);
 #define X(stmt)      stmt
 #define O(cmt)       PUT(out, "  |: " _1(-71s) " :|", cmt);
+#define DFD          DEF_OUTSTREAM_FD_STR
+#define DPLT         DEF_OUTSTREAM_PALETTE_STR
     char buf[1024], *ptr = buf;
     int i,j;
     NORETWRN(setvbuf(STREAM(out), NULL, _IOFBF, 0));  /* flush block later */
     _("Sparse-based Code Listener frontend, version "_1(s)            ,GIT_SHA1)
     __                                                                         ;
-    _("usage: "_1(s)" (INT-OPTS|CL-OPTS-OR-PLUGIN|SPARSE-OPTS)* file [...]",cmd)
+    _("Usage: "_1(s)" (INT-OPTS|CL-OPTS-OR-PLUGIN|SPARSE-OPTS)* file [...]",cmd)
     __                                                                         ;
 #ifndef HAS_CL
     _("As no Code Listener plugin was built-in (no one to serve as a base one" )
@@ -192,29 +188,30 @@ print_help(const char *cmd)
     B("k", "keep-going"    , "Defect file does not end the run, it is skipped" )
     B("t", "try-hard"      , "Make best effort to proceed even defective file" )
     B("n", "dry-run"       , "Skip the final confirmation of emitted code"     )
+    B("i", "interactive"   , "Simple interactive mode, instruction granularity")
     B("E", "preprocessor"  , "Terminate showing output of sparse preprocessor" )
     O("file descriptors, use FD>file redirection for FD > 2, empty/0:/dev/null")
     O("sparse: `D[FD]' for output to optional FD (none=stderr) to be deferred" )
-    L("fd-warn[=FD]"       , "Abnormalities warnings ["DEF_FD_STR(WARN)"]"     )
-    L("fd-debug[=FD]"      , "Debugging (if enabled) ["DEF_FD_STR(DEBUG)"]"    )
-    L("fd-sp[=FD]"         , "Sparse warnings/errors ["DEF_FD_STR(SPARSE)"]"   )
-    L("fd-cl[=FD]"         , "CL standard messages   ["DEF_FD_STR(CL)"]"       )
-    I(___                  , "(fatal errors are always produced on stderr)"    )
-    L("fd-cl-debug[=FD]"   , "CL debug messages      ["DEF_FD_STR(CL_DEBUG)"]" )
-    O("specification of colors (terminal only), empty or 'none' for no color;" )
+    O("note:   fatal errors are always produced on stderr"                     )
+    L("fd-debug[=FD]"      , "Debugging (incl. entities)    ["DFD(DEBUG)"]"    )
+    L("fd-sp[=FD]"         , "Sparse defect reports         ["DFD(SP)"]"       )
+    L("fd-cl[=FD]"         , "CL notes/warnings/errors      ["DFD(CL)"]"       )
+    L("fd-cl-debug[=FD]"   , "CL debug messages             ["DFD(CL_DEBUG)"]" )
+    L("fd-warn[=FD]"       , "Unexpected int. state reports ["DFD(WARN)"]"     )
+    O("specification of colors (terminal only), empty or 'default': no color;" )
     O("CLR format: NORMAL-CLR[:HIGHLIGHT-CLR] (latter autoselected otherwise)" )
-    L("clr-warn[=CLR]"     , "Abnormalities warnings ["DEF_PLT_STR(WARN)"]"    )
-    L("clr-debug[=CLR]"    , "Debugging (if enabled)   ["DEF_PLT_STR(DEBUG)"]" )
-    L("clr-sp[=CLR]"       , "Sparse defects/entities["DEF_PLT_STR(SP)"]"      )
-    L("clr-cl[=CLR]"       , "CL standard messages   ["DEF_PLT_STR(CL)"]"      )
-    L("clr-cl-debug[=CLR]" , "CL debug messages      ["DEF_PLT_STR(CL_DEBUG)"]")
+    L("clr-debug[=CLR]"    , "Debugging (excl. entities)    ["DPLT(DEBUG)"]"   )
+    L("clr-sp[=CLR]"       , "Sparse defects:debug entities ["DPLT(SP)"]"      )
+    L("clr-cl[=CLR]"       , "CL notes+warnings:errors      ["DPLT(CL)"]"      )
+    L("clr-cl-debug[=CLR]" , "CL debug messages:entities    ["DPLT(CL_DEBUG)"]")
+    L("clr-warn[=CLR]"     , "Unexpected int. state reports ["DPLT(WARN)"]"    )
     X(for (i=0             ;                           i < (clr_last-1)/8; i++))
     X(for (j=0, *ptr++='\n'; j <= ((clr_last-j)/8-i ? 7 : (clr_last-2)%8); j++))
-    X(ptr+=snprintf(ptr,sizeof(buf)+buf-ptr,"%s%-10s%s",CLR_PRINTARG(i*8+j+1));)
+    X(ptr+=snprintf(ptr,sizeof(buf)+buf-ptr,"%s%-10s%s",CLR_PRINTARG(i*8+j+2));)
     X(*ptr = '\0'          ;                         ptr = buf; _(_1(s),++ptr);)
-    B("d", "debug[=MASK]"  , "Internal debug; selectively with MASK, see below")
-    X(for (i = d_first     ;                                   i < d_last; i++))
-    V(DVALUE(i)            ,                                           d_str[i])
+    B("d", "debug[=MASK]"  , "Internal debug; MASK can be sum of values below:")
+    X(for (i = debug_first ;                              debug_last >= i; i++))
+    V(DVALUE(i)            ,                                       debug_str[i])
     __                                                                         ;
     _("From the options affecting CL infrastructure (CL-OPTS-OR-PLUGIN), one"  )
     _("particularly important is a way to load other listeners as plugins:"    )
@@ -239,7 +236,7 @@ print_help(const char *cmd)
     C("gen-cfg[=MAIN_FILE]", "Generate control flow graphs (as per MAIN_FILE)" )
     C("gen-type[=FILE]"    , "Generate type graphs (to FILE if specified)"     )
     C("debug-location"     , "Keep printing location along the run"            )
-    C("debug-level[=LEVEL]", "Debug (according to LEVEL if specified)"         )
+    C("debug[=LEVEL]"      , "Debug (according to LEVEL if specified)"         )
     __                                                                         ;
     _("Sparse options (SPARSE-OPTS) are generally compatible with the common"  )
     _("compilers (notably GCC) and unrecognized options are ignored anyway;"   )
@@ -248,13 +245,16 @@ print_help(const char *cmd)
     S("m64"                , "Suppose 64bit architecture (32bit by default)"   )
     S("W[no[-]]WARNING"    , "Request/not to report WARNING-related issues;"   )
     I(___                  , "`sparse-all' covers all available warnings"      )
+    S("ftabstop"           , "Tab stop size to calculate column position [8]"  )
     __                                                                         ;
     _("Tip:bash completion: eval \"$("_1(s)" "_2(s)")\"",cmd,PREFIX(LONG)"bash")
     __                                                                         ;
-    _("Return values:")    ;            for (int i = ec_first; i < ec_last; i++)
+    _("Return values:")    ;           for (int i = ec_first; ec_last >= i; i++)
     V(ECVALUE(i)           ,                                          ec_str[i])
     NORETWRN(fflush(STREAM(out)));
     /* about to exit, thus not bothering with buffering restoration */
+#undef DPLT
+#undef DFD
 #undef O
 #undef X
 #undef V
@@ -279,18 +279,20 @@ print_help(const char *cmd)
     APPLY(x, LONG,  try-hard)            \
     APPLY(x, SHORT, n)                   \
     APPLY(x, LONG,  dry-run)             \
+    APPLY(x, SHORT, i)                   \
+    APPLY(x, LONG,  interactive)         \
     APPLY(x, SHORT, E)                   \
     APPLY(x, LONG,  preprocessor)        \
-    APPLY(x, LONG,  fd-warn)             \
     APPLY(x, LONG,  fd-debug)            \
     APPLY(x, LONG,  fd-sp)               \
     APPLY(x, LONG,  fd-cl)               \
     APPLY(x, LONG,  fd-cl-debug)         \
-    APPLY(x, LONG,  clr-warn)            \
+    APPLY(x, LONG,  fd-warn)             \
     APPLY(x, LONG,  clr-debug)           \
     APPLY(x, LONG,  clr-sp)              \
     APPLY(x, LONG,  clr-cl)              \
     APPLY(x, LONG,  clr-cl-debug)        \
+    APPLY(x, LONG,  clr-warn)            \
     APPLY(x, SHORT, d)                   \
     APPLY(x, LONG,  debug)               \
     APPLY(x, CL,    plugin)              \
@@ -301,15 +303,16 @@ print_help(const char *cmd)
     APPLY(x, CL,    gen-cfg)             \
     APPLY(x, CL,    gen-type)            \
     APPLY(x, CL,    debug-location)      \
-    APPLY(x, CL,    debug-level)         \
+    APPLY(x, CL,    debug)               \
     APPLY(x, SHORT, v)                   \
-    APPLY(x, SHORT, m64)
+    APPLY(x, SHORT, m64)                 \
+    APPLY(x, SHORT, ftabstop)
 
 static void
 print_completion_bash(const char *cmd)
 {
-#define X1(type, name)        PREFIX(type) STRINGIFY(name) " "
-#define X2(norm, high, code)  STRINGIFY(norm) " "
+#define X1(type, name)        " \\\n" PREFIX(type) STRINGIFY(name)
+#define X2(norm, high, code)  " \\\n" STRINGIFY(norm)
 
     /* (POSIX) basename may modify in-place which is not desired */
     char *copy = strdup(cmd);
@@ -355,9 +358,11 @@ complete -o plusdirs -F _clsp \""_1(s)"\"\n\
 
 
 /* convenient shortcuts (expects using "opts" for "struct options *") */
-#define INTERNALS(what)  (opts->internals.what)
-#define CL(what)         (opts->cl.what)
-#define SPARSE(what)     (opts->sparse.what)
+#define INTERNALS(what)   (opts->internals.what)
+#define OUTSTREAM(which)  OUTSTREAM_RAW(outstream_##which)
+#define OUTSTREAM_RAW(which)  (opts->outstreams[which - outstream_last_base])
+#define CL(what)          (opts->cl.what)
+#define SPARSE(what)      (opts->sparse.what)
 
 
 /**
@@ -368,22 +373,17 @@ options_initialize(struct options *opts)
 {
     opts->finalized = false;
 
-    INTERNALS(emit_props) = emit_vanilla;
-    INTERNALS(fd) = (struct oi_fd) {
-        .warn     = DEF_FD_VAL(WARN),
-        .debug    = DEF_FD_VAL(DEBUG),
-        .sp       = DEF_FD_VAL(SPARSE),
-        .cl       = DEF_FD_VAL(CL),
-        .cl_debug = DEF_FD_VAL(CL_DEBUG),
+    INTERNALS(emit_props) = emit_vanilla /*| emit_skip_origin */;
+
+#define X(name, fdnum, nnorm, nhigh, ncode, hnorm, hhigh, hcode) \
+    OUTSTREAM(name) = (struct outstream_props) {                 \
+        .fd = fdnum,                                             \
+        .palette = PALETTE(nnorm, hnorm)                         \
     };
-    INTERNALS(clr) = (struct oi_clr) {
-        .warn      = DEF_PLT(WARN),
-        .debug     = DEF_PLT(DEBUG),
-        .sp        = DEF_PLT(SP),
-        .cl        = DEF_PLT(CL),
-        .cl_debug  = DEF_PLT(CL_DEBUG),
-    };
-    INTERNALS(debug) = 0;
+    DEF_OUTSTREAMLIST(X)
+#undef X
+
+    INTERNALS(debug)   = 0;
 
     CL(listeners.cnt)  = 0;
     CL(listeners.arr)  = NULL;
@@ -391,7 +391,7 @@ options_initialize(struct options *opts)
     CL(pprint.enable)  = false;
     CL(gencfg.enable)  = false;
     CL(gentype.enable) = false;
-    CL(debug) = (struct oc_debug) { .location=false, .level=0 };
+    CL(debug)          = (struct oc_debug) { .location=false, .level=0 };
 }
 
 
@@ -403,17 +403,43 @@ options_initialize(struct options *opts)
                   arg)                                                         \
             : 0)                                                               \
             , &(arg)[CONST_STRLEN(PREFIX(type) opt)]))
-#define VALUE_(args, i, str, testnextchar)                         \
-    (*str != '\0'                                                  \
-        ? (((*str != '=' || *++str != '\0')) ? str : (str = NULL)) \
-        : (args[i+1] && testnextchar(args[i+1][0]))                \
-            ? (args[i++] = empty, str = args[i])                   \
+
+#define VALUE_(args, i, str, testnextchar)                                     \
+    (*str != '\0'                                                              \
+        ? (((*str != '=' || *++str != '\0')) ? str : (str = NULL))             \
+        : (args[i+1] && testnextchar(args[i+1][0]))                            \
+            ? (args[i++] = empty, str = args[i])                               \
             : (args[i] = empty, str = NULL))
-/* NOTE: no explicit check whether str == NULL */
+
+/* NOTE: no explicit check whether NULL == str */
 #define NONOPT(x)             x != '-'
 #define VALUE(args, i, str)   VALUE_(args, i, str, NONOPT)
 #define ISNUM(x)              isdigit(x)
 #define NUMVAL(args, i, str)  VALUE_(args, i, str, ISNUM)
+
+/**
+    Recognize stream name as per initial char + possibly "-something" suffix
+ */
+static inline enum outstreams
+recognize_outstream(const char *what, char initial, const char **value)
+{
+    /* exploiting the difference of initial chars (nested levels) */
+    switch (initial) {
+        case 'd': return outstream_debug;
+        case 's': return outstream_sp;
+        case 'w': return outstream_warn;
+        case 'c':
+            if ('\0' == **value) return outstream_cl;
+            switch (*(*value+1)) {
+                case 'd':
+                    /* -debug = SHORT_OPT debug */
+                    *value = PREFIXEQ(*value, SHORT, "debug");
+                    return outstream_cl_debug;
+            }
+            /*FALLTHROUGH*/
+        default: DIE( ECODE(OPT,"unexpected case: %s",what) );
+    }
+}
 
 enum {
     proceeded_exit            = -2,
@@ -421,7 +447,6 @@ enum {
     proceeded_nothing         =  0,
     proceeded_single_consumed =  1
 };
-
 
 static inline int
 options_proceed_internal(struct options *opts, const char *args[],
@@ -435,7 +460,7 @@ options_proceed_internal(struct options *opts, const char *args[],
 
         ret = (*value == '\0')
                 ? (print_help(argv0), proceeded_exit)
-                : proceeded_unconsumed;  /* return back as unconsumed */
+                : proceeded_unconsumed;
 
     } else if ((value = PREFIXEQ(*args, LONG_BIN, "version"))) {
 
@@ -451,17 +476,17 @@ options_proceed_internal(struct options *opts, const char *args[],
       || (value = PREFIXEQ(*args, LONG_BIN, "keep-going"))) {
 
         if (*value == '\0')
-            INTERNALS(emit_props) |= emit_keep_going;
+            INTERNALS(emit_props) |= emit_files_keep_going;
         else
-            ret = proceeded_unconsumed;  /* return back as unconsumed */
+            ret = proceeded_unconsumed;
 
     } else if ((value = PREFIXEQ(*args, SHORT_BIN, "t"))
       || (value = PREFIXEQ(*args, LONG_BIN, "try-hard"))) {
 
         if (*value == '\0')
-            INTERNALS(emit_props) |= emit_try_hard;
+            INTERNALS(emit_props) |= emit_file_try_hard;
         else
-            ret = proceeded_unconsumed;  /* return back as unconsumed */
+            ret = proceeded_unconsumed;
 
     } else if ((value = PREFIXEQ(*args, SHORT_BIN, "n"))
       || (value = PREFIXEQ(*args, LONG_BIN, "dry-run"))) {
@@ -469,69 +494,48 @@ options_proceed_internal(struct options *opts, const char *args[],
         if (*value == '\0')
             INTERNALS(emit_props) |= emit_dry_run;
         else
-            ret = proceeded_unconsumed;  /* return back as unconsumed */
+            ret = proceeded_unconsumed;
+
+    } else if ((value = PREFIXEQ(*args, SHORT_BIN, "i"))
+      || (value = PREFIXEQ(*args, LONG_BIN, "interactive"))) {
+
+        if (*value == '\0')
+            INTERNALS(emit_props) |= emit_file_interactive;
+        else
+            ret = proceeded_unconsumed;
 
     } else if ((value = PREFIXEQ(*args, LONG_BIN, "preprocessor"))) {
 
         /* just overwrite to canonical sparse preprocessing option */
         if (*value == '\0')
             *args = SPARSE_OPT_PREPROCESSOR;
-        ret = proceeded_unconsumed;  /* return back as unconsumed */
+        ret = proceeded_unconsumed;
 
-    } else if ((value = PREFIXEQ(*args, LONG, "fd-warn"))
-      || (value = PREFIXEQ(*args, LONG, "fd-debug"))
+    } else if ((value = PREFIXEQ(*args, LONG, "fd-debug"))
       || (value = PREFIXEQ(*args, LONG, "fd-sp"))
-      || (value = PREFIXEQ(*args, LONG, "fd-cl"))) {
+      || (value = PREFIXEQ(*args, LONG, "fd-cl"))
+      || (value = PREFIXEQ(*args, LONG, "fd-warn"))) {
 
-        /* exploiting the difference of initial chars (nested levels) */
-        const char *arg = args[i];  /* preserve across VALUE */
-        int *to_set;
-        const char *c = arg;
-        c += CONST_STRLEN(PREFIX(LONG)) + CONST_STRLEN("fd-");
-        switch (*c) {
-            case 'w': to_set = &INTERNALS(fd.warn);   break;
-            case 'd': to_set = &INTERNALS(fd.debug);  break;
-            case 's': to_set = &INTERNALS(fd.sp);     break;
-            case 'c':
-                c += CONST_STRLEN("cl");
-                if ('\0' == *c) { to_set = &INTERNALS(fd.cl); break; }
-                switch (*++c) {
-                    case 'd': to_set = &INTERNALS(fd.cl_debug); break;
-                    default: DIE( ECODE(OPT,"unexpected case: %s",arg) );
-                }
-                break;
-            default: DIE( ECODE(OPT,"unexpected case: %s",arg) );
-        }
+        const char *arg = *args;  /* preserve across VALUE */
+        enum outstreams to_set;
+        to_set = recognize_outstream(arg, (*args)[CONST_STRLEN(PREFIX(LONG))
+                                     + CONST_STRLEN("fd-")], &value);
         if (VALUE(args, i, value))
-            *to_set = get_fd(arg, value,(to_set == &INTERNALS(fd.sp)));
+            OUTSTREAM_RAW(to_set).fd = get_fd(arg, value,
+                                              (to_set == outstream_sp));
         else
-            *to_set = 0;  /* turned to /dev/null */
+            OUTSTREAM_RAW(to_set).fd = 0;  /* turned to /dev/null later on */
 
-    } else if ((value = PREFIXEQ(*args, LONG, "clr-warn"))
-      || (value = PREFIXEQ(*args, LONG, "clr-debug"))
+    } else if ((value = PREFIXEQ(*args, LONG, "clr-debug"))
       || (value = PREFIXEQ(*args, LONG, "clr-sp"))
-      || (value = PREFIXEQ(*args, LONG, "clr-cl"))) {
+      || (value = PREFIXEQ(*args, LONG, "clr-cl"))
+      || (value = PREFIXEQ(*args, LONG, "clr-warn"))) {
 
-        /* exploiting the difference of initial chars (nested levels) */
-        const char *arg = args[i];  /* preserve across VALUE */
-        struct palette *to_set;
-        const char *c = arg;
-        c += CONST_STRLEN(PREFIX(LONG)) + CONST_STRLEN("clr-");
-        switch (*c) {
-            case 'w': to_set = &INTERNALS(clr.warn);   break;
-            case 'd': to_set = &INTERNALS(clr.debug);  break;
-            case 's': to_set = &INTERNALS(clr.sp);  break;
-            case 'c':
-                c += CONST_STRLEN("cl");
-                if ('\0' == *c) { to_set = &INTERNALS(clr.cl); break; }
-                switch (*++c) {
-                    case 'd': to_set = &INTERNALS(clr.cl_debug); break;
-                    default: DIE( ECODE(OPT,"unexpected case: %s",arg) );
-                }
-                break;
-            default: DIE( ECODE(OPT,"unexpected case: %s",arg) );
-        }
-        *to_set = get_palette(arg, VALUE(args, i, value));
+        const char *arg = *args;  /* preserve across VALUE */
+        enum outstreams to_set;
+        to_set = recognize_outstream(arg, (*args)[CONST_STRLEN(PREFIX(LONG))
+                                     + CONST_STRLEN("clr-")], &value);
+        OUTSTREAM_RAW(to_set).palette = get_palette(arg, VALUE(args, i, value));
 
     } else if ((value = PREFIXEQ(*args, SHORT, "d"))
       || (value = PREFIXEQ(*args, LONG, "debug"))) {
@@ -539,7 +543,7 @@ options_proceed_internal(struct options *opts, const char *args[],
         if (!NUMVAL(args, i, value))
             INTERNALS(debug) = ~0;
         else
-            INTERNALS(debug) = get_positive_num("debug", value);
+            INTERNALS(debug) = get_nonnegative_num("debug", value);
 
     } else {
         /* nothing we recognise */
@@ -587,29 +591,29 @@ options_proceed_cl(struct options *opts, const char *args[])
 
         CL(default_output) = true;
 
-    } else if ((value = PREFIXEQ(*args, CL, "pprint"))) {
-
-        CL(pprint.enable)       = true;
-        CL(pprint.file)         = VALUE(args,i,value);
-        CL(pprint.types)        = false;
-        CL(pprint.switch_to_if) = false;
-
     } else if (PREFIXEQ(*args, CL_BIN, "pprint-types")) {
 
         if (!CL(pprint.enable))
-            PUT(err, "option "_1(s)": cannot be used before "_2(s),
-                PREFIX(CL) "pprint-types", PREFIX(CL) "pprint");
+            WARN("option "_1(s)": specify "_2(s)" first",
+                 PREFIX(CL) "pprint-types", PREFIX(CL) "pprint");
         else
             CL(pprint.types) = true;
 
     } else if (PREFIXEQ(*args, CL_BIN, "pprint-switch-to-if")) {
 
         if (!CL(pprint.enable))
-            PUT(err, "option "_1(s)": cannot be used before "_2(s),
-                PREFIX(CL) "pprint-switch-to-if",
-                PREFIX(CL) "pprint");
+            WARN("option "_1(s)": specify "_2(s)" first",
+                 PREFIX(CL) "pprint-switch-to-if", PREFIX(CL) "pprint");
         else
             CL(pprint.switch_to_if) = true;
+
+    } else if ((value = PREFIXEQ(*args, CL, "pprint"))) {
+
+        /* after other pprint options as this would always win otherwise */
+        CL(pprint.enable)       = true;
+        CL(pprint.file)         = VALUE(args,i,value);
+        CL(pprint.types)        = false;
+        CL(pprint.switch_to_if) = false;
 
     } else if ((value = PREFIXEQ(*args, CL, "gen-cfg"))) {
 
@@ -625,12 +629,13 @@ options_proceed_cl(struct options *opts, const char *args[])
 
         CL(debug.location) = true;
 
-    } else if ((value = PREFIXEQ(*args, CL, "debug-level"))) {
+    } else if ((value = PREFIXEQ(*args, CL, "debug"))) {
 
+        /* after other debug options as this would always win otherwise */
         if (!NUMVAL(args,i,value))
             CL(debug.level) = ~0;
         else
-            CL(debug.level) = get_positive_num("debug-level", value);
+            CL(debug.level) = get_nonnegative_num("debug", value);
 
     /* TODO: remove? */
     /*} else if ((value = PREFIXEQ(*args,CL,"cl-args"))) {
@@ -692,8 +697,7 @@ options_proceed(struct options *opts, int argc, const char *argv[])
                         i += ret - proceeded_single_consumed;
                 }
             } else if (PREFIXEQ(argv[i], CL, "" /* prefix only */)) {
-                PUT(err, "option "_1(s)": this alone does not make sense",
-                         argv[i]);
+                WARN("option "_1(s)": this alone does not make sense", argv[i]);
             } else if ((value = PREFIXEQ(argv[i], RAW, OPTSARGS_SEP))) {
                 if (*value == '\0')
                     consume_options = false;
@@ -734,10 +738,10 @@ options_proceed(struct options *opts, int argc, const char *argv[])
 static void
 options_finalize(struct options *opts, int argc, char *argv[])
 {
-    /* XXX or enable automatically.. */
+    /* XXX or enable automatically; similar conflicts warned about in-place */
     if (0 == CL(debug.level) && CL(debug.location))
-        PUT(err, "location will not be shown without explicitly"
-                 " requiring use of CL debug messages");
+        WARN("location will not be shown without explicitly"
+             " requiring use of CL debug messages");
 
     SPARSE(argc) = argc;
     SPARSE(argv) = argv;
@@ -745,7 +749,6 @@ options_finalize(struct options *opts, int argc, char *argv[])
     opts->finalized = true;
 }
 
-/* see clsp_options.h */
 int
 options_gather(struct options **opts, int argc, char *argv[])
 {
@@ -763,14 +766,16 @@ options_gather(struct options **opts, int argc, char *argv[])
     ret = options_proceed(new_opts, argc, (const char **) argv);
 
     switch (ret) {
-        case ret_bye:
-            break;
         case 0:
             if (1 < argc)
                 PUT(err, "missing arguments (while some options specified)");
             else
                 print_help(argv[0]);
             ret = ret_fail;
+            /*FALLTHROUGH*/
+        case ret_bye:
+            free(new_opts);
+            new_opts = NULL;
             break;
         default:
             assert(0 < ret);
@@ -782,79 +787,44 @@ options_gather(struct options **opts, int argc, char *argv[])
     return ret;
 }
 
-/* see clsp_options.h */
 void
 options_dump(const struct options *opts)
 {
 
     assert(opts && opts->finalized);
 
-    char buf[512], *ptr = buf;
-
     PUT(debug, "------------\n" HIGHLIGHT("options dump") "\n------------");
 
+
     PUT(debug, HIGHLIGHT("internals"));
-    PUT(debug, "\tfd:\t{warn="_1(d)", debug="_2(d)", sp="_3(d)", cl="_4(d)
-               ", cl-debug="_5(d)"}",
-               INTERNALS(fd.warn),
-               INTERNALS(fd.debug),
-               INTERNALS(fd.sp),
-               INTERNALS(fd.cl),
-               INTERNALS(fd.cl_debug));
 
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%sdebug=%s",
-                    STREAMCLRNORM(debug), STREAMCLREND(debug));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, CLR_PRINTARG_FMT,
-                    CLR_PRINTARG(INTERNALS(clr.warn.norm)));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s:%s",
-                    STREAMCLRNORM(debug), STREAMCLREND(debug));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, CLR_PRINTARG_FMT,
-                    CLR_PRINTARG(INTERNALS(clr.warn.high)));
+    PUT(debug, "\tfd\t{");
+    FOR_ENUM_RANGE(i, outstream, first_custom, last_custom)
+        PUT(debug, "\t\t\t"_1(-8s)" = "_2(d), outstream_str[i],
+                   OUTSTREAM_RAW(i).fd);
+    PUT(debug, "\t\t}");
 
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s, debug=%s",
-                    STREAMCLRNORM(debug), STREAMCLREND(debug));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, CLR_PRINTARG_FMT,
-                    CLR_PRINTARG(INTERNALS(clr.debug.norm)));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s:%s",
-                    STREAMCLRNORM(debug), STREAMCLREND(debug));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, CLR_PRINTARG_FMT,
-                    CLR_PRINTARG(INTERNALS(clr.debug.high)));
+    PUT(debug, "\tclr\t{");
+    FOR_ENUM_RANGE(i, outstream, first_custom, last_custom)
+        PUT(debug, "\t\t\t"_1(-8s)" = "_2(s) CLR_PRINTARG_FMT_3 _6(s)":"_7(s)
+                    CLR_PRINTARG_FMT_8 _11(s),
+                    outstream_str[i],     STREAMCLREND(debug),
+                    CLR_PRINTARG(OUTSTREAM_RAW(i).palette.norm),
+                    STREAMCLRNORM(debug), STREAMCLREND(debug),
+                    CLR_PRINTARG(OUTSTREAM_RAW(i).palette.high),
+                    STREAMCLRNORM(debug));
+    PUT(debug, "\t\t}");
 
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s, sp=%s",
-                    STREAMCLRNORM(debug), STREAMCLREND(debug));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, CLR_PRINTARG_FMT,
-                    CLR_PRINTARG(INTERNALS(clr.sp.norm)));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s:%s",
-                    STREAMCLRNORM(debug), STREAMCLREND(debug));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, CLR_PRINTARG_FMT,
-                    CLR_PRINTARG(INTERNALS(clr.sp.high)));
-
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s, cl=%s",
-                    STREAMCLRNORM(debug), STREAMCLREND(debug));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, CLR_PRINTARG_FMT,
-                    CLR_PRINTARG(INTERNALS(clr.cl.norm)));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s:%s",
-                    STREAMCLRNORM(debug), STREAMCLREND(debug));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, CLR_PRINTARG_FMT,
-                    CLR_PRINTARG(INTERNALS(clr.cl.high)));
-
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s, cl-debug=%s",
-                    STREAMCLRNORM(debug), STREAMCLREND(debug));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, CLR_PRINTARG_FMT,
-                    CLR_PRINTARG(INTERNALS(clr.cl_debug.norm)));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s:%s",
-                    STREAMCLRNORM(debug), STREAMCLREND(debug));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, CLR_PRINTARG_FMT,
-                    CLR_PRINTARG(INTERNALS(clr.cl_debug.high)));
-    ptr += snprintf(ptr, sizeof(buf)+buf-ptr, "%s", STREAMCLRNORM(debug));
-    assert(ptr-buf < (ptrdiff_t) sizeof(buf));
-
-    PUT(debug, "\tclr:\t{"_1(s)"}", buf);
-    PUT(debug, "\tdebug:\t"_1(d), INTERNALS(debug));
+    PUT(debug, "\tdebug\t{");
+    FOR_ENUM_RANGE(i, debug, first, last)
+        PUT(debug, "\t\t\t"_1(-38s)" = "_2(c), debug_str[i],
+                   GET_YN(INTERNALS(debug) & DVALUE(i)));
+    PUT(debug, "\t\t}");
     PUT(debug);
 
 
     PUT(debug, HIGHLIGHT("cl"));
+
     PUT(debug, "\tlisteners:\t"_1(zu), CL(listeners.cnt));
     for (size_t i = 0; i < CL(listeners.cnt); i++)
         PUT(debug, "\t\t"_1(s), CL(listeners.arr[i]));
@@ -888,6 +858,7 @@ options_dump(const struct options *opts)
 
 
     PUT(debug, HIGHLIGHT("sparse"));
+
     PUT(debug, "\targc:\t"_1(d), SPARSE(argc));
     PUT(debug, "\targv:\t"_1(s),SPARSE(argv[0]));
     for (int i = 1; i < SPARSE(argc); i++)
@@ -897,7 +868,6 @@ options_dump(const struct options *opts)
     PUT(debug, "------------");
 }
 
-/* see clsp_options.h */
 void
 options_dispose(struct options *opts)
 {

@@ -17,16 +17,16 @@ INT_ARGS=
 LIB="${PREDATOR_DIR}/${ANALYZER%_test}_build/lib${ANALYZER}.so"
 
 if [ ${GCC_INCLUDES:=0} -ne 0 ]; then
-    USE_ARGS+=" -isystem $(echo|cpp -Wp,-v - 2>&1 >/dev/null|grep -E "^[ ]*/"|head -n1|sed 's/^ *//')"
+    INT_ARGS+=" -isystem $(echo|cpp -Wp,-v - 2>&1 >/dev/null|grep -E "^[ ]*/"|head -n1|sed 's/^ *//')"
 fi
 
-# gdb and extensions do not like colors
-if [[ "${WRAPPER:=}" = *gdb* ]] && [ ${NOCOLOR:=1} -eq 1 ]; then
+# gdb extensions (cgdb) seem not to like colors
+if [[ "${WRAPPER:=}" = *[[:alpha:]]gdb* ]] && [ ${NOCOLOR:=1} -eq 1 ]; then
     NOCOLOR=1
 fi
 
 if [ ${NOCOLOR:=0} -ne 0 ]; then
-    INT_ARGS+=" --clr-debug --clr-sp --clr-cl"
+    INT_ARGS+=" --clr-debug --clr-sp --clr-cl --clr-cl-debug --clr-warn"
 fi
 
 verbosely () {

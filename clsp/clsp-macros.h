@@ -19,24 +19,42 @@
 #ifndef CLSP_MACROS_H_GUARD
 #define CLSP_MACROS_H_GUARD
 /**
-    Little basic macros.
+    Handful of basic macros with (almost) no dependencies
  */
 
-/* Makes ignoring return value explicit */
-#define NORETWRN(expr)         (void)(expr)
+#include "assert.h"
 
-/* Basic "functions" */
-#define APPLY(next,...)        next(__VA_ARGS__)
-#define APPLY_INNER(next,...)  next(__VA_ARGS__)
-#define IDENTITY(what)         what
+/* makes ignoring return value explicit */
+#define NORETWRN(e_)          (void)(e_)
 
-/* Preprocessor lexical manipulations */
-#define JOIN(a,b)              a##b
-#define STRINGIFY(arg)         #arg
-#define TOSTRING(arg)          STRINGIFY(arg)
+/* basic functional programming */
+#define APPLY(f_, ...)        f_(__VA_ARGS__)
+#define APPLY_INNER(f_, ...)  f_(__VA_ARGS__)
+#define IDENTITY(a_)          a_
+
+/* preprocessor lexical manipulations */
+#define STRINGIFY(a_)         #a_
+#define TOSTRING(a_)          STRINGIFY(a_)
+#define JOIN(a_,b_)           a_##b_
+
 
 /*
-    Compile-time (unless applied on VLAs) strlen with several checks:
+    _Pragma operator made convenient
+ */
+#define PRAGMA_MSG(arg)       PRAGMA_MSG_(arg)
+#define PRAGMA_MSG_(arg)      PRAGMA_MSGSTR(TOSTRING(arg))
+#define PRAGMA_MSGSTR(arg)    PRAGMA_(message arg)
+#define PRAGMA_RAW(arg)       PRAGMA_(arg)
+#define PRAGMA_(arg)          _Pragma(#arg)
+
+
+/*
+    string manipulations
+ */
+
+
+/*
+    compile-time (unless applied on VLAs) strlen with several checks:
     - arg is a pointer/array:          sizeof(*arg)
     - arg is not a NULL pointer:       arg[sizeof(arg)-1]
     - arg is array of "byte-type":     sizeof(char)-sizeof(*arg)
@@ -47,34 +65,51 @@
     sizeof(arg) - sizeof(char[1+sizeof(char)-sizeof(*arg)-!!arg[sizeof(arg)-1]])
 
 
-/* Pragma as a function-like macro (promoted from directive) */
-#define PRAGMA_MSG(arg)        PRAGMA_MSG_(arg)
-#define PRAGMA_MSG_(arg)       PRAGMA_MSGSTR(TOSTRING(arg))
-#define PRAGMA_MSGSTR(arg)     PRAGMA_MSGSTR_(message arg)
-#define PRAGMA_MSGSTR_(arg)    _Pragma(#arg)
-
 /*
-#define COMPILE_TIME_ASSERT(pred)   switch(0){case 0:case pred:;}
-#define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
-*/
+    a bit of mathemathics
+ */
 
 /* NOTE: beware of side-effects */
-#define PARTIALLY_ORDERED(a, b, c)  (a <= b && b <= c)
+#define ORDERED(a_, b_, c_)            ((a_) <= (b_) && (b_) <= (c_))
+#define STRICTLY_ORDERED(a_, b_, c_)   ((a_) <  (b_) && (b_) <  (c_))
 
-/* Guarded due to possible collision with Code Listener */
-#ifndef STREQ
-# define STREQ(s1, s2)  (!strcmp(s1, s2))
-#endif
+
+/*
+    enums
+ */
+
+/*
+    This expects enum "enum" to be arranged such that the first valid
+    element is accessible via "enum_first" item and the last valid
+    element via "enum_last" (both may be aliases, indeed).
+
+    NOTE: temporarily turning off one innocent and otherwise annoying warning
+ */
+#define ASSERT_ENUM_RANGE(enum, test)                  \
+    do {                                               \
+    PRAGMA_RAW(GCC diagnostic push)                    \
+    PRAGMA_RAW(GCC diagnostic ignored "-Wtype-limits") \
+    assert(ORDERED(enum##_first, test, enum##_last));  \
+    PRAGMA_RAW(GCC diagnostic pop)                     \
+    } while (0)
+
+/*
+    Example usage: enum "frobs" comprises "frob_foo" and "frob_bar", "frob_baz"
+                   FOR_ENUM_RANGE(i, frob, foo, baz)
+                       printf("%d\n", i);
+ */
+#define FOR_ENUM_RANGE(i, en, first, last) \
+    for (enum en##s i = en##_##first; en##_##last >= i; i++)
+
 
 /* Variable length arguments macros */
 
 /*
-  see, e.g.,
-  http://cplusplus.co.il/2010/07/17/variadic-macro-to-count-number-of-arguments/
-  but the technique is wide-spread
-*/
-#define VA_ARGS_CNT(...)  VA_ARGS_CNT_IMPL(__VA_ARGS__,9,8,7,6,5,4,3,2,1,_)
-#define VA_ARGS_CNT_IMPL(_1,_2,_3,_4,_5,_6,_7,_8,_9,N,...)  N
+  wide-spread technique, see, e.g.,
+  http://cplusplus.co.il/2010/07/17/variadic-macro-to-count-number-of-arguments
+ */
+#define VA_ARGS_CNT(...)  VA_ARGS_CNT_IMPL(__VA_ARGS__,13,12,11,10,9,8,7,6,5,4,3,2,1,_)
+#define VA_ARGS_CNT_IMPL(_1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_12,_13,N,...)  N
 
 
 #endif

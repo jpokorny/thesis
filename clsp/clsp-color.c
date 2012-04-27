@@ -17,16 +17,16 @@
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "clsp-enum-color.h"
+#include "clsp-color.h"
 
-const char *clr_codes[clr_terminate+1] = {
+const char *const clr_codes[clr_terminate+1] = {
 #define X(norm,high,code)  [clr_##norm] = code,
     CLRLIST(X)
 #undef X
     [clr_terminate] = CLR_TERMINATE
 };
 
-const char *clr_str[clr_terminate] = {
+const char *const clr_str[clr_cnt] = {
 #define X(norm,high,code)  [clr_##norm] = #norm,
     CLRLIST(X)
 #undef X

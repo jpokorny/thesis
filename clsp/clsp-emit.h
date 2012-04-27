@@ -19,18 +19,26 @@
 #ifndef CLSP_EMIT_H_GUARD
 #define CLSP_EMIT_H_GUARD
 
+#include "clsp.h"
+#include "clsp-types.h"
+#include "clsp-use-sparse.h"
+#include "clsp-use-cl.h"
+
 /**
     Enumerated mutually exclusive flag positions denoting the effort
     regarding defective files.
  */
 enum emit_props {
-    emit_vanilla    = 0,
+    emit_vanilla               = 0,
+    /* applies to top-level */
+    emit_dry_run               = 1 << 1,
+    emit_skip_initial          = 1 << 2,  /**< whether to skip "initial file" */
+    /* applies to files proceeding level */
+    emit_files_keep_going      = 1 << 3,
     /* applies to file proceeding level */
-    emit_keep_going = (emit_vanilla+1) << 1,
-    emit_try_hard   = emit_keep_going  << 1,
-    /* applies to the final consideration if everything is ready */
-    emit_dry_run    = emit_try_hard    << 1,
-    emit_props_last = emit_dry_run
+    emit_file_try_hard         = 1 << 4,
+    emit_file_private          = 1 << 5,  /**< as usual, but w/o emitting */
+    emit_file_interactive      = 1 << 6,
 };
 
 /**
@@ -43,9 +51,10 @@ enum emit_props {
     @param[in] symlist     Internal symbols obtained by sparse_initialize call
     @param[in] emit_props  OR'ed @c emit_props enumeration values
     @return    See @c retval enumeration
+    @note  Expects @c sparse_initialize to be the only function called so far.
  */
 extern enum retval emit(struct string_list *filelist,
-                        struct symbol_list *symlist, int emit_props);
+                        struct symbol_list *symlist, int props);
 
 
 extern struct cl_type

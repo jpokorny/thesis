@@ -20,44 +20,29 @@
 #define CLSP_OPTIONS_H_GUARD
 
 #include <stdbool.h>
-#include <limits.h>          /* INT_MIN */
-#include "clsp-enum-color.h"
-#include "clsp-enum-ec.h"    /* enum retval */
+#include "clsp-color.h"
+#include "clsp-ret.h"         /* enum retval */
+#include "clsp-out-base.h"    /* outstream_props */
 
 
-/**
-    Special values for file descriptors.
- */
-enum fd_extra {
-    fd_undef           = -1,       /**< Undefined descriptor. */
-    fd_deferred_unspec = INT_MIN,  /**< Deferred descriptor without destination. */
-};
+
+/** Summary representationm, starting with @c outstream_warn */
+typedef struct outstream_props
+    opts_outstreams[outstream_last_custom-outstream_first_custom+2];
 
 
 /**
     Object representing gathered options.
  */
 struct options {
-    /* internal options */
     bool                finalized;
+    /* internal options */
     struct {
-        struct oi_fd {
-            int         warn;
-            int         debug;
-            int         sp;
-            int         cl;
-            int         cl_debug;
-        } fd;
-        struct oi_clr {
-            struct palette  warn;
-            struct palette  debug;
-            struct palette  sp;
-            struct palette  cl;
-            struct palette  cl_debug;
-        } clr;
         int             debug;
         int             emit_props;
     } internals;
+    /* output streams */
+    opts_outstreams     outstreams;
     /* Code Listener */
     struct {
         struct {

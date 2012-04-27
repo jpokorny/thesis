@@ -1,0 +1,29 @@
+"-cl-pprint" together with very verbose internal debugging causes
+some lines (usually 3 consequent) of internal debug output
+to disappear when both go to the same "file" (stdout)
+- perhaps could be solved by
+  - ios_base::sync_with_stdio
+  - explicit flushing in cl_pp
+
+example:
+
+$ ./clsp-run -k  -t -d2685 -cl-debug-location -cl-debug tests/array/a-01.c
+tests/array/a-01.c:12:18: debug: insn: sp >>>
+        muls.64     %r8 <- %r7, $4
+        debug: pseudo: sp >>>
+        %r8
+        debug: pseudo: cl <<<
+        <operand> {kind=VAR, scope=GLOBAL}
+            <type> {kind=INT, uid=10, name=long, sizeof=8, item_cnt=0}: (null):-1:-1
+            <operand-var> {uid=1704403520, name=<none>, artificial=Y, initialized=N}: (null):0:0
+
+
+$ ./clsp-run -k  -t -d2685 -cl-pprint -cl-pprint-types -cl-debug-location -cl-debug tests/array/a-01.c
+tests/array/a-01.c:12:19: debug: linearized code follows...
+                [int:8]%r162927088 := [int:4]%mF163163376:column
+tests/array/a-01.c:12:18: debug: insn: sp >>>
+        muls.64     %r8 <- %r7, $4
+        debug: pseudo: sp >>>
+            <type> {kind=INT, uid=10, name=long, sizeof=8, item_cnt=0}: (null):-1:-1
+            <operand-var> {uid=162927168, name=<none>, artificial=Y, initialized=N}: (null):0:0
+

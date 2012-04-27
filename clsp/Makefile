@@ -20,7 +20,7 @@ CFLAGS    += -Wall -Wextra -Wwrite-strings -pedantic #-errors
 #CFLAGS    += -Werror
 CFLAGS    += -pipe
 LDFLAGS   += -Wl,--as-needed
-LDFLAGS   += -ldl  # dlopen,...
+LDFLAGS   += -ldl  # dlopen, ...
 DBGCFLAGS  = -O0 -gdwarf-4 -g3
 
 RELEASE    = 0
@@ -28,7 +28,7 @@ USE_LTO    = 1
 
 ANALYZERS  = cl_test fwnull sl fa
 # one from above or <empty>
-ANALYZER   = cl_test
+ANALYZER   =
 CL_OPTS   :=
 
 ifeq (1,${RELEASE})
@@ -38,6 +38,7 @@ ifeq (1,${RELEASE})
 else
   CFLAGS  += ${DBGCFLAGS}
   CFLAGS  += -Wno-format
+  CFLAGS  += -Wswitch-enum
   SP_OPTS  = "CFLAGS += ${DBGCFLAGS}"
   CL_OPTS += CL_DEBUG=1
 endif
@@ -86,14 +87,20 @@ CFLAGS          += $(foreach dir,${INCLUDE_DIRS},-isystem ${dir})
 
 PROGRAM  = clsp
 OBJECTS  = clsp.o    \
+  clsp-ret.o         \
+  clsp-color.o       \
+  clsp-out-base.o    \
+  clsp-out-ext.o     \
   clsp-options.o     \
-  clsp-emit.o        \
+  clsp-interact.o    \
+  clsp-use-cl.o      \
+  clsp-use-sparse.o  \
+  clsp-conv.o        \
   clsp-types.o       \
-  clsp-enum-color.o  \
-  clsp-enum-ec.o     \
-  clsp-gccplugstub.o \
+  clsp-emit.o        \
   type_enumerator.o  \
-  hash_table.o
+  hash_table.o       \
+  clsp-gccplugstub.o
 
 TEST_PROGRAMS += test_swapfd
 

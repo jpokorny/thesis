@@ -20,41 +20,48 @@
 #define CLSP_DEFAULTS_H_GUARD
 /**
     Centralization of various default values
+
+    For "hard" defaults, see clsp-options.c: @c options_initialize
+    and 
 */
 
+#include <unistd.h>       /* STD*_FILENO */
 #include "clsp-macros.h"  /* APPLY */
+
 
 /** command-line options defaults (clsp_options) **************************/
 
 
 /*
-    file descriptor defaults
+    output streams
  */
 
-#define DEF_FD_WARN       STDOUT_FILENO
-#define DEF_FD_DEBUG      STDOUT_FILENO
-#define DEF_FD_SPARSE     STDERR_FILENO
-#define DEF_FD_CL         STDERR_FILENO
-#define DEF_FD_CL_DEBUG   STDOUT_FILENO
+#define DEF_OUTSTREAM_WARN      warn    ,STDOUT_FILENO, CLR_DARKSOME ,CLR_DARKGRAY
+#define DEF_OUTSTREAM_DEBUG     debug   ,STDOUT_FILENO, CLR_GREEN    ,CLR_BOLDGREEN
+#define DEF_OUTSTREAM_SP        sp      ,STDERR_FILENO, CLR_PURPLE   ,CLR_BROWN
+#define DEF_OUTSTREAM_CL        cl      ,STDERR_FILENO, CLR_RED      ,CLR_BOLDRED
+#define DEF_OUTSTREAM_CL_DEBUG  cl_debug,STDOUT_FILENO, CLR_LIGHTGRAY,CLR_BLUE
 
-#define DEF_FD_VAL(what)  DEF_FD_##what
-#define DEF_FD_STR(what)  STRINGIFY(DEF_FD_##what)
+#define DEF_OUTSTREAMLIST(x)         \
+    APPLY(x, DEF_OUTSTREAM_WARN    ) \
+    APPLY(x, DEF_OUTSTREAM_DEBUG   ) \
+    APPLY(x, DEF_OUTSTREAM_SP      ) \
+    APPLY(x, DEF_OUTSTREAM_CL      ) \
+    APPLY(x, DEF_OUTSTREAM_CL_DEBUG)
 
+#define DEF_OUTSTREAM_FD_(name, fd, nnorm, nhigh, ncode, hnorm, hhigh, hcode) \
+    fd
+#define DEF_OUTSTREAM_FD(which) \
+    APPLY_INNER(DEF_OUTSTREAM_FD_, DEF_OUTSTREAM_##which)
+#define DEF_OUTSTREAM_FD_STR(which)  TOSTRING(DEF_OUTSTREAM_FD(which))
 
-/*
-    palette defaults
- */
+#define DEF_OUTSTREAM_PALETTE_(name, fd, nnorm, nhigh, ncode, hnorm, hhigh, hcode) \
+    nnorm, nhigh, ncode, hnorm, hhigh, hcode
+#define DEF_OUTSTREAM_PALETTE(which) \
+    APPLY_INNER(DEF_OUTSTREAM_PALETTE_, DEF_OUTSTREAM_##which)
 
-#define DEF_PLT_WARN       CLR_DARK     ,CLR_DARKGRAY
-#define DEF_PLT_DEBUG      CLR_GREEN    ,CLR_BOLDGREEN
-#define DEF_PLT_SP         CLR_PURPLE   ,CLR_BROWN
-#define DEF_PLT_CL         CLR_RED      ,CLR_BOLDRED
-#define DEF_PLT_CL_DEBUG   CLR_LIGHTGRAY,CLR_DARKGRAY
-
-#define DEF_PLT_(nnorm, nhigh, ncode, hnorm, hhigh, hcode) \
-    PALETTE(nnorm, hnorm)
-#define DEF_PLT(what)      APPLY(DEF_PLT_, DEF_PLT_##what)
-#define DEF_PLT_STR(what)  APPLY(PALETTE_PRETTY, DEF_PLT_##what)
+#define DEF_OUTSTREAM_PALETTE_STR(what) \
+    APPLY(PALETTE_PRETTY, DEF_OUTSTREAM_PALETTE(what))
 
 
 #endif

@@ -20,14 +20,18 @@
 #define CLSP_ENUM_COLOR_H_GUARD
 
 #include "clsp-macros.h"  /* APPLY */
-#include "clsp-output.h"  /* _1(), ... */
 
 
 #define CLR_TERMINATE     "\033[0m"
 
-/* color and its (deliberately chosen) "highlight" counterpart + ANSI code */
-#define CLR_NONE          none,      none,      ""
-#define CLR_DARK          dark,      black,     "\033[0;30m"
+/*
+    color and its (deliberately chosen) "highlight" counterpart + ANSI code
+
+    NOTE: one color should not be prefix of another (such as "dark")
+ */
+#define CLR_NONE          none,      none,      ""           /* no change */
+#define CLR_DEFAULT       default,   default,   "\033[0;39m" /* default color */
+#define CLR_DARKSOME      darksome,  black,     "\033[0;30m"
 #define CLR_RED           red,       darkred,   "\033[0;31m"
 #define CLR_GREEN         green,     darkgreen, "\033[0;32m"
 #define CLR_BROWN         brown,     darkbrown, "\033[0;33m"
@@ -35,7 +39,7 @@
 #define CLR_PURPLE        purple,    darkpurple,"\033[0;35m"
 #define CLR_CYAN          cyan,      darkcyan,  "\033[0;36m"
 #define CLR_LIGHTGRAY     lightgray, gray,      "\033[0;37m"
-#define CLR_DARKGRAY      darkgray,  dark,      "\033[1;30m"
+#define CLR_DARKGRAY      darkgray,  darksome,  "\033[1;30m"
 #define CLR_BOLDRED       boldred,   red,       "\033[1;31m"
 #define CLR_BOLDGREEN     boldgreen, green,     "\033[1;32m"
 #define CLR_BOLDBROWN     boldbrown, brown,     "\033[1;33m"
@@ -43,7 +47,7 @@
 #define CLR_BOLDPURPLE    boldpurple,purple,    "\033[1;35m"
 #define CLR_BOLDCYAN      boldcyan,  cyan,      "\033[1;36m"
 #define CLR_WHITE         white,     lightgray, "\033[1;37m"
-#define CLR_BLACK         black,     dark,      "\033[2;30m"
+#define CLR_BLACK         black,     darksome,  "\033[2;30m"
 #define CLR_DARKRED       darkred,   red,       "\033[2;31m"
 #define CLR_DARKGREEN     darkgreen, green,     "\033[2;32m"
 #define CLR_DARKBROWN     darkbrown, brown,     "\033[2;33m"
@@ -54,7 +58,8 @@
 
 #define CLRLIST(x)           \
     APPLY(x, CLR_NONE      ) \
-    APPLY(x, CLR_DARK      ) \
+    APPLY(x, CLR_DEFAULT   ) \
+    APPLY(x, CLR_DARKSOME  ) \
     APPLY(x, CLR_RED       ) \
     APPLY(x, CLR_GREEN     ) \
     APPLY(x, CLR_BROWN     ) \
@@ -86,9 +91,17 @@ enum color {
 #define X(norm, high, code)  clr_##norm,
     CLRLIST(X)
 #undef X
-    clr_terminate,
-    clr_last = clr_terminate,
-    clr_first = 1
+    clr_cnt,
+    clr_terminate = clr_cnt,
+
+    clr_first = 0,
+    clr_last = clr_cnt-1,
+
+    clr_first_empty = clr_first,
+    clr_last_empty = clr_default,
+
+    clr_first_real = clr_last_empty + 1,
+    clr_last_real = clr_last
 };
 
 
@@ -101,8 +114,9 @@ struct palette {
 };
 
 /* palette "constructors" */
-#define PALETTE(norm, high)  (struct palette) { clr_##norm, clr_##high }
-#define PALETTE_NONE         PALETTE(none, none)
+#define PALETTE(norm_, high_) \
+    (struct palette) { .norm = clr_##norm_, .high = clr_##high_ }
+#define PALETTE_NONE  PALETTE(none, none)
 
 
 /*
@@ -119,14 +133,21 @@ struct palette {
     run-time assets
  */
 
-extern const char *clr_codes[clr_terminate+1];
-extern const char *clr_str[clr_terminate];
+extern const char *const clr_codes[clr_terminate+1];
+extern const char *const clr_str[clr_cnt];
+
+/* postponed inclusion due to clsp.h bootstrap arrangement (struct palette) */
+#include "clsp-out-base.h"  /* _1(), ... */
 
 #define CLR_PRINTARG_FMT    "%s%s%s"
 #define CLR_PRINTARG_FMT_1  _1(s)_2(s)_3(s)
 #define CLR_PRINTARG_FMT_2  _2(s)_3(s)_4(s)
 #define CLR_PRINTARG_FMT_3  _3(s)_4(s)_5(s)
 #define CLR_PRINTARG_FMT_4  _4(s)_5(s)_6(s)
+#define CLR_PRINTARG_FMT_5  _5(s)_6(s)_7(s)
+#define CLR_PRINTARG_FMT_6  _6(s)_7(s)_8(s)
+#define CLR_PRINTARG_FMT_7  _7(s)_8(s)_9(s)
+#define CLR_PRINTARG_FMT_8  _8(s)_9(s)_10(s)
 
 #define CLR_PRINTARG(x)     clr_codes[x],clr_str[x],clr_codes[clr_terminate]
 
@@ -141,7 +162,6 @@ extern const char *clr_str[clr_terminate];
 #define CLR_UNDERLINE_OFF  "\033[24m"
 #define CLR_INVERSE_ON     "\033[7m"
 #define CLR_INVERSE_OFF    "\033[27m"
-#define CLR_DEFAULT        "\033[0;39m"
 
 #define FAINT(what)        CLR_FAINT_ON     what CLR_FAINT_OFF
 #define UNDERLINE(what)    CLR_UNDERLINE_ON what CLR_UNDERLINE_OFF

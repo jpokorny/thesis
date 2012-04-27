@@ -116,7 +116,7 @@ PRAGMA_MSGSTR("OVERVIEW OF APIs USED FOLLOWS:")
 #endif
 
 
-/*  (INTERNAL)
+/*  (internal)
     Each internalized use of covered API part is defined indirectly through
     one of the following macros.  Their form comes partly from effort to avoid
     "ISO C99 requires rest arguments to be used" warning.
@@ -152,7 +152,7 @@ PRAGMA_MSGSTR("OVERVIEW OF APIs USED FOLLOWS:")
 #define API__USE_R5(fnc,ret,...)  ret = API__USE_U5(fnc,__VA_ARGS__)
 
 
-/*  (INTERNAL)
+/*  (internal)
     Iteration (if it can be called like this) through the API items,
     perfoming selected action (defined, e.g., via another macro) on each
     (aka mapping).

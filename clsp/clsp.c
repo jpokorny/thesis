@@ -19,7 +19,7 @@
  */
 
 #define  API_SHOW 1
-#include "clsp.h"             /* bootstrap most of the dependencies */
+#include "clsp.h"
 
 #include <unistd.h>           /* STD*_FILENO */
 #include <dlfcn.h>            /* dlopen, dlsym, dlclose */
@@ -27,6 +27,7 @@
 
 #include "clsp-options.h"
 #include "clsp-emit.h"        /* enum emit_effort */
+#include "clsp-use-cl.h"      /* CL_BUILTIN_LOCATOR_STR */
 #include "type_enumerator.h"
 
 
@@ -38,24 +39,20 @@
 #define CLSP_DLOPEN_FLAGS       (RTLD_LAZY|RTLD_LOCAL)
 
 
-/* Context Managers ala Python */
-
-#define WITH_OBJECT(object)               \
-    for (int i=0; 0==i                    \
-         ? (object##_init(&object), 1)    \
-         : (object##_destroy(&object), 0) \
-         ; i++)
-
 struct globals globals;
+/*
+ = { .type_ptr_db = {
+    .last_base_type_uid = 0,  // to prevent free of non-heap based types
+    .type_db            = NULL,
+    .ptr_db             = { .alloc_size=0, .last=0, .heads=NULL },
+}};
+*/
 
 
 const char *GIT_SHA1 = "someversion";
 
 
-/** Code Listener messaging functions + atexit handlers *******************/
-
-
-/* "globals" are real globals for these */
+/** Code Listener messaging functions *************************************/
 
 
 /** Code Listener messaging: standard print */
@@ -68,104 +65,14 @@ static void clmsg_debug(const char *msg)     {PUT(cl_debug, _1(s), msg);      }
 static void clmsg_die(const char *msg)       {DIE( ECODE(CL, "cl: %s", msg) );}
 
 
-/**
-    Wrapper for fdopen, safely short-circuiting for stdout and stderr.
+/** Atexit handlers and resource releasing ********************************/
 
-    @param[in,out] stream  Stream to be assigned
-    @param[in]     fd      File descriptor number to be fdopen'd
-
-    @return  Stream as was just assigned within stream argument
+/*
+    Two things must be met for atexit handler or its part:
+    - no (hidden) aborting call
+    - the function must be ready to be called multiple times
+      (set pointers to NULL, etc.)
  */
-static inline FILE *
-stream_setup(struct outstream *stream, const char *which, int fd,
-             const struct palette palette)
-{
-    FILE **s = &stream->stream;
-    stream->deferred_dest = fd_undef;
-    switch (fd) {
-        case STDOUT_FILENO:
-            *s = stdout;
-            break;
-        case STDERR_FILENO:
-            *s = stderr;
-            break;
-        case fd_deferred_unspec:
-            /* unspecified deferred -> deferred, merge into stderr */
-            fd = -STDERR_FILENO;
-            /*FALLTHROUGH*/
-        default:
-            if (fd == 0) {
-                *s = fopen("/dev/null", "a");
-            } else if (fd > 0) {
-                *s = fdopen(fd, "a");
-            } else {
-                *s = tmpfile();
-                fd = stream->deferred_dest = -fd;
-            }
-            if (!*s)
-                DIE( ERRNO("fopen/fdopen/tmpfile (%s, fd=%d)",which,fd) );
-#if 1
-            if (0 != setvbuf(*s, NULL, _IOLBF, 0))
-                DIE( ERRNO("setvbuf (%s, fd=%d)",which,fd) );
-#endif
-    }
-
-    stream->clr_norm = clr_codes[palette.norm];
-    stream->clr_high = clr_codes[palette.high];
-
-    stream->isatty = isatty(fd);
-    if (stream->isatty && (palette.norm || palette.high))
-        /* zero-th color is "none", at least one has to be set for this */
-        stream->clr_end  = clr_codes[clr_terminate];
-    else
-        stream->clr_end  = clr_codes[clr_none];
-
-    if (which)
-        /*
-            avoid using uninitialized stream during initial phase,
-            debug stream should be a first one with "which" defined
-         */
-        DLOG(d_stream, "\t" HIGHLIGHT("stream") ": set up " HIGHLIGHT(_1(s))
-                       ": fd="_2(d)", isatty="_3(c) ", color=" CLR_PRINTARG_FMT_4,
-                       which, fd, GET_YN(stream->isatty),
-                       CLR_PRINTARG(palette.norm));
-
-    return *s;
-}
-
-
-static inline void
-stream_output_deferred(FILE **stream, int deferred_fd)
-{
-    char *buf;
-    long size;
-    struct outstream outstream;
-
-    size = ftell(*stream);
-    if (-1 == size)
-        DIE( ERRNO("ftell") );
-
-    errno = 0;
-    rewind(*stream);
-    if (0 != errno)
-        DIE( ERRNO("rewind") );
-
-    buf = malloc(sizeof(*buf) * size);
-    if (!buf)
-        DIE( ERRNO("malloc") );
-
-    clearerr(*stream);
-    size = fread(buf, sizeof(*buf), size, *stream);
-    if (ferror(*stream))
-        DIE( ERRNO("fread") );
-
-    fclose(*stream);
-    *stream = stream_setup(&outstream, "deferred", deferred_fd, PALETTE_NONE);
-
-    fwrite(buf, sizeof(*buf), size, *stream);
-
-    free(buf);
-}
 
 
 /**
@@ -184,12 +91,13 @@ atexit_worker_early(void)
     /* restore error stream which may yet be useful */
     FILE **cur = &(STREAMSTRUCT(err).stream);
     assert(cur);
-    int fno = fileno(*cur);
+    int fileno_cur = fileno(*cur);
 
-    if (STDERR_FILENO != fno) {
-        if (STDERR_FILENO < fno)
+    if (STDERR_FILENO != fileno_cur) {
+        if (STDERR_FILENO < fileno_cur)
             fclose(*cur);
-        stream_setup(&(STREAMSTRUCT(err)), NULL, STDERR_FILENO, PALETTE_NONE);
+        stream_setup(GLOBALS(outstreams), outstream_err,
+                     OUTSTREAM_PROPS(STDERR_FILENO, PALETTE_NONE));
     }
     if (STREAMSTRUCT(err).isatty)
         PUT(err, CLR_TERMINATE);  /* reset color for sure */
@@ -203,33 +111,25 @@ atexit_worker_late(void)
 {
     /* close the streams used by the worker */
     int fileno_cur;
-    FILE **cur;
+    FILE *cur;
 
-    for (enum streams s = stream_first; s < stream_last; s++) {
-        cur = &GLOBALS(stream)[s].stream;
+    FOR_ENUM_RANGE(i, outstream, first, last) {
+        /* if deferred, merge into the right one, closing the former */
+        cur = stream_output_deferred(GLOBALS(outstreams), i);
+        assert(cur);
 
-        if (!*cur)
-            continue;
-
-        if (fd_undef != GLOBALS(stream)[s].deferred_dest)
-            /* merge deferred into the right one, closing the former */
-            stream_output_deferred(cur, GLOBALS(stream)[s].deferred_dest);
-
-        fileno_cur = fileno(*cur);
+        fileno_cur = fileno(cur);
         if (fileno_cur > STDERR_FILENO) {
 #if 0
             /* prevent double-close of particular file descriptor */
-            enum streams sn = s+1;
-            for ( ; sn < stream_last; sn++)
-                if (fileno_cur == fileno(GLOBALS(stream)[sn].stream))
+            enum outstreams inext = i+1;
+            for ( ; outstream_last >= inext; inext++)
+                if (fileno_cur == fileno(GLOBALS(outstreams)[inext].stream))
                     break;
-            if (sn == stream_last) {
-                fclose(*cur);
-                *cur = NULL;
-            }
+            if (outstream_last <= inext - 1)
+                fclose(cur);
 #else
-            fclose(*cur);
-            *cur = NULL;
+            fclose(cur);
 #endif
         }
     }
@@ -254,13 +154,53 @@ atexit_cl(void)
             PUT(err, "dlclose: "_1(s), dlerror());
 }
 
+
+/**
+    Release resources used by sparse
+
+    The only allocated memory we are unable to free properly are
+    initial tokens (those before actually proceeding provided source
+    files).  So valgrind will not ever show the ideal state.
+
+    (Possible sparse fix: extended allocator descriptor with stack
+     to push current blob heads [size of 1 = single extra item is OK
+     currently] and push the head insteand of losing it completely)
+ */
+static void
+release_sparse(void)
+{
+    free(SP(input_streams));
+    SP(input_streams) = NULL;
+
+    /* common */
+    SP(clear_ident_alloc);
+    /*SP(clear_token_alloc); NOOP + see the comment */
+    SP(clear_context_alloc);
+    SP(clear_symbol_alloc);
+    SP(clear_expression_alloc);
+    SP(clear_statement_alloc);
+    SP(clear_string_alloc);
+    SP(clear_scope_alloc);
+    SP(clear_bytes_alloc);
+    SP(clear_basic_block_alloc);
+    SP(clear_entrypoint_alloc);
+    SP(clear_instruction_alloc);
+    SP(clear_multijmp_alloc);
+    SP(clear_pseudo_alloc);
+
+    /* linearize */
+    SP(clear_pseudo_user_alloc);
+    SP(clear_asm_constraint_alloc);
+    SP(clear_asm_rules_alloc);
+}
+
 /**
     Atexit handler for sparse related resources.
  */
 static void
 atexit_sparse(void)
 {
-    free(SP(input_streams));
+    release_sparse();
 
     if (SP(preprocessing))
         /* if this is set on sparse side, we know the failure happened */
@@ -268,14 +208,17 @@ atexit_sparse(void)
 }
 
 
-
 /** setup *****************************************************************/
 
 
 /* convenient shortcuts */
-#define OPTS_INTERNALS(what)  (opts->internals.what)
-#define OPTS_CL(what)         (opts->cl.what)
-#define OPTS_SPARSE(what)     (opts->sparse.what)
+#define OPTS_INTERNALS(what)   (opts->internals.what)
+#define OPTS_OUTSTREAM_PROPS(which) \
+    OPTS_OUTSTREAM_PROPS_RAW(outstream_##which)
+#define OPTS_OUTSTREAM_PROPS_RAW(which) \
+    opts->outstreams[which - outstream_last_base]
+#define OPTS_CL(what)          (opts->cl.what)
+#define OPTS_SPARSE(what)      (opts->sparse.what)
 
 
 static enum retval
@@ -309,6 +252,7 @@ setup_sparse(const struct options *opts, struct symbol_list **symlist,
     *filelist = loc_filelist;
     return ret;
 }
+
 
 static bool
 clsp_append_via_config(struct cl_code_listener *chain,
@@ -355,7 +299,7 @@ clsp_chain_init(const struct options *opts)
 
     /* location as a first step throughout the run/locator */
     if (OPTS_CL(debug.location))
-        if (!clsp_append_via_config(chain, "listener=\"locator\""))
+        if (!clsp_append_via_config(chain, CL_BUILTIN_LOCATOR_STR))
             return NULL;
     /* pretty printing/pp */
     if (OPTS_CL(pprint.enable)) {
@@ -417,8 +361,8 @@ setup_cl(const struct options *opts)
         DIE("sorry, it seems the plugin is not GPL-compatible:\n%s",
             dlerror());
 
-    DLOG(d_plugin, _1(s)": " HIGHLIGHT("cl-plugin") ": loaded successfully",
-                   OPTS_CL(listeners.arr)[0]);
+    DLOG(plug, _1(s)": " HIGHLIGHT("cl-plugin") ": loaded successfully",
+               OPTS_CL(listeners.arr)[0]);
 
     GLOBALS(cl_libs.handles)[0] = handle;
 
@@ -455,7 +399,9 @@ setup_cl(const struct options *opts)
 
 
 /**
-    Code Listener emit manager using (heavily transformed) code from sparse.
+    Code Listener emit manager using (heavily transformed) code from sparse
+
+    It is also responsible for any and all resources incl. @c opts.
 
     @param[in] opts  Target options representation
     @return          Presumably final exit code
@@ -463,41 +409,38 @@ setup_cl(const struct options *opts)
 int
 emitter(struct options *opts)
 {
-    int emit_props = OPTS_INTERNALS(emit_props), ret;
+    int ret, emit_props = OPTS_INTERNALS(emit_props);
     struct string_list *filelist = NULL;
     struct symbol_list *symlist;
 
-    /* take care of streams (incl. cleanup in atexit handler) */
-
+    /* last thing on the way out: close streams incl. those setup below */
     if (GLOBALS(unexposed.register_atexit) && 0 != atexit(atexit_worker_late))
         DIE("atexit");
+    FOR_ENUM_RANGE(i, outstream, first_custom, last_custom)
+        stream_setup(GLOBALS(outstreams), i, OPTS_OUTSTREAM_PROPS_RAW(i));
 
-    stream_setup(&STREAMSTRUCT(sp), "sp",
-                 OPTS_INTERNALS(fd.sp), OPTS_INTERNALS(clr.sp));
-    stream_setup(&STREAMSTRUCT(cl), "cl",
-                 OPTS_INTERNALS(fd.cl), OPTS_INTERNALS(clr.cl));
-    stream_setup(&STREAMSTRUCT(cl_debug), "cl-debug",
-                 OPTS_INTERNALS(fd.cl_debug), OPTS_INTERNALS(clr.cl_debug));
-
-    /* setup sparse (run preprocessing if requested and exit promptly then) */
     ret = setup_sparse(opts, &symlist, &filelist);
-    if (ret == ret_continue)
-        /* setup Code Listener when it is definitely needed */
+    /* continue = std. path, bye = preprocess and quit, fail = selfexpl. */
+    if (ret_bye == ret)
+        emit_props |= emit_dry_run;
+    else if (ret_continue == ret)
         setup_cl(opts);
-    else
-        emit_props |= (ret == ret_bye) ? emit_dry_run : 0;
 
-    /* options no longer needed, what's needed is already preserved */
+    /* options no longer needed (preserving some bits already) */
     options_dispose(opts);
 
     /* take care of streams (incl. cleanup in atexit handler) */
     if (GLOBALS(unexposed.register_atexit) && 0 != atexit(atexit_worker_early))
         DIE("atexit");
 
-    if (ret == ret_continue)
+    if (ret_continue == ret) {
         /* with temporary DB, emit what you can as per emit_props */
-        WITH_OBJECT(type_ptr_db)
-            ret = emit(filelist, symlist, emit_props);
+        type_ptr_db_init(TYPEPTRDB);
+        ret = emit(filelist, symlist, emit_props);
+        type_ptr_db_destroy(TYPEPTRDB);
+    }
+
+    release_sparse();
 
     if (ret_fail != ret && !(emit_props & emit_dry_run))
         /* hand over the processing business */
@@ -511,7 +454,7 @@ emitter(struct options *opts)
 
 
 /**
-    Initializes values within object reprezenting globals.
+    Initializes values within object reprezenting globals
 
     @param[in,out]  globals_obj  Object representing globals
     @note Presumes empty object as in case of default static
@@ -520,15 +463,17 @@ emitter(struct options *opts)
 static void
 globals_initialize(struct globals *globals_obj)
 {
-    globals_obj->stream[stream_debug].stream = NULL;
-    globals_obj->stream[stream_sp].stream    = NULL;
-    globals_obj->stream[stream_cl].stream    = NULL;
+    globals_obj->debug = debug_none;  /* overwritten as per command-line */
 
     /* out and error streams hard-mapped to stdout and stderr, no coloring */
-    stream_setup(&globals_obj->stream[stream_out], NULL,
-                 STDOUT_FILENO, PALETTE_NONE);
-    stream_setup(&globals_obj->stream[stream_err], NULL,
-                 STDERR_FILENO, PALETTE_NONE);
+    stream_setup(globals_obj->outstreams, outstream_out,
+                 OUTSTREAM_PROPS(STDOUT_FILENO, PALETTE_NONE));
+    stream_setup(globals_obj->outstreams, outstream_err,
+                 OUTSTREAM_PROPS(STDERR_FILENO, PALETTE_NONE));
+
+    /* temporary defaults so we can warn in options gathering phase */
+    stream_setup(globals_obj->outstreams, outstream_warn,
+                 OUTSTREAM_PROPS(STDERR_FILENO, PALETTE_NONE));
 
     globals_obj->unexposed.register_atexit = true;
 
@@ -553,37 +498,32 @@ globals_initialize(struct globals *globals_obj)
 static void
 globals_finalize(struct globals *globals_obj, const struct options *opts)
 {
-
+    /* first stream to be set up when we enable debugging has to be debug one */
     globals_obj->debug = OPTS_INTERNALS(debug);
-
     if (globals_obj->debug)
-        stream_setup(&globals_obj->stream[stream_debug], "debug",
-                     OPTS_INTERNALS(fd.debug), OPTS_INTERNALS(clr.debug));
+        stream_setup(globals_obj->outstreams, outstream_debug,
+                     OPTS_OUTSTREAM_PROPS(debug));
 
-    stream_setup(&globals_obj->stream[stream_warn], "warn",
-                 OPTS_INTERNALS(fd.warn), OPTS_INTERNALS(clr.warn));
+    /* it was already temporarily set up, but now the properties are clear */
+    stream_setup(globals_obj->outstreams, outstream_warn,
+                 OPTS_OUTSTREAM_PROPS(warn));
 }
 
 int
 main(int argc, char *argv[])
 {
     int ret;
-    struct options *opts;
+    struct options *options;
 
     globals_initialize(&globals);
-    ret = options_gather(&opts, argc, argv);
-    globals_finalize(&globals, opts);
+    ret = options_gather(&options, argc, argv);
+    if (ret_continue != ret)
+        return (ret_bye == ret) ? EXIT_SUCCESS : ec_opt;
+    globals_finalize(&globals, options);
 
-    WITH_DEBUG_LEVEL(d_options)
-        options_dump(opts);
+    WITH_DEBUG_LEVEL(opts)
+        options_dump(options);
 
-    if (ret_continue != ret) {
-        options_dispose(opts);
-        ret = (ret_bye == ret) ? EXIT_SUCCESS : ec_opt;
-    } else {
-        /* acquires opts */
-        ret = emitter(opts);
-    }
-
-    return ret;
+    /* acquires opts */
+    return emitter(options);
 }

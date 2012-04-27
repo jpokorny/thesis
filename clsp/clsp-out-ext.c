@@ -16,20 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef CLSP_VERSION_H_GUARD
-#define CLSP_VERSION_H_GUARD
 
-#include "clsp-macros.h"
+#include "clsp-out-ext.h"
 
-#ifdef HAS_CL
-# define VER_HAS_CL "CL part built-in"
-#else
-# define VER_HAS_CL "no CL part built-in"
-#endif
-
-#define VER_DETAILS_  VER_HAS_CL ""
-#define VER_DETAILS   (VER_DETAILS_[0] == '\0')           \
-                      ? " " __DATE__                      \
-                      : " "__DATE__ " (" VER_DETAILS_ ")"
-
-#endif
+const char *const debug_str[debug_cnt] = {
+#define X(name,desc)  [debug_##name] = desc,
+    DLIST(X)
+#undef X
+};

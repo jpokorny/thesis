@@ -23,7 +23,10 @@
  */
 
 #include "clsp-api-sparse.h"
-#include "clsp-output.h"      /* WITH_SWAPPED... */
+#include "clsp-out-base.h"    /* PUT, _1(), ... */
+#include "clsp-out-ext.h"     /* WITH_SWAPPED... */
+#include "clsp-macros.h"      /* APPLY */
+
 
 /*
     sparse API:  SP(item, ...)
@@ -35,47 +38,118 @@
 #define SP_HOW(item)  SP_HOW_(APPLY(API_SPARSE_OUT, API_PROPS(SPARSE, item)))
 #define SP_HOW_(out)  JOIN(SP_USE_, out)
 
-#define SP_USE_X(fnc, ...)  SP_(fnc, __VA_ARGS__)
+#define SP_USE_C(...) (0 + SP_(__VA_ARGS__))  /* make an L-value */
+#define SP_USE_X      SP_
 #define SP_USE_D(fnc, ...)                      \
     WITH_SWAPPED_STREAM_HIGH_AS(debug, out, sp) \
+        SP_(fnc, __VA_ARGS__)
+#define SP_USE_F(fnc, ...)                      \
+    WITH_SWAPPED_STREAM_HIGH_AS(debug, err, sp) \
         SP_(fnc, __VA_ARGS__)
 #define SP_USE_E(fnc, ...)            \
     WITH_SWAPPED_STREAM_NORM(sp, err) \
         SP_(fnc, __VA_ARGS__)
 
-/* helpers */
 
-#define SPARSEPOSFMT    "%s:%d:%d"
-
-#define SPARSEPOSFMT_1  _1(s)":"_2(d)":"_3(d)
-#define SPARSEPOSFMT_2  _2(s)":"_3(d)":"_4(d)
-
-#define SPARSEPOS(p)    SP(stream_name, (p).stream), (p).line, (p).pos
-#define SPARSEPOS(p)    SP(stream_name, (p).stream), (p).line, (p).pos
+/** helpers ***************************************************************/
 
 
-#if (API_TEST > 0)
 /*
-    simple test
-    run as: c99 -DAPI_TEST=1 -E clsp_api_sparse.h
+    output
  */
-# define SP(...)           SP_MAP(__VA_ARGS__,IDENTITY)
-# define SP_(...)          API_USE(SPARSE,__VA_ARGS__)
-# define SP_MAP(item,...)  SP_HOW(item)(item,__VA_ARGS__)
-# define SP_HOW(item)      SP_HOW_(APPLY(API_SPARSE_OUT,API_PROPS(SPARSE,item)))
-# define SP_HOW_(out)      JOIN(SP_USE_,out)
-# define SP_USE_X          SP_
-# define SP_USE_D(fnc,...)         \
-    WITH_SWAPPED_STREAM(debug,out) \
-        SP_(fnc,__VA_ARGS__)
-# define SP_USE_E(fnc,...)          \
-    WITH_SWAPPED_STREAM(sparse,err) \
-        SP_(fnc,__VA_ARGS__)
-PRAGMA_MSGSTR("following should be: free_storage( );")
-SP(free_storage);
-PRAGMA_MSGSTR("following should be: WITH_SWAPPED_STREAM(sparse,err) ret = linearize_symbol(sym );")
-SP(linearize_symbol, ret, sym);
-#endif
+
+#define SPPOSFMT    "%s:%d:%d"
+
+#define SPPOSFMT_1  _1(s)":"_2(d)":"_3(d)
+#define SPPOSFMT_2  _2(s)":"_3(d)":"_4(d)
+
+#define SPPOS(p)    SP(stream_name, (p).stream), (p).line, (p).pos
+
+
+/*
+    pseudo-related
+ */
+
+/**
+    Returns if there is anything interesting about pseudo at all
+ */
+static inline bool
+pseudo_futile(pseudo_t pseudo)
+{
+    return !pseudo || VOID == pseudo;
+}
+
+/**
+    Returns if the pseudo carries "immediate" value
+ */
+static inline bool
+pseudo_immediate(pseudo_t pseudo)
+{
+    return PSEUDO_SYM != pseudo->type && PSEUDO_ARG != pseudo->type;
+}
+
+
+/*
+    debug
+ */
+
+/**
+    Show status of sparse allocators
+ */
+void sparse_alloc_show(void);
+
+
+#define SPARSE_NAMESPACE_CODELIST(x) \
+    APPLY(x, NONE        )           \
+    APPLY(x, MACRO       )           \
+    APPLY(x, TYPEDEF     )           \
+    APPLY(x, STRUCT      )           \
+    APPLY(x, LABEL       )           \
+    APPLY(x, SYMBOL      )           \
+    APPLY(x, ITERATOR    )           \
+    APPLY(x, PREPROCESSOR)           \
+    APPLY(x, UNDEF       )           \
+    APPLY(x, KEYWORD     )           \
+
+/** Scope to string reprezentation */
+static inline const char *
+debug_sparse_scope(const struct symbol *sym)
+{
+    const struct scope *scope = sym->scope;
+    const char *scope_str;
+
+    /* the order of comparisons is important */
+    if (NULL == scope)
+        scope_str = "NULL";
+    else if (SP(global_scope) == scope)
+        scope_str = "global";
+    else if (SP(file_scope) == scope)
+        scope_str = "file";
+    else if (SP(function_scope) == scope)
+        scope_str = "function";
+    else if (SP(block_scope) == scope)
+        scope_str = "block";
+    else if (sym->ctype.modifiers | MOD_TOPLEVEL)
+        scope_str = "unknown (toplevel)";
+    else
+        scope_str = "unknown";
+
+    return scope_str;
+}
+
+/**
+    Show symbol information
+
+    @param[in] sym     Symbol to be exposed
+    @param[in] indent  Initial level of indentation
+ */
+void debug_sparse_symbol(struct symbol *sym, int indent);
+
+/**
+    As @c debug_sparse_symbol, but with more details
+ */
+void
+debug_sparse_symbol_detailed(struct symbol *sym, int indent);
 
 
 #endif

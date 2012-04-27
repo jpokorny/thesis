@@ -18,10 +18,10 @@
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
-#include "clsp.h"          /* bootstrap all other dependencies... */
+#include "clsp.h"
 
 #include "clsp-emit.h"
+#include "type_enumerator.h"
 
 // yo, Dawg...
 #define OR  : case
@@ -52,18 +52,6 @@ const struct cl_type pristine_cl_type = {
     .items      = NULL,
     //.array_size = 0,
 };
-
-
-struct type_ptr_db  type_ptr_db = {
-    .last_base_type_uid = 0,  // to prevent free of non-heap based types
-    .type_db            = NULL,
-    .ptr_db             = { .alloc_size=0, .last=0, .heads=NULL },
-};
-
-
-
-
-
 
 /* sparse - code listener types mapping */
 
@@ -154,7 +142,7 @@ static void
 free_type(struct cl_type *clt)
 {
     // skip base types that are not on heap
-    if (clt->uid > type_ptr_db.last_base_type_uid) {
+    if (clt->uid > TYPEPTRDB->last_base_type_uid) {
 
         /* clt->name */
         free((char *) clt->name);
@@ -218,7 +206,7 @@ referenced_type(const struct cl_type* orig_type)
     struct cl_type *retval;
     MEM_NEW(retval);  // guaranteed not to return NULL
 
-    retval->uid   = type_ptr_db.last_base_type_uid+1;
+    retval->uid   = TYPEPTRDB->last_base_type_uid+1;
     retval->code  = CL_TYPE_PTR;
     retval->loc   = orig_type->loc;
     retval->scope = orig_type->scope;
@@ -239,7 +227,7 @@ referenced_type(const struct cl_type* orig_type)
 struct cl_type *
 build_referenced_type(struct cl_type *orig_clt)
 {
-    struct ptr_db_arr *ptr_db = &type_ptr_db.ptr_db;
+    struct ptr_db_arr *ptr_db = &(TYPEPTRDB->ptr_db);
 
     struct ptr_db_item *prev;
     prev = type_ptr_db_lookup_ptr(ptr_db, orig_clt);
@@ -259,7 +247,7 @@ type_ptr_db_insert(struct type_ptr_db *db, struct cl_type *clt,
                    const struct symbol *type, struct ptr_db_item **ptr)
 #define PTRDBARR_SIZE  (128)
 {
-    WITH_DEBUG_LEVEL(d_insert_type) {
+    WITH_DEBUG_LEVEL(inst) {
         if (clt->loc.file)
             PUT(debug, CLPOSFMT_1 ": " HIGHLIGHT("type-db") ": add "
                        HIGHLIGHT(_4(s)) " (uid="_5(d)", clt="_6(p)
@@ -359,6 +347,8 @@ type_ptr_db_init(struct type_ptr_db* db)
 void
 type_ptr_db_destroy(struct type_ptr_db* db)
 {
+    /* todo: check double free, etc. */
+
     typen_destroy(db->type_db);
 
     // destroy pointer hierarchy
