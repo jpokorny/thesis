@@ -311,8 +311,8 @@ print_help(const char *cmd)
 static void
 print_completion_bash(const char *cmd)
 {
-#define X1(type, name)        " \\\n" PREFIX(type) STRINGIFY(name)
-#define X2(norm, high, code)  " \\\n" STRINGIFY(norm)
+#define X1(type, name)        " \\\n" PREFIX(type) #name
+#define X2(norm, high, code)  " \\\n" #norm
 
     /* (POSIX) basename may modify in-place which is not desired */
     char *copy = strdup(cmd);
@@ -687,7 +687,7 @@ options_proceed(struct options *opts, int argc, const char *argv[])
                         break;
                     case proceeded_exit:
                         /* help and the like, bail out */
-                        return ret_bye;
+                        return ret_escape;
                     case proceeded_single_consumed:
                         /* no extra internally consumed args */
                         break;
@@ -771,16 +771,16 @@ options_gather(struct options **opts, int argc, char *argv[])
                 PUT(err, "missing arguments (while some options specified)");
             else
                 print_help(argv[0]);
-            ret = ret_fail;
+            ret = ret_negative;
             /*FALLTHROUGH*/
-        case ret_bye:
+        case ret_escape:
             free(new_opts);
             new_opts = NULL;
             break;
         default:
             assert(0 < ret);
             options_finalize(new_opts, ret, argv);
-            ret = ret_continue;
+            ret = ret_positive;
     }
 
     *opts = new_opts;

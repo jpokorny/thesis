@@ -30,9 +30,9 @@
     Generalized common return values.
  */
 enum retval {
-    ret_fail     =  1,  /**< Denotes failure-based exit. */
-    ret_continue =  0,  /**< Denotes continuing in the run. */
-    ret_bye      = -1,  /**< Denotes immediate graceful exit. */
+    ret_escape   = -1,  /**< Denotes soon exit (context-local or global) */
+    ret_negative =  0,  /**< Denotes failure or disagreement */
+    ret_positive =  1,  /**< Denotes success or agreement */
 };
 
 
@@ -81,7 +81,7 @@ enum {
 #define DCHR_ECODE      "$"
 #define DCHR_ERRNOCODE  "#"
 
-#define ECODE_(flag, c, ...)  flag TOSTRING(ECNUM(c)) __VA_ARGS__
+#define ECODE_(flag, c, ...)  flag STRINGIFY(ECNUM(c)) __VA_ARGS__
 
 /* these are the wrappers for exitus emergence (see below) */
 #define ERRNO(...)      DCHR_ERRNO __VA_ARGS__

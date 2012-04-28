@@ -225,7 +225,7 @@ static enum retval
 setup_sparse(const struct options *opts, struct symbol_list **symlist,
              struct string_list **filelist)
 {
-    int ret = ret_continue;
+    int ret = ret_positive;
     struct symbol_list *loc_symlist;
     struct string_list *loc_filelist = NULL;
     char *file;
@@ -245,7 +245,7 @@ setup_sparse(const struct options *opts, struct symbol_list **symlist,
 
         loc_symlist = NULL;
         loc_filelist = NULL;
-        ret = SP(die_if_error) ? ret_fail : ret_bye;
+        ret = SP(die_if_error) ? ret_negative : ret_escape;
     }
 
     *symlist = loc_symlist;
@@ -420,10 +420,10 @@ emitter(struct options *opts)
         stream_setup(GLOBALS(outstreams), i, OPTS_OUTSTREAM_PROPS_RAW(i));
 
     ret = setup_sparse(opts, &symlist, &filelist);
-    /* continue = std. path, bye = preprocess and quit, fail = selfexpl. */
-    if (ret_bye == ret)
+    /* positive = std. path, escape = preprocess and quit, negative = fail */
+    if (ret_escape == ret)
         emit_props |= emit_dry_run;
-    else if (ret_continue == ret)
+    else if (ret_positive == ret)
         setup_cl(opts);
 
     /* options no longer needed (preserving some bits already) */
@@ -433,7 +433,7 @@ emitter(struct options *opts)
     if (GLOBALS(unexposed.register_atexit) && 0 != atexit(atexit_worker_early))
         DIE("atexit");
 
-    if (ret_continue == ret) {
+    if (ret_positive == ret) {
         /* with temporary DB, emit what you can as per emit_props */
         type_ptr_db_init(TYPEPTRDB);
         ret = emit(filelist, symlist, emit_props);
@@ -442,11 +442,11 @@ emitter(struct options *opts)
 
     release_sparse();
 
-    if (ret_fail != ret && !(emit_props & emit_dry_run))
+    if (ret_negative != ret && !(emit_props & emit_dry_run))
         /* hand over the processing business */
         API_EMIT(acknowledge);
 
-    return (ret_fail == ret) ? ec_sparse_code : ec_ok;
+    return (ret_negative == ret) ? ec_sparse_code : ec_ok;
 }
 
 
@@ -463,6 +463,7 @@ emitter(struct options *opts)
 static void
 globals_initialize(struct globals *globals_obj)
 {
+    globals_obj->indent = 8/INDENT_MULT;
     globals_obj->debug = debug_none;  /* overwritten as per command-line */
 
     /* out and error streams hard-mapped to stdout and stderr, no coloring */
@@ -517,8 +518,8 @@ main(int argc, char *argv[])
 
     globals_initialize(&globals);
     ret = options_gather(&options, argc, argv);
-    if (ret_continue != ret)
-        return (ret_bye == ret) ? EXIT_SUCCESS : ec_opt;
+    if (ret_positive != ret)
+        return (ret_escape == ret) ? EXIT_SUCCESS : ec_opt;
     globals_finalize(&globals, options);
 
     WITH_DEBUG_LEVEL(opts)

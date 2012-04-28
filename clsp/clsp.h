@@ -55,7 +55,6 @@
 # define STREAMCLRNORM(which)  GLOBALS(outstreams)[outstream_##which].clr_norm
 # define STREAMCLRHIGH(which)  GLOBALS(outstreams)[outstream_##which].clr_high
 # define STREAMCLREND(which)   GLOBALS(outstreams)[outstream_##which].clr_end
-# define TYPEPTRDB             (&GLOBALS(type_ptr_db))
 #endif
 
 /* complete types within struct globals... */
@@ -68,9 +67,16 @@ extern struct globals {
 
     outstreams    outstreams;
     int           debug;
-    /* TODO typedb */
+    int           indent;
+
     struct cl_code_listener
                   *cl;
+    struct type_ptr_db type_ptr_db;
+
+    struct {
+        int       fnc;
+        int       var;
+    } counters;
 
     /* API functions resolved in compile-/run-time set here */
     struct g_cl_api {
@@ -93,10 +99,11 @@ extern struct globals {
         bool      register_atexit;
     } unexposed;
 
-    struct type_ptr_db type_ptr_db;
-
 } globals;
 
+
+#define TYPEPTRDB      (&GLOBALS(type_ptr_db))
+#define COUNTER(what)  (GLOBALS(counters.what))
 
 /* now, pull in the other "implicit" stuff */
 #include "clsp-out-ext.h"  /* WARN, DLOG, DIE, ...*/

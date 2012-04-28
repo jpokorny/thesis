@@ -249,7 +249,7 @@ debug_cl_operand_code(enum cl_operand_e code)
 #define CL_INSN_MARK_UNOP      0x1
 #define CL_INSN_MARK_BINOP     0x2
 
-const char *const cl_insn_codelist_str[CL_INSN_TOTAL];
+extern const char *const cl_insn_codelist_str[CL_INSN_TOTAL];
 
 /**
     Instruction to string reprezentation

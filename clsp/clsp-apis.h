@@ -97,7 +97,7 @@
 #if !defined(IDENTITY)      \
  || !defined(APPLY)         \
  || !defined(JOIN)          \
- || !defined(TOSTRING)      \
+ || !defined(STRINGIFY)     \
  || !defined(PRAGMA_MSGSTR)
 # pragma message "Missing some macros that should be defined already"
 #endif
@@ -321,7 +321,7 @@ PRAGMA_MSGSTR("OVERVIEW OF APIs USED FOLLOWS:")
     #define FOO(...)   FOO_(__VA_ARGS__,IDENTITY)
     #define FOO_(item,...)                   \
         do {                                 \
-            printf("%s\n", STRINGIFY(item)); \
+            printf("%s\n", #item);           \
             API_USE(FOO,item,__VA_ARGS__);   \
         while (0)
     #define FRU(...)   API_USE(FRU,__VA_ARGS__,IDENTITY)
@@ -353,7 +353,7 @@ PRAGMA_MSGSTR("OVERVIEW OF APIs USED FOLLOWS:")
 
 /* get API name (raw or stringified) of specified API */
 #define API_NAME(prefix)         API_##prefix##_NAME
-#define API_NAME_STR(prefix)     TOSTRING(API_NAME(prefix))
+#define API_NAME_STR(prefix)     STRINGIFY(API_NAME(prefix))
 
 /* get properties of specified item of specified API */
 #define API_PROPS(prefix,item)    API_##prefix##_##item
@@ -367,7 +367,7 @@ PRAGMA_MSGSTR("OVERVIEW OF APIs USED FOLLOWS:")
 
 /* internalized -> fully-qualified API identifier (raw/stringified) */
 #define API_FQ(prefix,item)       API_##prefix##_FQ(item)
-#define API_FQ_STR(prefix,item)   TOSTRING(API_FQ(prefix,item))
+#define API_FQ_STR(prefix,item)   STRINGIFY(API_FQ(prefix,item))
 
 
 /*  ready-to-use macros  */
@@ -382,7 +382,7 @@ PRAGMA_MSGSTR("OVERVIEW OF APIs USED FOLLOWS:")
 #define API_PRAGMA_DETAILS(prefix)  API_PROCEED(prefix,API__PRAGMA_DETAILS)
 #define API__PRAGMA_DETAILS(prefix,item,cnt)                                  \
     PRAGMA_MSGSTR("API:" API_NAME_STR(prefix) ":"                             \
-                  TOSTRING(API_TYPE(prefix,item)) ":" API_FQ_STR(prefix,item))
+                  STRINGIFY(API_TYPE(prefix,item)) ":" API_FQ_STR(prefix,item))
 
 
 #endif

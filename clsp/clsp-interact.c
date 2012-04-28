@@ -17,7 +17,6 @@
  * along with predator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "clsp.h"
 
 #include <signal.h>
@@ -31,7 +30,7 @@
 
 #define ICMDLIST(x)                                                        \
     APPLY(x,'h',help,    "show this help"                                ) \
-    APPLY(x,'q',quit,    "quit the program"                              ) \
+    APPLY(x,'q',quit,    "cancel emitting, quit the program"             ) \
     APPLY(x,'n',next,    "next instruction (same as pressing just enter)") \
     APPLY(x,'c',continue,"continuous mode until next file"               ) \
     APPLY(x,'d',debugger,"when debugged, switch to debugger"             )
@@ -72,7 +71,7 @@ static enum retval
 icmd_handle_quit(int *emit_props, const char *line)
 {
     (void) emit_props; (void) line;
-    return ret_fail;
+    return ret_negative;
 }
 
 static enum retval
@@ -81,15 +80,16 @@ icmd_handle_help(int *emit_props, const char *line)
     (void) emit_props; (void) line;
     PUT(out, "simple interactive mode, available commands:");
     FOR_ENUM_RANGE(i, icmd, first, last)
-        PUT(out, _1(-10s)": "_2(s), icmds[i].fullcmd, icmd_str[i]);
-    return ret_continue;
+        PUT(out, "["_1(c)"]"_2(-8s)": "_3(s), icmds[i].fullcmd[0],
+                 &icmds[i].fullcmd[1], icmd_str[i]);
+    return ret_positive;
 }
 
 static enum retval
 icmd_handle_next(int *emit_props, const char *line)
 {
     (void) emit_props; (void) line;
-    return ret_bye;
+    return ret_escape;
 }
 
 static enum retval
@@ -97,7 +97,7 @@ icmd_handle_continue(int *emit_props, const char *line)
 {
     (void) line;
     *emit_props &= ~emit_file_interactive;
-    return ret_bye;
+    return ret_escape;
 }
 
 static enum retval
@@ -107,11 +107,12 @@ icmd_handle_debugger(int *emit_props, const char *line)
     *emit_props &= ~emit_file_interactive;
 
     raise(SIGTRAP);
-    return ret_bye;
+    return ret_escape;
 }
 
 #define BUFSIZE 32
-bool interact(int *emit_props)
+bool
+interact(int *emit_props)
 {
     char buffer[BUFSIZE];
     char *cmd;
@@ -138,13 +139,13 @@ bool interact(int *emit_props)
                 icmd = &icmds[icmd_next];
                 break;
             default:
-                PUT(out, "unknown command");
+                PUT(out, "unknown command, press h for help");
                 continue;
         }
         ret = icmd->cmdhandler(emit_props, cmd);
-        if (ret_continue != ret)
+        if (ret_positive != ret)
             break;
     }
 
-    return ret_bye == ret;  /* ret_fail otherwise */
+    return ret_escape == ret;  /* ret_negative otherwise */
 }

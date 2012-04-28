@@ -24,6 +24,9 @@
 
 #include "clsp-apis.h"
 
+#undef DO_STRINGIFY
+#undef STRINGIFY
+
 /* see below which API elements need which header */
 #include "lib.h"
 #include "allocate.h"

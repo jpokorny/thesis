@@ -93,23 +93,36 @@ debug_cl_cst(const struct cl_cst *cst, int indent)
     switch (cst->code) {
         case CL_TYPE_FNC:
             PUTHI(debug, cl_debug, indent,
-                  ENT(constant-fnc) " {name="_1(s)", uid="_2(d)", extern="_3(c)
+                  ENT(constant-fnc) " {"
+                      "name="   _1(s) ", "
+                      "uid="    _2(d) ", "
+                      "extern=" _3(c)
                   "}: " CLPOSFMT_4,
-                  cst->data.cst_fnc.name, cst->data.cst_fnc.uid,
+                  cst->data.cst_fnc.name,
+                  cst->data.cst_fnc.uid,
                   GET_YN(cst->data.cst_fnc.is_extern),
                   CLPOS(cst->data.cst_fnc.loc));
             break;
         case CL_TYPE_INT:
             PUTHI(debug, cl_debug, indent,
-                  ENT(constant-int) " {{{"_1(d)"}}}", cst->data.cst_int.value);
+                  ENT(constant-int) " {{{"
+                      _1(d)
+                  "}}}",
+                  cst->data.cst_int.value);
             break;
         case CL_TYPE_STRING:
             PUTHI(debug, cl_debug, indent,
-                  ENT(constant-string) " {{{"_1(s)"}}}", cst->data.cst_string.value);
+                  ENT(constant-string) " {{{"
+                      _1(s)
+                  "}}}",
+                  cst->data.cst_string.value);
             break;
         case CL_TYPE_REAL:
             PUTHI(debug, cl_debug, indent,
-                  ENT(constant-real) " {{{"_1(lf)"}}}", cst->data.cst_real.value);
+                  ENT(constant-real) " {{{"
+                      _1(lf)
+                  "}}}",
+                  cst->data.cst_real.value);
             break;
         case CL_TYPE_VOID:
         case CL_TYPE_UNKNOWN:
@@ -121,10 +134,16 @@ debug_cl_cst(const struct cl_cst *cst, int indent)
         case CL_TYPE_BOOL:
         case CL_TYPE_ENUM:
             PUTHI(debug, cl_debug, indent,
-                  ENT(constant-error) " {code="_1(d)"}", cst->code);
+                  ENT(constant-error) " {"
+                      "code="_1(d)
+                  "}",
+                  cst->code);
         default:
             PUTHI(debug, cl_debug, indent,
-                  ENT(constant-uknown) " {code="_1(d)"}", cst->code);
+                  ENT(constant-uknown) " {"
+                      "code="_1(d)
+                  "}",
+                  cst->code);
     }
 }
 
@@ -147,10 +166,17 @@ static inline void
 debug_cl_var(const struct cl_var *var, int indent)
 {
     PUTHI(debug, cl_debug, indent,
-          ENT(operand-var) " {uid="_1(d)", name="_2(s)", artificial="_3(c)
-          ", initialized="_4(c)"}: " CLPOSFMT_5, var->uid,
-          var->name ? var->name : "<none>", GET_YN(var->artificial),
-          GET_YN(var->initialized), CLPOS(var->loc));
+          ENT(operand-var) " {"
+              "uid="         _1(d) ", "
+              "name="        _2(s) ", "
+              "artificial="  _3(c) ", "
+              "initialized=" _4(c)
+          "}: " CLPOSFMT_5,
+          var->uid,
+          var->name ? var->name : "<none>",
+          GET_YN(var->artificial),
+          GET_YN(var->initialized),
+          CLPOS(var->loc));
     debug_cl_initializer(var->initial, indent+1);
 }
 
@@ -158,10 +184,20 @@ void
 debug_cl_type(const struct cl_type *clt, int indent)
 {
     PUTHI(debug, cl_debug, indent++,
-          ENT(type) " {kind="_1(s)", uid="_2(d)", name="_3(s)
-          ", sizeof="_4(d) ", item_cnt="_5(d)"}: " CLPOSFMT_6,
-          debug_cl_type_code(clt->code), clt->uid,
-          clt->name ? clt->name : "<none>", clt->size, clt->item_cnt,
+          ENT(type) " {"
+              "kind="        _1(s) ", "
+              "uid="         _2(d) ", "
+              "name="        _3(s) ", "
+              "sizeof="      _4(d) ", "
+              "item_cnt="    _5(d) ", "
+              "is_unsigned=" _6(c)
+          "}: " CLPOSFMT_7,
+          debug_cl_type_code(clt->code),
+          clt->uid,
+          clt->name ? clt->name : "<none>",
+          clt->size,
+          clt->item_cnt,
+          GET_YN(clt->is_unsigned),
           CLPOS(clt->loc));
 
     for (int i = 0; i < clt->item_cnt; i++) {
@@ -170,7 +206,10 @@ debug_cl_type(const struct cl_type *clt, int indent)
             case CL_TYPE_STRUCT: 
             case CL_TYPE_UNION:  
                 PUTHI(debug, cl_debug, indent,
-                      ENT(type-item) " {name="_1(s)", offset="_2(d)"}",
+                      ENT(type-item) " {"
+                          "name="   _1(s) ", "
+                          "offset=" _2(d)
+                      "}",
                       clt->items[i].name ? clt->items[i].name : "<anonymous>",
                       clt->items[i].offset);
                 break;
@@ -179,7 +218,9 @@ debug_cl_type(const struct cl_type *clt, int indent)
             case CL_TYPE_ARRAY:  
             case CL_TYPE_FNC:    
                 PUTHI(debug, cl_debug, indent,
-                      ENT(type-item) " {name="_1(s)"}",
+                      ENT(type-item) " {"
+                          "name=" _1(s)
+                      "}",
                       clt->items[i].name ? clt->items[i].name : "<anonymous>");
                 break;
             case CL_TYPE_VOID:   
@@ -190,7 +231,10 @@ debug_cl_type(const struct cl_type *clt, int indent)
             case CL_TYPE_REAL:   
             case CL_TYPE_STRING:
                 PUTHI(debug, cl_debug, indent,
-                      ENT(type-error) " {item-cnt="_1(d)"}", clt->item_cnt);
+                      ENT(type-error) " {"
+                          "item-cnt=" _1(d)
+                      "}",
+                      clt->item_cnt);
                 break;
         }
         if (indent < 12)
@@ -209,7 +253,9 @@ debug_cl_accessor(const struct cl_accessor *accessor, int indent)
 {
     while (accessor) {
         PUTHI(debug, cl_debug, indent++,
-              ENT(accessor) " {kind="_1(s)"}",
+              ENT(accessor) " {"
+                "kind=" _1(s)
+              "}",
               debug_cl_accessor_code(accessor->code));
 
         debug_cl_type(accessor->type, indent);
@@ -224,7 +270,10 @@ debug_cl_accessor(const struct cl_accessor *accessor, int indent)
                 debug_cl_operand(accessor->data.array.index, indent+2, false);
                 break;
             case CL_ACCESSOR_ITEM:
-                PUTHI(debug, cl_debug, indent+1, "{id="_1(d)"}", accessor->data.item.id);
+                PUTHI(debug, cl_debug, indent+1, "{"
+                          "id=" _1(d)
+                      "}",
+                      accessor->data.item.id);
                 break;
             /* otherwise, error already indicated as kind */
         }
@@ -236,7 +285,10 @@ void
 debug_cl_operand(const struct cl_operand *op, int indent, bool safely)
 {
     PUTHI(debug, cl_debug, indent++,
-          ENT(operand) " {kind="_1(s)", scope="_2(s)"}",
+          ENT(operand) " {"
+              "kind="   _1(s) ", "
+              "scope="  _2(s)
+          "}",
           debug_cl_operand_code(op->code),
           CL_OPERAND_VOID == op->code ? "N/A" : debug_cl_scope_code(op->scope));
 
@@ -252,14 +304,17 @@ debug_cl_operand(const struct cl_operand *op, int indent, bool safely)
         debug_cl_var(op->data.var, indent);
     else
         PUTHI(debug, cl_debug, indent,
-             _1(s), "(skipped for possible initialization infloop)");
+              _1(s), "(skipped for possible initialization infloop)");
 }
 
 void
 debug_cl_insn(const struct cl_insn *insn, int indent, bool safely)
 {
     PUTHI(debug, cl_debug, indent++,
-          ENT(instruction) " {{{"_1(s) "}}}: " CLPOSFMT_2, debug_cl_insn_code(insn),
+          ENT(instruction) " {{{"
+              _1(s)
+          "}}}: " CLPOSFMT_2,
+          debug_cl_insn_code(insn),
           CLPOS(insn->loc));
 
     switch (insn->code) {
@@ -267,16 +322,23 @@ debug_cl_insn(const struct cl_insn *insn, int indent, bool safely)
             break;
         case CL_INSN_JMP:
             PUTHI(debug, cl_debug, indent,
-                  ENT(jmp-label) "{{{"_1(s)"}}}", insn->data.insn_jmp.label);
+                  ENT(jmp-label) "{{{"
+                      _1(s)
+                  "}}}",
+                  insn->data.insn_jmp.label);
             break;
         case CL_INSN_COND:
             PUTHI(debug, cl_debug, indent, ENT(cond-src) _1(s), "");
             debug_cl_operand(insn->data.insn_cond.src, indent+1, false);
             PUTHI(debug, cl_debug, indent,
-                  ENT(cond-then-label) "{{{"_1(s)"}}}",
+                  ENT(cond-then-label) "{{{"
+                      _1(s)
+                  "}}}",
                   insn->data.insn_cond.then_label);
             PUTHI(debug, cl_debug, indent,
-                  ENT(cond-else-label) "{{{"_1(s)"}}}",
+                  ENT(cond-else-label) "{{{"
+                      _1(s)
+                  "}}}",
                   insn->data.insn_cond.else_label);
             break;
         case CL_INSN_RET:
@@ -305,7 +367,10 @@ debug_cl_insn(const struct cl_insn *insn, int indent, bool safely)
             break;
         case CL_INSN_LABEL:
             PUTHI(debug, cl_debug, indent,
-                  ENT(label-name) "{{{"_1(s)"}}}", insn->data.insn_label.name);
+                  ENT(label-name) "{{{"
+                      _1(s)
+                  "}}}",
+                  insn->data.insn_label.name);
             break;
         /* otherwise, error already indicated as instruction name */
     }

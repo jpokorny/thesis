@@ -70,7 +70,7 @@ struct cl_type
 
 static const struct {
     struct cl_type  *ref;
-    struct symbol   *ctype;
+    struct symbol   *type;
     enum cl_type_e  cl_type;
     const char      *name;
 } base_types[] = {
@@ -298,22 +298,23 @@ type_ptr_db_insert(struct type_ptr_db *db, struct cl_type *clt,
 static void
 populate_with_base_types(struct type_ptr_db *db)
 {
-    struct symbol *ctype;
+    struct symbol *type;
     struct cl_type *clt;
     int i;
     for (i = 0; i < ARRAY_SIZE(base_types); i++) {
         clt = base_types[i].ref;
         empty_type(clt);
 
-        ctype = base_types[i].ctype;
+        type = base_types[i].type;
 
-        clt->code  = base_types[i].cl_type;
-        clt->scope = CL_SCOPE_GLOBAL;
-        clt->name  = base_types[i].name;
-        clt->size  = sizeof_from_bits(ctype->bit_size);
+        clt->code        = base_types[i].cl_type;
+        clt->scope       = CL_SCOPE_GLOBAL;
+        clt->name        = base_types[i].name;
+        clt->size        = sizeof_from_bits(type->bit_size);
+        clt->is_unsigned = type->ctype.modifiers & MOD_UNSIGNED;
 
         // insert into hash table + pointer hierarchy (at base level)
-        type_ptr_db_insert(db, clt, ctype, NULL);
+        type_ptr_db_insert(db, clt, type, NULL);
     }
 
     // set uid of the last type inserted so we can skip the freeing for these

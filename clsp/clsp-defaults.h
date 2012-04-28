@@ -53,7 +53,7 @@
     fd
 #define DEF_OUTSTREAM_FD(which) \
     APPLY_INNER(DEF_OUTSTREAM_FD_, DEF_OUTSTREAM_##which)
-#define DEF_OUTSTREAM_FD_STR(which)  TOSTRING(DEF_OUTSTREAM_FD(which))
+#define DEF_OUTSTREAM_FD_STR(which)  STRINGIFY(DEF_OUTSTREAM_FD(which))
 
 #define DEF_OUTSTREAM_PALETTE_(name, fd, nnorm, nhigh, ncode, hnorm, hhigh, hcode) \
     nnorm, nhigh, ncode, hnorm, hhigh, hcode

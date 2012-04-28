@@ -57,10 +57,10 @@ char error_ = "missing some macros that should be defined already"[-1];
  */
 
 #define LOCFMT \
-    __FILE__ ":" TOSTRING(__LINE__) ": note: from %s [internal location]"
+    __FILE__ ":" STRINGIFY(__LINE__) ": note: from %s [internal location]"
 
 #define LOCFMT_1 \
-    __FILE__ ":" TOSTRING(__LINE__) ": note: from "_1(s)" [internal location]"
+    __FILE__ ":" STRINGIFY(__LINE__) ": note: from "_1(s)" [internal location]"
 
 #define GET_YN(b)  (b) ? 'Y' : 'N'
 
@@ -146,7 +146,7 @@ swap_stream(FILE *f1, FILE *f2) {
         return;
 
     DLOG(strm, "\t" HIGHLIGHT("stream") ": swap: " _1(p)
-               " ("_2(d)" - "_3(p)" ("_4(d)")",
+               " ("_2(d)") - "_3(p)" ("_4(d)")",
                (void *)f1, fd1, (void*)f2, fd2);
 
     /* this is always needed due to (at the very least) using colors (?) */

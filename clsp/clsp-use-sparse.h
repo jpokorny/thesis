@@ -90,6 +90,47 @@ pseudo_immediate(pseudo_t pseudo)
 
 
 /*
+    passes (context manager + entry--exit hooks)
+ */
+
+#define WITH_PASS(which, ep)               \
+    for (int i_=0; 0==i_                   \
+         ? (pass_##which##_entry(ep))      \
+         : ((pass_##which##_exit(ep)), 0)  \
+         ; i_++)
+
+#if DO_PER_EP_SET_UP_STORAGE
+/* storage */
+static inline bool
+pass_storage_entry(struct entrypoint *ep)
+{
+    SP(set_up_storage, ep);
+    return true;
+}
+static inline void
+pass_storage_exit(struct entrypoint *ep)
+{
+    (void) ep;
+    SP(free_storage);
+}
+#endif
+
+/* unssa */
+static inline bool
+pass_unssa_entry(struct entrypoint *ep)
+{
+    SP(unssa, ep);
+    return true;
+}
+static inline void
+pass_unssa_exit(struct entrypoint *ep)
+{
+    (void) ep;
+    /* no cleanup */
+}
+
+
+/*
     debug
  */
 

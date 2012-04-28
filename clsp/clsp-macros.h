@@ -33,8 +33,10 @@
 #define IDENTITY(a_)          a_
 
 /* preprocessor lexical manipulations */
-#define STRINGIFY(a_)         #a_
-#define TOSTRING(a_)          STRINGIFY(a_)
+#ifndef DO_STRINGIFY  /* the same defined on sparse side */
+# define DO_STRINGIFY(a_)     #a_
+# define STRINGIFY(a_)        DO_STRINGIFY(a_)
+#endif
 #define JOIN(a_,b_)           a_##b_
 
 
@@ -42,7 +44,7 @@
     _Pragma operator made convenient
  */
 #define PRAGMA_MSG(arg)       PRAGMA_MSG_(arg)
-#define PRAGMA_MSG_(arg)      PRAGMA_MSGSTR(TOSTRING(arg))
+#define PRAGMA_MSG_(arg)      PRAGMA_MSGSTR(STRINGIFY(arg))
 #define PRAGMA_MSGSTR(arg)    PRAGMA_(message arg)
 #define PRAGMA_RAW(arg)       PRAGMA_(arg)
 #define PRAGMA_(arg)          _Pragma(#arg)
