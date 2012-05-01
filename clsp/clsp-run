@@ -7,8 +7,8 @@ HERE=$(dirname "${BASH_SOURCE[0]}")
 
 : ${EXEC:="${HERE}/clsp"}
 : ${PREDATOR_DIR:="${HERE}/../predator"}
-# currently available: cl_test, fwnull, sl, fa or <empty>
-: ${ANALYZER:=cl_test}
+# currently available: cl_smoke_test, fwnull, sl, fa or <empty>
+: ${ANALYZER:=cl_smoke_test}
 
 INT_ARGS=
 
@@ -16,7 +16,11 @@ INT_ARGS=
 # GCC_INCLUDES
 # NOCOLOR
 
-LIB="${PREDATOR_DIR}/${ANALYZER%_test}_build/lib${ANALYZER}.so"
+if echo ${ANALYZER} | grep -q "test"; then
+    LIB="${PREDATOR_DIR}/${ANALYZER%_smoke_test}_build/tests/lib${ANALYZER}.so"
+else
+    LIB="${PREDATOR_DIR}/${ANALYZER}_build/lib${ANALYZER}.so"
+fi
 
 if [ ${GCC_INCLUDES:=0} -ne 0 ]; then
     INT_ARGS+=" -isystem $(echo|cpp -Wp,-v - 2>&1 >/dev/null|grep -E "^[ ]*/"|head -n1|sed 's/^ *//')"

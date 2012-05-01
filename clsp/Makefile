@@ -25,8 +25,9 @@ DBGCFLAGS  = -O0 -gdwarf-4 -g3 -fno-inline
 
 RELEASE    = 0
 USE_LTO    = 1
+VERBOSE    = 0  # should be propagated also to CL build system
 
-ANALYZERS  = cl_test fwnull sl fa
+ANALYZERS  = cl_smoke_test fwnull sl fa
 # one from above or <empty>
 ANALYZER   =
 CL_OPTS   :=
@@ -41,6 +42,9 @@ else
   CFLAGS  += -Wswitch-enum
   SP_OPTS  = "CFLAGS += ${DBGCFLAGS}"
   CL_OPTS += CL_DEBUG=1
+endif
+ifeq (1,${VERBOSE})
+  SP_OPTS  = "V = 1"
 endif
 ifneq (,${ANALYZER})
   CFLAGS  += -DHAS_CL
@@ -103,6 +107,7 @@ OBJECTS  = clsp.o    \
   clsp-gccplugstub.o
 
 TEST_PROGRAMS   += test_swapfd
+TEST_RUNNER_DIR  = tests
 COMPLETION       = completion/${PROGRAM}
 
 
@@ -111,16 +116,16 @@ all :: ${PROGRAM}
 
 ${SPARSE_LIB}:
 	$(if {$SP_OPTS},$(shell echo "${SP_OPTS}" > ${SPARSE_DIR}/local.mk))
-	$(MAKE) -C ${SPARSE_DIR} V=1 $(@F)
+	$(MAKE) -C ${SPARSE_DIR} $(@F)
 	$(RM) ${SPARSE_DIR}/local.mk
 
 define ANALYZER_template =
-  # following patsubst does: cl_test -> cl
-  $(1)_dir :=  $$(patsubst %_test,%,$${PREDATOR_DIR}/$(1))
-  $(1)_path := $${$(1)_dir}_build/lib$(1).so
+  # following patsubst does: cl_smoke_test -> cl
+  $(1)_dir :=  $$(patsubst %_smoke_test,%,$${PREDATOR_DIR}/$(1))
+  $(1)_path := $${$(1)_dir}_build/$$(subst test,tests/,$$(findstring test,$(1)))lib$(1).so
   $(1) :: $${$(1)_path}
   $${$(1)_path}:
-	$(MAKE) -C $${$(1)_dir} CMAKE="cmake $${CL_OPTS}"
+	$$(MAKE) -C $${$(1)_dir} CMAKE="cmake $${CL_OPTS}"
   PHONIES        += $(1)
   ANALYZER_CLEAN += $${$(1)_dir}
   ifeq (${ANALYZER},$(1))
@@ -146,7 +151,7 @@ ${COMPLETION} :: ${PROGRAM}
 	./${PROGRAM} --bash > $@
 
 check :: $(PROGRAM)
-	tests/tests.sh
+	make -C ${TEST_RUNNER_DIR}
 
 clean : clean-check
 	$(RM) -f -- $(OBJECTS) ${TEST_PROGRAMS} ${DEP_FILES} core vgcore.*
@@ -157,11 +162,8 @@ clean-sparse:
 clean-analyzer:
 	for a in $(ANALYZER_CLEAN); do $(MAKE) -C $$a clean; done
 
-clean-check-prev:
-	./tests.sh clean_prev
-
 clean-check:
-	./tests.sh clean
+	make -C ${TEST_RUNNER_DIR} clean
 
 mrproper: clean clean-sparse clean-analyzer
 
