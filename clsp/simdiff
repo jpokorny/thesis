@@ -1,20 +1,19 @@
 #!/usr/bin/env python
-
-__author__ = "Jan Pokorny <xpokor04@stud.fit.vutbr.cz,pokorny_jan@seznam.cz>"
-
 """\
 Purpose-specific front-end to difflib
 
-Get the ratio of match between two text-based files and if it is in the limit,
-accept the match (exit code 0) or reject it (exit code 1), printing
-informative value of the match ratio.
+Get the ratio of match between two text-based files and if it fits
+in the limit, accept the match (exit code 0), otherwise reject it
+(exit code 1).  Either way, print informative value of this ratio.
 """
 
-from sys import argv, stderr, exit as sysexit
+__author__ = "Jan Pokorny <xpokor04@stud.fit.vutbr.cz,pokorny_jan@seznam.cz>"
+
+from sys import argv, exit as sysexit #, stderr
 from os.path import exists
 from difflib import SequenceMatcher
 
-DEFAULT_LIMIT = 0.9970  # accept only very little variance
+DEFAULT_LIMIT = 0.9970  # accept only very little variance by default
 
 def simdiff(file1, file2):
     m = SequenceMatcher(None, open(file1).read(), open(file2).read())

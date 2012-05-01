@@ -28,8 +28,8 @@
 #endif
 
 #define VER_DETAILS_  VER_HAS_CL ""
-#define VER_DETAILS   (VER_DETAILS_[0] == '\0')           \
-                      ? " " __DATE__                      \
-                      : " "__DATE__ " (" VER_DETAILS_ ")"
+#define VER_DETAILS   (VER_DETAILS_[0] == '\0')            \
+                      ? " " __DATE__                       \
+                      : " " __DATE__ " (" VER_DETAILS_ ")"
 
 #endif

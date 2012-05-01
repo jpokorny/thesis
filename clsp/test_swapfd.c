@@ -45,9 +45,6 @@
 #include "clsp.h"
 
 
-/*
- */
-
 #ifndef SWAPPED
 # define SWAPPED     1
 #endif
