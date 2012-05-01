@@ -39,10 +39,15 @@
 
  */
 
-#include <stdio.h>
-
+#define stddebug      stderr
 #define STREAM(which) std##which
-#include "clsp.h"
+#define STREAMSTRUCT(which)  (void) 0
+#define STREAMCLRNORM(which) ""
+#define STREAMCLRHIGH(which) ""
+#define STREAMCLREND(which)  ""
+
+#define NLOG
+#include "clsp-out-ext.h"
 
 
 #ifndef SWAPPED
@@ -58,9 +63,9 @@ int main(int argc, char *argv[])
     for (unsigned long i = 0; i < ITERATIONS; i++) {
 #if SWAPPED != 0
 # if SWAPPED == 1
-        WITH_SWAPPED_STREAM(stdout, stderr) {
+        WITH_SWAPPED_STREAM(out, err) {
 # else
-        WITH_SWAPPED_STREAM(stdout, stdout) {
+        WITH_SWAPPED_STREAM(out, out) {
 # endif
 #endif
             fprintf(stdout, "%lu\n", i);

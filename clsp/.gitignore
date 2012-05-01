@@ -3,6 +3,7 @@
 *.o
 *.swp
 /clsp
+/test_swapfd
 
 # override
 !.gitignore
