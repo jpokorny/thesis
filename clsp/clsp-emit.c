@@ -601,7 +601,7 @@ type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
             // NOTE: experimental, mainly for alloc et al.
             // try to find immediatelly following OP_CAST
             // (normally suppressed) and set the type respectively
-            if (ptr_list_size((struct ptr_list *) insn->target->users)) {
+            if (SP(ptr_list_size, (struct ptr_list *) insn->target->users)) {
                 struct pseudo_user *u;
                 u = (struct pseudo_user *)PTR_ENTRY(insn->target->users,3);
                 if (u->insn->opcode == OP_CAST)
@@ -1941,9 +1941,6 @@ insn_emit_sel(struct cl_insn *cli, const struct instruction *insn)
 
 /**
     Switch (incl. GNU C range extension as supported by sparse)
-
-    Problems/exceptions/notes:
-    - not enough accurate location info from SPARSE for switch/case
  */
 static void
 insn_emit_switch(struct cl_insn *cli, const struct instruction *insn)
@@ -1951,7 +1948,7 @@ insn_emit_switch(struct cl_insn *cli, const struct instruction *insn)
     struct cl_operand *op, *val_lo, *val_hi;
     struct multijmp *jmp;
     const char *label;
-    const struct cl_loc *loc = &cli->loc;
+    struct cl_loc bb_loc, *loc = &cli->loc;
 
     op = op_from_pseudo(insn, insn->target);
 
@@ -1975,6 +1972,33 @@ insn_emit_switch(struct cl_insn *cli, const struct instruction *insn)
             } else {
                 /* default case */
                 val_lo = val_hi = NO_OPERAND_USE;
+            }
+
+            /*
+                if the case is not "break only", it has a dedicated BB
+                (currently, even if the statements for different cases
+                are equal [maybe due to "falltrough" potentially breaking
+                symmetry]) and we use its position as the position of the
+                case (still quite accurate information)
+
+                "break only" cases boil down to jump to the BB merging
+                all the cases (having position even before the position
+                of switch instruction) and we just use the position of the
+                switch instruction for these (such empty cases are not
+                interesting anyway)
+
+                that is the best approximation available if we want to avoid
+                rerunning the parse tree for current function, searching
+                for switch statements and trying to figure out the right one
+                -- the only reliable key would probably be bb_target field
+                of case symbol, if at all; complexity at least O(n^2)
+             */
+            if (1 >= SP(ptr_list_size,
+                        (struct ptr_list *) jmp->target->parents)) {
+                conv_position(&bb_loc, &jmp->target->pos);
+                loc = &bb_loc;
+            } else {
+                loc = &cli->loc;
             }
 
             label = BB_LABEL(jmp->target);
