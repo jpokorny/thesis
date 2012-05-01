@@ -61,12 +61,12 @@ static const char *const empty = "";
 
     @todo  More checks.
  */
-static inline int
+static inline long
 get_nonnegative_num(const char *what, const char *value)
 {
     if (!isdigit(value[0]))
         DIE( ECODE(OPT,"option %s: not a numeric value: %s",what,value) );
-    int ret = strtol(value, NULL, 10);
+    long ret = strtol(value, NULL, 10);
     if (0 > ret)
         DIE( ECODE(OPT,"option %s: must be positive number",what) );
     return ret;
@@ -232,7 +232,7 @@ print_help(const char *cmd)
     C("pprint[=FILE]"      , "Pretty-print code along the run (stdout by def.)")
     C("pprint-types"       , "Add type information to pretty-printed code"     )
     C("pprint-switch-to-if", "Unfold `switch' into series of `if' statements " )
-    C("gen-cfg[=MAIN_FILE]", "Generate control flow graphs (as per MAIN_FILE)" )
+    C("gen-cfg[=MAIN-FILE]", "Generate control flow graphs (as per MAIN-FILE)" )
     C("gen-type[=FILE]"    , "Generate type graphs (to FILE if specified)"     )
     C("debug-location"     , "Keep printing location along the run"            )
     C("debug[=LEVEL]"      , "Debug (according to LEVEL if specified)"         )

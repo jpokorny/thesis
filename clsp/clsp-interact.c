@@ -109,7 +109,7 @@ typedef enum retval (*ienv_setter)(int *emit_props, struct globals *globals_obj,
 
 /* modified copy from clsp-options.c */
 static inline bool
-get_nonnegative_num(const char *value, int *to_set)
+get_nonnegative_num(const char *value, long *to_set)
 {
     if (!isdigit(value[0])) {
         PUT(out, "not a numeric value: %s", value);
@@ -136,7 +136,7 @@ ienv_set_debug(int *emit_props, struct globals *globals_obj,
                const char *value)
 {
     (void) emit_props;
-    int tmp;
+    long tmp;
     if (!get_nonnegative_num(value, &tmp))
         return ret_escape;
 

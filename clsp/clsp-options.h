@@ -38,7 +38,7 @@ struct options {
     bool                finalized;
     /* internal options */
     struct {
-        int             debug;
+        long            debug;
         int             emit_props;
         const char      *basename;
         const char      *basename_free;

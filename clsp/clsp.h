@@ -69,7 +69,7 @@
 extern struct globals {
 
     outstreams    outstreams;
-    int           debug;
+    long          debug;
     int           indent;
 
     const char    *basename;

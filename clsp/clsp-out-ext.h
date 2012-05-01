@@ -159,10 +159,12 @@ swap_stream(FILE *f1, FILE *f2) {
     if (f1 == f2 || (fd1 = fileno(f1)) == (fd2 = fileno(f2)))
         return;
 
+#ifndef NLOG
     DLOG(d_strm,
          "\t" HIGHLIGHT("stream") ": swap: " _1(p)" ("_2(d)") - "_3(p)" ("
          _4(d)")",
          (void *)f1, fd1, (void*)f2, fd2);
+#endif
 
     /* this is always needed due to (at the very least) using colors (?) */
     fflush(f1); fflush(f2);
