@@ -297,15 +297,12 @@ FILE *stream_output_deferred(outstreams outstreams, enum outstreams which);
          ; i_++)
 
 
-/*
-    Print indented (fmt + at least one arg only)
-
-    NOTE: format specifiers start with _3()
- */
+/* Print indented (fmt + at least one arg only) */
 
 #define INDENT_MULT    4  /* should be one of 1,2,4,8 */
 #define INDENT(level)  INDENT_MULT*(level), ""
 
+/* NOTE: format specifiers start with _3(), but only with this */
 #define PUTI(which, level, fmt, ...) \
     PUT(which, __1(s) fmt, INDENT(level), __VA_ARGS__)
 
