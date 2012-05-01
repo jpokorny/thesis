@@ -54,8 +54,8 @@ ifeq (1,${USE_LTO})
 endif
 
 # this test and dependency usage borrowed from sparse's Makefile
-HAVE_GCC_DEP:=$(shell touch .gcc-test.c                                  \
-                && $(CC) -c -MD,.gcc-test.d .gcc-test.c &>/dev/null      \
+HAVE_GCC_DEP:=$(shell touch .gcc-test.c                                   \
+                && $(CC) -c -MD,.gcc-test.d .gcc-test.c &>/dev/null       \
                 && echo 'yes'; rm -f .gcc-test.d .gcc-test.o .gcc-test.c)
 ifeq ($(HAVE_GCC_DEP),yes)
   OBJECTS_CFLAGS  += -Wp,-MD,$(@D)/.$(@F).d
@@ -74,7 +74,7 @@ LDFLAGS         += $(call GETLDFLAGS,${SPARSE_LIB})
 
 # Code Listener + analyzers
 
-PREDATOR_DIR     = ../predator_cl
+PREDATOR_DIR     = ../predator
 INCLUDE_DIRS    += ${PREDATOR_DIR}/include/cl ${PREDATOR_DIR}/cl
 CL_OPTS         += GCC_HOST='$(shell PATH=/usr/bin:$PATH which gcc)'
 CL_OPTS         := $(foreach cl_opt,${CL_OPTS},-D ${cl_opt})
@@ -102,10 +102,11 @@ OBJECTS  = clsp.o    \
   hash_table.o       \
   clsp-gccplugstub.o
 
-TEST_PROGRAMS += test_swapfd
+TEST_PROGRAMS   += test_swapfd
+COMPLETION       = completion/${PROGRAM}
 
 
-all:: ${PROGRAM}
+all :: ${PROGRAM}
 
 
 ${SPARSE_LIB}:
@@ -117,7 +118,7 @@ define ANALYZER_template =
   # following patsubst does: cl_test -> cl
   $(1)_dir :=  $$(patsubst %_test,%,$${PREDATOR_DIR}/$(1))
   $(1)_path := $${$(1)_dir}_build/lib$(1).so
-  $(1):: $${$(1)_path}
+  $(1) :: $${$(1)_path}
   $${$(1)_path}:
 	$(MAKE) -C $${$(1)_dir} CMAKE="cmake $${CL_OPTS}"
   PHONIES        += $(1)
@@ -130,19 +131,24 @@ $(foreach analyzer,${ANALYZERS},$(eval $(call ANALYZER_template,${analyzer})))
 
 $(if ${DEP_FILES},$(eval include ${DEP_FILES}))
 
-${OBJECTS}: %.o : %.c
+${OBJECTS} : %.o : %.c
 	$(CC) $(CFLAGS) $(OBJECTS_CFLAGS) -o $@ -c $<
 
-${PROGRAM}:: ${OBJECTS} ${SPARSE_LIB} ${ANALYZER}
+${PROGRAM} :: ${OBJECTS} ${SPARSE_LIB} ${ANALYZER}
 	g++ $(CFLAGS) -o $@ ${OBJECTS} $(LDFLAGS)
 
-${TEST_PROGRAMS}:: % : %.c
+${TEST_PROGRAMS} :: % : %.c
 	$(CC) $(CFLAGS) -o $@ $<
 
-check:: $(PROGRAM)
+completion :: ${COMPLETION}
+
+${COMPLETION} :: ${PROGRAM}
+	./${PROGRAM} --bash > $@
+
+check :: $(PROGRAM)
 	tests/tests.sh
 
-clean: clean-check
+clean : clean-check
 	$(RM) -f -- $(OBJECTS) ${TEST_PROGRAMS} ${DEP_FILES} core vgcore.*
 
 clean-sparse:
@@ -159,5 +165,5 @@ clean-check:
 
 mrproper: clean clean-sparse clean-analyzer
 
-.PHONY: all check clean ${PHONIES} \
+.PHONY: all completion check clean ${PHONIES} \
         clean-sparse clean-analyzer clean-check-prev clean-check mrproper
