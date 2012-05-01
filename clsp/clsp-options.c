@@ -325,6 +325,7 @@ _clsp()\n\
     prev=\"${COMP_WORDS[COMP_CWORD-1]}\"\n\
 \n\
     opts=\"" OPTSLIST(X1) "\"\n\
+\n\
     colors=\"" CLRLIST(X2) "\"\n\
 \n\
     if [[ ${cur} == -* ]]; then\n\
