@@ -74,7 +74,7 @@ void
 debug_sparse_symbol_detailed(struct symbol *sym, int indent)
 {
     debug_sparse_symbol(sym, indent, true);
-
+    assert(!sym->bb_target);
 #if 0
     PUT(debug,
         SPPOSFMT_1 ": debug: " HIGHLIGHT("sym") ": begin " HIGHLIGHT(_4(s)),
