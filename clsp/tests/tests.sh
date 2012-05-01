@@ -30,8 +30,8 @@ DIFF="diff -q"
 SIMDIFF=../simdiff
 INSPECTDIFF=meld
 
-SHOW_OK=1
-INSPECT=0
+: ${SHOW_OK:=1}
+: ${INSPECT:=0}
 
 SLINE=
 for i in $(seq 0 63); do SLINE="-${SLINE}"; done
