@@ -1,7 +1,8 @@
 /*
- * Copyright (C) 2012 Jan Pokorny <pokorny_jan@seznam.cz>
+ * Copyright 2012 Jan Pokorny <xpokor04@stud.fit.vutbr.cz,
+ *                             pokorny_jan@seznam.cz>
  *
- * This file is part of predator.
+ * This file is part of clsp/predator.
  *
  * predator is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,9 +30,13 @@ debug_sparse_symbol(struct symbol *sym, int indent, bool nondeterm)
     unsigned long alignment_backup = sym->ctype.alignment;
     struct statement *stmt_backup;
 
-    PUTHI(debug, sp, indent,
-          "{kind="_1(s)", initializer="_2(c)", scope="_3(s)_4(s)"}",
-          SP(get_type_name, sym->type), GET_YN(sym->initializer),
+    PUTHI(debug, sp, indent, "{"
+              "kind="        _1(s)      ", "
+              "initializer=" _2(c)      ", "
+              "scope="       _3(s)_4(s)
+          "}",
+          SP(get_type_name, sym->type),
+          GET_YN(sym->initializer),
           scope_str, (SP(is_outer_scope, sym->scope)) ? ":outer" : "");
 
     if (nondeterm)

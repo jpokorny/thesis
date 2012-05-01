@@ -1,7 +1,8 @@
 /*
- * Copyright (C) 2012 Jan Pokorny <pokorny_jan@seznam.cz>
+ * Copyright 2012 Jan Pokorny <xpokor04@stud.fit.vutbr.cz,
+ *                             pokorny_jan@seznam.cz>
  *
- * This file is part of predator.
+ * This file is part of clsp/predator.
  *
  * predator is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,7 +43,7 @@ enum emit_props {
 };
 
 /**
-    Feed Code Listener with (heavily converted) sparse linearized code.
+    Feed Code Listener with (heavy-lifted) sparse linearized code.
 
     In case of unrecoverable error (on both local and sparse side),
     dies immediately.

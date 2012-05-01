@@ -1,8 +1,9 @@
 /*
- * Copyright (C) 2009 Kamil Dudka <kdudka@redhat.com>
- * Copyright (C) 2012 Jan Pokorny <pokorny_jan@seznam.cz>
+ * Copyright 2009 Kamil Dudka <kdudka@redhat.com>
+ * Copyright 2012 Jan Pokorny <xpokor04@stud.fit.vutbr.cz,
+ *                             pokorny_jan@seznam.cz>
  *
- * This file is part of predator.
+ * This file is part of clsp/predator.
  *
  * predator is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
