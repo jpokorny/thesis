@@ -51,6 +51,25 @@
 /** helpers ***************************************************************/
 
 
+/**
+    Unified void operand to allow direct pointer comparison
+
+    We have to be careful not to modify it.
+ */
+extern const struct cl_operand no_operand;
+#define NO_OPERAND      (&no_operand)
+#define NO_OPERAND_USE  ((struct cl_operand *) &no_operand)
+
+/* self-explanatory "pretty" accessors */
+#define CST(op)      (&op->data.cst)
+#define CST_INT(op)  (&CST(op)->data.cst_int)
+#define CST_STR(op)  (&CST(op)->data.cst_string)
+#define CST_FNC(op)  (&CST(op)->data.cst_fnc)
+#define CST_REAL(op) (&CST(op)->data.cst_real)
+
+#define VAR(op)      (op->data.var)
+
+
 /*
     output
  */
@@ -93,7 +112,7 @@ static inline const char *
 debug_cl_scope_code(enum cl_scope_e scope)
 {
     const char *ret = cl_scope_codelist_str[scope];
-    return ret ? ret : "<error>";
+    return ret ? ret : "(error)";
 }
 
 
@@ -126,7 +145,7 @@ static inline const char *
 debug_cl_type_code(enum cl_operand_e code)
 {
     const char *ret = cl_type_codelist_str[code];
-    return ret ? ret : "<error>";
+    return ret ? ret : "(error)";
 }
 
 
@@ -150,7 +169,7 @@ static inline const char *
 debug_cl_accessor_code(enum cl_accessor_e code)
 {
     const char *ret = cl_accessor_codelist_str[code];
-    return ret ? ret : "<error>";
+    return ret ? ret : "(error)";
 }
 
 
@@ -173,7 +192,7 @@ static inline const char *
 debug_cl_operand_code(enum cl_operand_e code)
 {
     const char *ret = cl_operand_codelist_str[code];
-    return ret ? ret : "<error>";
+    return ret ? ret : "(error)";
 }
 
 
@@ -262,7 +281,7 @@ debug_cl_insn_code(const struct cl_insn *insn) {
     else if ((const char) CL_INSN_MARK_BINOP == *ret)
         return ((const char *const *) ret)[insn->data.insn_binop.code + 1];
     else
-        return ret ? ret : "<error>";
+        return ret ? ret : "(error)";
 }
 
 
@@ -276,7 +295,8 @@ debug_cl_insn_code(const struct cl_insn *insn) {
     @param[in] indent  Initial level of indentation
     @param[in] safely  Should be safe to keep true, used mainly internally
  */
-void debug_cl_initializer(const struct cl_initializer *initial, int indent);
+void debug_cl_initializer(const struct cl_initializer *initial, int indent,
+                          bool safely);
 
 /**
     Show operand in detail (even bits missing in pretty printed code)
@@ -296,14 +316,25 @@ void debug_cl_operand(const struct cl_operand *op, int indent, bool safely);
  */
 void debug_cl_insn(const struct cl_insn *insn, int indent, bool safely);
 
-
 /**
     Show type in detail
 
-    @param[in] op      Type to be exposed
-    @param[in] indent  Initial level of indentation
+    @param[in] op               Type to be exposed
+    @param[in] indent           Initial level of indentation
+    @param[in] recursion_limit  Guard for recursive data types
  */
-void debug_cl_type(const struct cl_type *clt, int indent);
+void debug_cl_type(const struct cl_type *clt, int indent, int recursion_limit);
+
+/**
+    Show switch case value/range
+
+    @param[in] val_lo           Range beginning operand for case.
+    @param[in] val_lo           Range end operand for case.
+    @param[in] indent           Initial level of indentation
+ */
+void debug_cl_switch_case(const struct cl_operand *val_lo,
+                          const struct cl_operand *val_hi,
+                          int indent);
 
 
 #endif

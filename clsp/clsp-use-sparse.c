@@ -20,33 +20,55 @@
 #include "clsp.h"
 #include "clsp-use-sparse.h"
 
+#include <stdbool.h>
+
 void
-debug_sparse_symbol(struct symbol *sym, int indent)
+debug_sparse_symbol(struct symbol *sym, int indent, bool nondeterm)
 {
     const char *scope_str = debug_sparse_scope(sym);
+    unsigned long alignment_backup = sym->ctype.alignment;
+    struct statement *stmt_backup;
 
-    PUTI(debug, indent,
-         HIGHLIGHT("debug-sparse-symbol")
-         " {scope: "_3(s)", outer-scope: "_4(c)"}",
-         scope_str, GET_YN(SP(is_outer_scope, sym->scope)));
+    PUTHI(debug, sp, indent,
+          "{kind="_1(s)", initializer="_2(c)", scope="_3(s)_4(s)"}",
+          SP(get_type_name, sym->type), GET_YN(sym->initializer),
+          scope_str, (SP(is_outer_scope, sym->scope)) ? ":outer" : "");
+
+    if (nondeterm)
+        SP(debug_symbol, sym);
+
+    /*
+        for function, we follow instructions, no need to see yet another form
+        of code generated from statements (pre-linearization phase outcome);
+        similarly for initializers -> backup and restore later on
+     */
+
+#if HIDE_INITIALIZER
+    struct expression *initializer_backup = sym->initializer;
+    sym->initializer = NULL;
+#endif
+    sym->ctype.alignment = 0;
+
+    if (SYM_FN == sym->ctype.base_type->type) {
+        stmt_backup = sym->ctype.base_type->stmt;
+        sym->ctype.base_type->stmt = NULL;
+    }
+
+    SP(show_symbol, sym);
 
     if (SYM_FN == sym->ctype.base_type->type)
-        PUT(debug, "\t(skipping function body, can be emitted at some point)");
-
-    SP(debug_symbol, sym);
-    /*
-        we follow instructions, no need to see yet another form of code
-        generated from the statements (pre-linearization phase outcome)
-     */
-    if (SYM_FN != sym->ctype.base_type->type)
-        SP(show_symbol, sym);
+        sym->ctype.base_type->stmt = stmt_backup;
+#if HIDE_INITIALIZER
+    sym->initializer = initializer_backup;
+#endif
+    sym->ctype.alignment = alignment_backup;
 }
 
 
 void
 debug_sparse_symbol_detailed(struct symbol *sym, int indent)
 {
-    debug_sparse_symbol(sym, indent);
+    debug_sparse_symbol(sym, indent, true);
 
 #if 0
     PUT(debug,

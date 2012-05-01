@@ -1,0 +1,27 @@
+#define VAR  i
+#ifndef VAR_DECL
+# define VAR_DECL  static int VAR
+#endif
+
+#define APPLY(f, ...)   f(__VA_ARGS__)
+
+#define RET(x)                                              \
+    APPLY(x, void,            void,         void,  ;      ) \
+    APPLY(x, int_constant,    int,          void,  42     ) \
+    APPLY(x, double_constant, double,       void,  4.2    ) \
+    APPLY(x, expression,      int,          void,  VAR+42 ) \
+    APPLY(x, string,          const char *, void,  "foo"  ) \
+    APPLY(x, arg,             int         , int a, a      )
+
+#define X(name, rettype, arg, retval) \
+    static rettype ret_##name(arg) { return retval; }
+
+VAR_DECL;
+
+RET(X)
+
+/*
+    clsp-options:   -d 1848
+    simdiff-limit:  1.0
+    vim: ft=c:
+ */

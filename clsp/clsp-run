@@ -1,10 +1,12 @@
 #!/bin/bash
-
+export LANG=C
 set -eu
 shopt -s extglob
 
-: ${EXEC:=./clsp}
-: ${PREDATOR_DIR:=../predator_cl}
+HERE=$(dirname "${BASH_SOURCE[0]}")
+
+: ${EXEC:="${HERE}/clsp"}
+: ${PREDATOR_DIR:="${HERE}/../predator_cl"}
 # currently available: cl_test, fwnull, sl, fa or <empty>
 : ${ANALYZER:=cl_test}
 

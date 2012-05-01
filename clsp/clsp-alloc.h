@@ -27,33 +27,29 @@
 #include <stdlib.h>  /* malloc, realloc */
 
 
-/*
-    NOTE: use "MEM_NEW(foo)" for direct access ("MEM_NEW(foo).bar = 42")
-          and "(MEM_NEW(foo))" as a function parameter ("bar((MEM_NEW(foo)))")
- */
-#define MEM_NEW(var)                        \
-   (((var) = malloc(sizeof(*(var))))        \
-     ? (void) 0  /* NOOP */                 \
-     : DIE( ERRNOCODE(MEM, "MEM_NEW") )     \
-   ) , (var)
+#define MEM_NEW(var)                    \
+   ((((var) = malloc(sizeof(*(var))))   \
+     ? (void) 0  /* NOOP */             \
+     : DIE( ERRNOCODE(MEM, "MEM_NEW") ) \
+   ) , (var))
 
-#define MEM_ARR_RESIZE(arr, newcnt)                      \
-    (((arr) = realloc((arr), sizeof(*(arr)) * (newcnt))) \
-      ? (void) 0 /* NOOP */                              \
-      : DIE( ERRNOCODE(MEM, "MEM_ARR_RESIZE") )          \
-    ) , (arr)
+#define MEM_ARR_RESIZE(arr, newcnt)                       \
+    ((((arr) = realloc((arr), sizeof(*(arr)) * (newcnt))) \
+      ? (void) 0 /* NOOP */                               \
+      : DIE( ERRNOCODE(MEM, "MEM_ARR_RESIZE") )           \
+    ) , (arr))
 
 /* NOTE: one-liner for item append: *(MEM_ARR_APPEND(arr,size)) = item */
-#define MEM_ARR_APPEND(arr, oldcnt)                          \
-    (((arr) = realloc((arr), sizeof(*(arr)) * (++(oldcnt)))) \
-      ? (void) 0 /* NOOP */                                  \
-      : DIE( ERRNOCODE(MEM, "MEM_ARR_APPEND") )              \
-    ) , (arr + oldcnt - 1)
+#define MEM_ARR_APPEND(arr, oldcnt)                           \
+    ((((arr) = realloc((arr), sizeof(*(arr)) * (++(oldcnt)))) \
+      ? (void) 0 /* NOOP */                                   \
+      : DIE( ERRNOCODE(MEM, "MEM_ARR_APPEND") )               \
+    ) , (arr + oldcnt - 1))
 
-#define MEM_ARR_APPEND_NEW(arr, oldcnt)                      \
-    (((arr) = realloc((arr), sizeof(*(arr)) * (++(oldcnt)))) \
-      ? (void) 0 /* NOOP */                                  \
-      : DIE( ERRNOCODE(MEM, "MEM_ARR_APPEND_NEW") )          \
-    ) , MEM_NEW(*(arr + oldcnt - 1))
+#define MEM_ARR_APPEND_NEW(arr, oldcnt)                       \
+    ((((arr) = realloc((arr), sizeof(*(arr)) * (++(oldcnt)))) \
+      ? (void) 0 /* NOOP */                                   \
+      : DIE( ERRNOCODE(MEM, "MEM_ARR_APPEND_NEW") )           \
+    ) , MEM_NEW(*(arr + oldcnt - 1)))
 
 #endif

@@ -109,6 +109,10 @@ atexit_worker_early(void)
 static void
 atexit_worker_late(void)
 {
+    GLOBALS(basename) = NULL;
+    free((void *) GLOBALS(basename_free));
+    GLOBALS(basename_free) = NULL;
+
     /* close the streams used by the worker */
     int fileno_cur;
     FILE *cur;
@@ -361,8 +365,9 @@ setup_cl(const struct options *opts)
         DIE("sorry, it seems the plugin is not GPL-compatible:\n%s",
             dlerror());
 
-    DLOG(plug, _1(s)": " HIGHLIGHT("cl-plugin") ": loaded successfully",
-               OPTS_CL(listeners.arr)[0]);
+    DLOG(d_plug,
+         _1(s)": " HIGHLIGHT("cl-plugin") ": loaded successfully",
+         OPTS_CL(listeners.arr)[0]);
 
     GLOBALS(cl_libs.handles)[0] = handle;
 
@@ -463,8 +468,9 @@ emitter(struct options *opts)
 static void
 globals_initialize(struct globals *globals_obj)
 {
+    globals_obj->basename = NULL;
     globals_obj->indent = 8/INDENT_MULT;
-    globals_obj->debug = debug_none;  /* overwritten as per command-line */
+    globals_obj->debug = d_none;  /* overwritten as per command-line */
 
     /* out and error streams hard-mapped to stdout and stderr, no coloring */
     stream_setup(globals_obj->outstreams, outstream_out,
@@ -499,6 +505,9 @@ globals_initialize(struct globals *globals_obj)
 static void
 globals_finalize(struct globals *globals_obj, const struct options *opts)
 {
+    globals_obj->basename = OPTS_INTERNALS(basename);
+    globals_obj->basename_free = OPTS_INTERNALS(basename_free);
+
     /* first stream to be set up when we enable debugging has to be debug one */
     globals_obj->debug = OPTS_INTERNALS(debug);
     if (globals_obj->debug)
@@ -522,7 +531,7 @@ main(int argc, char *argv[])
         return (ret_escape == ret) ? EXIT_SUCCESS : ec_opt;
     globals_finalize(&globals, options);
 
-    WITH_DEBUG_LEVEL(opts)
+    WITH_DEBUG_LEVEL(d_opts)
         options_dump(options);
 
     /* acquires opts */

@@ -1,0 +1,14 @@
+#define BINOP(x, y)   (x) / (y)
+
+#define USE_UINT
+
+#define USE_INT_INT_UINT
+
+#include "binops.h"
+
+/*
+    clsp-options:   -d 1848
+    simdiff-limit:  1.0
+
+    vim: ft=c:
+ */

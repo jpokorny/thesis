@@ -21,6 +21,9 @@
 #include "clsp-use-cl.h"
 
 
+const struct cl_operand no_operand = { .code = CL_OPERAND_VOID };
+
+
 /** debug primitives ******************************************************/
 
 
@@ -60,7 +63,7 @@ const char *const cl_insn_codelist_str[CL_INSN_TOTAL] = {
     [CL_INSN_##what]                   = (const char *)                     \
         ((const char *const *)(&cl_insn_codelist_str) + CL_UNOP_START - 1), \
     sublist(Y_)
-    
+
 #define Z_(what) \
     [CL_BINOP_##what + CL_BINOP_START] = #what " (BINOP)",
 #define Z(what, sublist)                                                     \
@@ -68,7 +71,7 @@ const char *const cl_insn_codelist_str[CL_INSN_TOTAL] = {
     [CL_INSN_##what]                   = (const char *)                      \
         ((const char *const *)(&cl_insn_codelist_str) + CL_BINOP_START - 1), \
     sublist(Z_)
-    
+
     CL_INSN_CODELIST(X, Y, Z)
 
 #undef Z
@@ -105,23 +108,23 @@ debug_cl_cst(const struct cl_cst *cst, int indent)
             break;
         case CL_TYPE_INT:
             PUTHI(debug, cl_debug, indent,
-                  ENT(constant-int) " {{{"
+                  ENT(constant-int) " ["
                       _1(d)
-                  "}}}",
+                  "]",
                   cst->data.cst_int.value);
             break;
         case CL_TYPE_STRING:
             PUTHI(debug, cl_debug, indent,
-                  ENT(constant-string) " {{{"
+                  ENT(constant-string) " ["
                       _1(s)
-                  "}}}",
+                  "]",
                   cst->data.cst_string.value);
             break;
         case CL_TYPE_REAL:
             PUTHI(debug, cl_debug, indent,
-                  ENT(constant-real) " {{{"
+                  ENT(constant-real) " ["
                       _1(lf)
-                  "}}}",
+                  "]",
                   cst->data.cst_real.value);
             break;
         case CL_TYPE_VOID:
@@ -148,12 +151,13 @@ debug_cl_cst(const struct cl_cst *cst, int indent)
 }
 
 void
-debug_cl_initializer(const struct cl_initializer *initial, int indent)
+debug_cl_initializer(const struct cl_initializer *initial, int indent,
+                     bool safely)
 {
     if (initial) {
         PUTHI(debug, cl_debug, indent++, ENT(initializer) _1(s), "");
         do {
-            debug_cl_insn(&initial->insn, indent, true);
+            debug_cl_insn(&initial->insn, indent, safely);
             initial = (const struct cl_initializer *) initial->next;
         } while (initial);
     }
@@ -163,7 +167,7 @@ debug_cl_initializer(const struct cl_initializer *initial, int indent)
     Show variable-specific operand information
  */
 static inline void
-debug_cl_var(const struct cl_var *var, int indent)
+debug_cl_var(const struct cl_var *var, int indent, bool safely)
 {
     PUTHI(debug, cl_debug, indent,
           ENT(operand-var) " {"
@@ -173,15 +177,15 @@ debug_cl_var(const struct cl_var *var, int indent)
               "initialized=" _4(c)
           "}: " CLPOSFMT_5,
           var->uid,
-          var->name ? var->name : "<none>",
+          var->name ? var->name : "(none)",
           GET_YN(var->artificial),
           GET_YN(var->initialized),
           CLPOS(var->loc));
-    debug_cl_initializer(var->initial, indent+1);
+    debug_cl_initializer(var->initial, indent+1, safely);
 }
 
 void
-debug_cl_type(const struct cl_type *clt, int indent)
+debug_cl_type(const struct cl_type *clt, int indent, int recursion_limit)
 {
     PUTHI(debug, cl_debug, indent++,
           ENT(type) " {"
@@ -194,41 +198,53 @@ debug_cl_type(const struct cl_type *clt, int indent)
           "}: " CLPOSFMT_7,
           debug_cl_type_code(clt->code),
           clt->uid,
-          clt->name ? clt->name : "<none>",
+          clt->name ? clt->name : "(none)",
           clt->size,
           clt->item_cnt,
           GET_YN(clt->is_unsigned),
           CLPOS(clt->loc));
 
+    if (indent > recursion_limit && 0 < clt->item_cnt) {
+        PUTHI(debug, cl_debug, indent,
+              _1(s), "(forcibly skipped: guard for recursive data types)");
+        return;
+    }
+
     for (int i = 0; i < clt->item_cnt; i++) {
+        if (!clt->items[i].type) {
+            PUTHI(debug, cl_debug, indent,
+                  "(stopping at item id="_1(d)" due to unevaluated"
+                  " recursive type at higher level)", i);
+            break;
+        }
         switch (clt->code) {
             case CL_TYPE_UNKNOWN:
-            case CL_TYPE_STRUCT: 
-            case CL_TYPE_UNION:  
+            case CL_TYPE_STRUCT:
+            case CL_TYPE_UNION:
                 PUTHI(debug, cl_debug, indent,
                       ENT(type-item) " {"
                           "name="   _1(s) ", "
                           "offset=" _2(d)
                       "}",
-                      clt->items[i].name ? clt->items[i].name : "<anonymous>",
+                      clt->items[i].name ? clt->items[i].name : "(anonymous)",
                       clt->items[i].offset);
                 break;
 
-            case CL_TYPE_PTR:    
-            case CL_TYPE_ARRAY:  
-            case CL_TYPE_FNC:    
+            case CL_TYPE_PTR:
+            case CL_TYPE_ARRAY:
+            case CL_TYPE_FNC:
                 PUTHI(debug, cl_debug, indent,
                       ENT(type-item) " {"
                           "name=" _1(s)
                       "}",
-                      clt->items[i].name ? clt->items[i].name : "<anonymous>");
+                      clt->items[i].name ? clt->items[i].name : "(anonymous)");
                 break;
-            case CL_TYPE_VOID:   
-            case CL_TYPE_INT:    
-            case CL_TYPE_CHAR:   
-            case CL_TYPE_BOOL:   
-            case CL_TYPE_ENUM:   
-            case CL_TYPE_REAL:   
+            case CL_TYPE_VOID:
+            case CL_TYPE_INT:
+            case CL_TYPE_CHAR:
+            case CL_TYPE_BOOL:
+            case CL_TYPE_ENUM:
+            case CL_TYPE_REAL:
             case CL_TYPE_STRING:
                 PUTHI(debug, cl_debug, indent,
                       ENT(type-error) " {"
@@ -237,11 +253,8 @@ debug_cl_type(const struct cl_type *clt, int indent)
                       clt->item_cnt);
                 break;
         }
-        if (indent < 12)
-            debug_cl_type(clt->items[i].type, indent+1);
-        else
-            PUTHI(debug, cl_debug, indent+1,
-                  _1(s), "(forcibly skipped: guard for recursive data types)");
+        /* recurse for type item */
+        debug_cl_type(clt->items[i].type, indent+1, recursion_limit);
     }
 }
 
@@ -258,7 +271,7 @@ debug_cl_accessor(const struct cl_accessor *accessor, int indent)
               "}",
               debug_cl_accessor_code(accessor->code));
 
-        debug_cl_type(accessor->type, indent);
+        debug_cl_type(accessor->type, indent, indent+2 /*details elsewhere*/);
 
         switch (accessor->code) {
             case CL_ACCESSOR_REF:
@@ -266,11 +279,11 @@ debug_cl_accessor(const struct cl_accessor *accessor, int indent)
                 /* nothing to show */
                 break;
             case CL_ACCESSOR_DEREF_ARRAY:
-                PUTHI(debug, cl_debug, indent+1, ENT(array-index) _1(s), "");
-                debug_cl_operand(accessor->data.array.index, indent+2, false);
+                PUTHI(debug, cl_debug, indent, ENT(array-index) _1(s), "");
+                debug_cl_operand(accessor->data.array.index, indent+1, false);
                 break;
             case CL_ACCESSOR_ITEM:
-                PUTHI(debug, cl_debug, indent+1, "{"
+                PUTHI(debug, cl_debug, indent, "{"
                           "id=" _1(d)
                       "}",
                       accessor->data.item.id);
@@ -295,13 +308,13 @@ debug_cl_operand(const struct cl_operand *op, int indent, bool safely)
     if (CL_OPERAND_VOID == op->code)
         return;
 
-    debug_cl_type(op->type, indent);
+    debug_cl_type(op->type, indent, indent+10 /*made up*/);
     debug_cl_accessor(op->accessor, indent);
 
     if (CL_OPERAND_CST == op->code)
         debug_cl_cst(&op->data.cst, indent);
     else if (!safely || !op->data.var->initial)
-        debug_cl_var(op->data.var, indent);
+        debug_cl_var(op->data.var, indent, true);
     else
         PUTHI(debug, cl_debug, indent,
               _1(s), "(skipped for possible initialization infloop)");
@@ -311,9 +324,9 @@ void
 debug_cl_insn(const struct cl_insn *insn, int indent, bool safely)
 {
     PUTHI(debug, cl_debug, indent++,
-          ENT(instruction) " {{{"
+          ENT(instruction) " ["
               _1(s)
-          "}}}: " CLPOSFMT_2,
+          "]: " CLPOSFMT_2,
           debug_cl_insn_code(insn),
           CLPOS(insn->loc));
 
@@ -322,23 +335,23 @@ debug_cl_insn(const struct cl_insn *insn, int indent, bool safely)
             break;
         case CL_INSN_JMP:
             PUTHI(debug, cl_debug, indent,
-                  ENT(jmp-label) "{{{"
+                  ENT(jmp-label) " ["
                       _1(s)
-                  "}}}",
+                  "]",
                   insn->data.insn_jmp.label);
             break;
         case CL_INSN_COND:
             PUTHI(debug, cl_debug, indent, ENT(cond-src) _1(s), "");
             debug_cl_operand(insn->data.insn_cond.src, indent+1, false);
             PUTHI(debug, cl_debug, indent,
-                  ENT(cond-then-label) "{{{"
+                  ENT(cond-then-label) " ["
                       _1(s)
-                  "}}}",
+                  "]",
                   insn->data.insn_cond.then_label);
             PUTHI(debug, cl_debug, indent,
-                  ENT(cond-else-label) "{{{"
+                  ENT(cond-else-label) " ["
                       _1(s)
-                  "}}}",
+                  "]",
                   insn->data.insn_cond.else_label);
             break;
         case CL_INSN_RET:
@@ -351,7 +364,7 @@ debug_cl_insn(const struct cl_insn *insn, int indent, bool safely)
             PUTHI(debug, cl_debug, indent, ENT(unop-dst) _1(s), "");
             debug_cl_operand(insn->data.insn_unop.dst, indent+1, safely);
             PUTHI(debug, cl_debug, indent, ENT(unop-src) _1(s), "");
-            debug_cl_operand(insn->data.insn_unop.src, indent+1, safely);
+            debug_cl_operand(insn->data.insn_unop.src, indent+1, false);
             break;
         case CL_INSN_BINOP:
             PUTHI(debug, cl_debug, indent, ENT(binop-dst) _1(s), "");
@@ -367,11 +380,35 @@ debug_cl_insn(const struct cl_insn *insn, int indent, bool safely)
             break;
         case CL_INSN_LABEL:
             PUTHI(debug, cl_debug, indent,
-                  ENT(label-name) "{{{"
+                  ENT(label-name) " ["
                       _1(s)
-                  "}}}",
+                  "]",
                   insn->data.insn_label.name);
             break;
         /* otherwise, error already indicated as instruction name */
     }
+}
+
+void
+debug_cl_switch_case(const struct cl_operand *val_lo,
+                     const struct cl_operand *val_hi,
+                     int indent)
+{
+    if (val_lo != val_hi)
+        PUTHI(debug, cl_debug, indent,
+              ENT(switch-case) " ["
+                _1(d) " ... " _2(d)
+              "]",
+              CST_INT(val_lo)->value, CST_INT(val_hi)->value);
+    else if (val_lo != NO_OPERAND_USE)
+        PUTHI(debug, cl_debug, indent,
+              ENT(switch-case) " ["
+                _1(d)
+              "]",
+              CST_INT(val_lo)->value);
+    else
+        PUTHI(debug, cl_debug, indent,
+              ENT(switch-case) " ["
+                _1(s)
+              "]", "default");
 }

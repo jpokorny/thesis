@@ -24,7 +24,7 @@
 #include <errno.h>
 
 #include "clsp-out-base.h"
-#include "clsp-macros.h"    /* ASSERT_ENUM_RANGE */
+#include "clsp-macros.h"    /* ASSERT_ENUM_RANGE_INTERNAL */
 
 const char *const outstream_str[outstream_cnt] = {
 #define X(name)  [outstream_##name] = #name,
@@ -37,7 +37,7 @@ FILE *
 stream_setup(outstreams outstreams, enum outstreams which,
              struct outstream_props props)
 {
-    ASSERT_ENUM_RANGE(outstream, which);
+    ASSERT_ENUM_RANGE_INTERNAL(outstream, which);
 
     struct outstream *outstream = &outstreams[which];
     FILE **f = &outstream->stream;
@@ -90,9 +90,10 @@ stream_setup(outstreams outstreams, enum outstreams which,
     }
 
     /* using uninitialized stream during initial phase is avoided */
-    DLOG(strm, "\t" HIGHLIGHT("stream") ": set up " HIGHLIGHT(_1(s))
-               ": fd="_2(d)", isatty="_3(c), outstream_str[which], props.fd,
-               GET_YN(outstream->isatty));
+    DLOG(d_strm,
+         "\t" HIGHLIGHT("stream") ": set up " HIGHLIGHT(_1(s))
+         ": fd="_2(d)", isatty="_3(c),
+         outstream_str[which], props.fd, GET_YN(outstream->isatty));
 
     return *f;
 }
@@ -101,7 +102,7 @@ stream_setup(outstreams outstreams, enum outstreams which,
 FILE *
 stream_output_deferred(outstreams outstreams, enum outstreams which)
 {
-    ASSERT_ENUM_RANGE(outstream, which);
+    ASSERT_ENUM_RANGE_INTERNAL(outstream, which);
 
     char *buf = NULL;
     long size = 0;

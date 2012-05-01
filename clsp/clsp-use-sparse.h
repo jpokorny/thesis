@@ -171,7 +171,7 @@ debug_sparse_scope(const struct symbol *sym)
     else if (SP(block_scope) == scope)
         scope_str = "block";
     else if (sym->ctype.modifiers | MOD_TOPLEVEL)
-        scope_str = "unknown (toplevel)";
+        scope_str = "unknown-toplevel";
     else
         scope_str = "unknown";
 
@@ -181,10 +181,11 @@ debug_sparse_scope(const struct symbol *sym)
 /**
     Show symbol information
 
-    @param[in] sym     Symbol to be exposed
-    @param[in] indent  Initial level of indentation
+    @param[in] sym        Symbol to be exposed
+    @param[in] indent     Initial level of indentation
+    @param[in] nondeterm  Allow extra, yet nondeterministic info (pointers)
  */
-void debug_sparse_symbol(struct symbol *sym, int indent);
+void debug_sparse_symbol(struct symbol *sym, int indent, bool nondeterm);
 
 /**
     As @c debug_sparse_symbol, but with more details

@@ -1,0 +1,46 @@
+#define VAR  i
+#ifndef VAR_DECL
+# define VAR_DECL  static int VAR
+#endif
+
+#define APPLY(f, ...)   f(__VA_ARGS__)
+
+#define CASE_NOOP        { break; }
+#define CASE_SIDEEFFECT  { VAR++; break; }
+#define CASE_FALLTHROUGH {  }
+
+#define CASES_LIST(x) \
+    APPLY(x, case 0,        CASE_NOOP       ) \
+    APPLY(x, case 1,        CASE_SIDEEFFECT ) \
+    APPLY(x, case 2,        CASE_FALLTHROUGH) \
+    APPLY(x, case 3,        CASE_NOOP       ) \
+    APPLY(x, case 8 ... 10, CASE_SIDEEFFECT ) \
+    APPLY(x, case 5 ... 6,  CASE_NOOP       ) \
+    APPLY(x, default,       CASE_SIDEEFFECT )
+
+#define X(case, action)  case: action
+
+VAR_DECL;
+
+static void switch_1(void) {
+    switch (VAR) {
+        CASES_LIST(X)
+    }
+}
+
+static void switch_2(void) {
+    switch (VAR) {
+        case 12: CASE_SIDEEFFECT
+        default:
+            switch (VAR) {
+                CASES_LIST(X)
+            }
+    }
+}
+
+/*
+    clsp-options:   -d 1848
+    simdiff-limit:  0.9947
+
+    vim: ft=c:
+ */

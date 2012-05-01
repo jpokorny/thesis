@@ -1,10 +1,4 @@
-new
-===
 
-make dynamic library loading work
-
-failing tests:
-==============
 
 
 others:
@@ -12,22 +6,24 @@ others:
 
 priority
 --------
-op_from_fn_argument ... location
-is_insn_interesting ... keep/remove
-bring the signals back (as it sometimes ends without printing sparse messages)
+!!! op_from_fn_argument ... location
 
 
 not to forget
 -------------
 
 generating of OP_ASR
-PSEUDO_REG can have pseudo->ident
-sym->endpos.type to determine end pos (as with c2xml)
+!!! PSEUDO_REG can have pseudo->ident
 
 type recursion
 -- with (typedef'd) functions?
 -- during adjust_cl_operand_accessors?
 
+varargs?
+
+consider
+--------
+cache hit/miss counters (GLOBALS(counter.xyz))
 
 
 sparse:
@@ -36,6 +32,7 @@ sparse:
 * generates phi instruction after unssa (hash_table.c: 85)
 * generates unnecessary copy instruction before ret (unssa?) <<< probably OK
 * simplify.c: simplify_constant_rightside ... add LSR, support also left
+* arg_count (sparse-llvm would profit too)
 
 
 code listener:

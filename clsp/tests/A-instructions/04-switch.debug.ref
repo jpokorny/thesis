@@ -1,0 +1,521 @@
+A-instructions/04-switch.c:2:12: debug: file: begin (first symbol)
+A-instructions/04-switch.c:4:1: debug: operand-symbol: sp >>> switch_1
+        {kind=node, initializer=N, scope=file}
+void static [toplevel] switch_1( ... )
+A-instructions/04-switch.c:4:1: debug: operand-symbol: cl <<< switch_1
+        <operand> {kind=CST, scope=STATIC}
+            <type> {kind=FNC, uid=23, name=(none), sizeof=0, item_cnt=1, is_unsigned=N}: A-instructions/04-switch.c:4:10
+                <type-item> {name=(anonymous)}
+                    <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-fnc> {name=switch_1, uid=1, extern=N}: A-instructions/04-switch.c:4:1
+A-instructions/04-switch.c:4:1: debug: function: begin switch_1
+A-instructions/04-switch.c:4:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/04-switch.c:4:1
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/04-switch.c:4:1: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/04-switch.c:6:11: debug: instruction: sp >>>
+        load.32     %r1(i) <- 0[i]
+	debug: operand-pseudo: sp >>>
+        %r1(i)
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:6:11
+A-instructions/04-switch.c:2:12: debug: operand-symbol: sp >>> i
+        {kind=node, initializer=N, scope=file}
+int static [signed] [toplevel] [assigned] i
+A-instructions/04-switch.c:2:12: debug: operand-symbol: cl <<< i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+A-instructions/04-switch.c:6:11: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/04-switch.c:6:11
+            <unop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=1, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:6:11
+            <unop-src>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+A-instructions/04-switch.c:14:10: debug: instruction: sp >>>
+        add.32      %r3 <- %r1(i), $1
+	debug: operand-pseudo: sp >>>
+        %r3
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:14:10
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r1(i)
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:6:11
+	debug: operand-pseudo: sp >>>
+        $1
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-int> [1]
+A-instructions/04-switch.c:14:10: debug: instruction: cl <<<
+        <instruction> [PLUS (BINOP)]: A-instructions/04-switch.c:14:10
+            <binop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:14:10
+            <binop-src1>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=1, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:6:11
+            <binop-src2>
+                <operand> {kind=CST, scope=GLOBAL}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <constant-int> [1]
+A-instructions/04-switch.c:6:11: debug: instruction: sp >>>
+        switch      %r1(i), 0 -> .L0x7f03a171b060, 1 -> .L0x7f03a171b100, 2 -> .L0x7f03a171b060, 3 -> .L0x7f03a171b060, 5 ... 6 -> .L0x7f03a171b060, 8 ... 10 -> .L0x7f03a171b1f0, default -> .L0x7f03a171b290
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r1(i)
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:6:11
+A-instructions/04-switch.c:6:11: debug: instruction: cl <<< switch begin
+A-instructions/04-switch.c:6:11: debug: instruction: switch-case: target [5]
+            <switch-case> [0]
+A-instructions/04-switch.c:6:11: debug: instruction: switch-case: target [2]
+            <switch-case> [1]
+A-instructions/04-switch.c:6:11: debug: instruction: switch-case: target [5]
+            <switch-case> [2]
+A-instructions/04-switch.c:6:11: debug: instruction: switch-case: target [5]
+            <switch-case> [3]
+A-instructions/04-switch.c:6:11: debug: instruction: switch-case: target [5]
+            <switch-case> [5 ... 6]
+A-instructions/04-switch.c:6:11: debug: instruction: switch-case: target [3]
+            <switch-case> [8 ... 10]
+A-instructions/04-switch.c:6:11: debug: instruction: switch-case: target [4]
+            <switch-case> [default]
+	debug: instruction: cl <<< switch end
+	debug: basic-block: open [2]
+A-instructions/04-switch.c:14:10: debug: instruction: sp >>>
+        store.32    %r3 -> 0[i]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r3
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:14:10
+A-instructions/04-switch.c:14:10: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/04-switch.c:14:10
+            <unop-dst>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+            <unop-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:14:10
+A-instructions/04-switch.c:15:9: debug: instruction: sp >>>
+        br          .L0x7f03a171b060
+A-instructions/04-switch.c:15:9: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/04-switch.c:15:9
+            <jmp-label> [5]
+	debug: basic-block: open [3]
+A-instructions/04-switch.c:26:10: debug: instruction: sp >>>
+        store.32    %r3 -> 0[i]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r3
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:14:10
+A-instructions/04-switch.c:26:10: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/04-switch.c:26:10
+            <unop-dst>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+            <unop-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:14:10
+A-instructions/04-switch.c:27:9: debug: instruction: sp >>>
+        br          .L0x7f03a171b060
+A-instructions/04-switch.c:27:9: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/04-switch.c:27:9
+            <jmp-label> [5]
+	debug: basic-block: open [4]
+A-instructions/04-switch.c:35:10: debug: instruction: sp >>>
+        store.32    %r3 -> 0[i]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r3
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:14:10
+A-instructions/04-switch.c:35:10: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/04-switch.c:35:10
+            <unop-dst>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+            <unop-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:14:10
+A-instructions/04-switch.c:36:9: debug: instruction: sp >>>
+        br          .L0x7f03a171b060
+A-instructions/04-switch.c:36:9: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/04-switch.c:36:9
+            <jmp-label> [5]
+	debug: basic-block: open [5]
+A-instructions/04-switch.c:36:9: debug: instruction: sp >>>
+        ret
+A-instructions/04-switch.c:36:9: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/04-switch.c:36:9
+            <ret-src>
+                <operand> {kind=VOID, scope=N/A}
+A-instructions/04-switch.c:5:1: debug: function: end switch_1
+A-instructions/04-switch.c:42:1: debug: operand-symbol: sp >>> switch_2
+        {kind=node, initializer=N, scope=file}
+void static [toplevel] switch_2( ... )
+A-instructions/04-switch.c:42:1: debug: operand-symbol: cl <<< switch_2
+        <operand> {kind=CST, scope=STATIC}
+            <type> {kind=FNC, uid=24, name=(none), sizeof=0, item_cnt=1, is_unsigned=N}: A-instructions/04-switch.c:42:10
+                <type-item> {name=(anonymous)}
+                    <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-fnc> {name=switch_2, uid=2, extern=N}: A-instructions/04-switch.c:42:1
+A-instructions/04-switch.c:42:1: debug: function: begin switch_2
+A-instructions/04-switch.c:42:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/04-switch.c:42:1
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/04-switch.c:42:1: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/04-switch.c:44:11: debug: instruction: sp >>>
+        load.32     %r8(i) <- 0[i]
+	debug: operand-pseudo: sp >>>
+        %r8(i)
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:44:11
+A-instructions/04-switch.c:2:12: debug: operand-symbol: sp >>> i
+        {kind=node, initializer=N, scope=file}
+int static [signed] [toplevel] [assigned] i
+A-instructions/04-switch.c:2:12: debug: operand-symbol: cl <<< i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+A-instructions/04-switch.c:44:11: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/04-switch.c:44:11
+            <unop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:44:11
+            <unop-src>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+A-instructions/04-switch.c:44:11: debug: instruction: sp >>>
+        switch      %r8(i), 12 -> .L0x7f03a171b380, default -> .L0x7f03a171b3d0
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r8(i)
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:44:11
+A-instructions/04-switch.c:44:11: debug: instruction: cl <<< switch begin
+A-instructions/04-switch.c:44:11: debug: instruction: switch-case: target [2]
+            <switch-case> [12]
+A-instructions/04-switch.c:44:11: debug: instruction: switch-case: target [3]
+            <switch-case> [default]
+	debug: instruction: cl <<< switch end
+	debug: basic-block: open [2]
+A-instructions/04-switch.c:48:10: debug: instruction: sp >>>
+        add.32      %r10 <- %r8(i), $1
+	debug: operand-pseudo: sp >>>
+        %r10
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:48:10
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r8(i)
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:44:11
+	debug: operand-pseudo: sp >>> cached >>> cl
+        $1
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-int> [1]
+A-instructions/04-switch.c:48:10: debug: instruction: cl <<<
+        <instruction> [PLUS (BINOP)]: A-instructions/04-switch.c:48:10
+            <binop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:48:10
+            <binop-src1>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:44:11
+            <binop-src2>
+                <operand> {kind=CST, scope=GLOBAL}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <constant-int> [1]
+A-instructions/04-switch.c:48:10: debug: instruction: sp >>>
+        store.32    %r10 -> 0[i]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r10
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:48:10
+A-instructions/04-switch.c:48:10: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/04-switch.c:48:10
+            <unop-dst>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+            <unop-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:48:10
+A-instructions/04-switch.c:49:9: debug: instruction: sp >>>
+        br          .L0x7f03a171b330
+A-instructions/04-switch.c:49:9: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/04-switch.c:49:9
+            <jmp-label> [7]
+	debug: basic-block: open [3]
+A-instructions/04-switch.c:52:15: debug: instruction: sp >>>
+        switch      %r8(i), 0 -> .L0x7f03a171b330, 1 -> .L0x7f03a171b4c0, 2 -> .L0x7f03a171b330, 3 -> .L0x7f03a171b330, 5 ... 6 -> .L0x7f03a171b330, 8 ... 10 -> .L0x7f03a171b5b0, default -> .L0x7f03a171b650
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r8(i)
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:44:11
+A-instructions/04-switch.c:52:15: debug: instruction: cl <<< switch begin
+A-instructions/04-switch.c:52:15: debug: instruction: switch-case: target [7]
+            <switch-case> [0]
+A-instructions/04-switch.c:52:15: debug: instruction: switch-case: target [4]
+            <switch-case> [1]
+A-instructions/04-switch.c:52:15: debug: instruction: switch-case: target [7]
+            <switch-case> [2]
+A-instructions/04-switch.c:52:15: debug: instruction: switch-case: target [7]
+            <switch-case> [3]
+A-instructions/04-switch.c:52:15: debug: instruction: switch-case: target [7]
+            <switch-case> [5 ... 6]
+A-instructions/04-switch.c:52:15: debug: instruction: switch-case: target [5]
+            <switch-case> [8 ... 10]
+A-instructions/04-switch.c:52:15: debug: instruction: switch-case: target [6]
+            <switch-case> [default]
+	debug: instruction: cl <<< switch end
+	debug: basic-block: open [4]
+A-instructions/04-switch.c:60:14: debug: instruction: sp >>>
+        add.32      %r13 <- %r8(i), $1
+	debug: operand-pseudo: sp >>>
+        %r13
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:60:14
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r8(i)
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:44:11
+	debug: operand-pseudo: sp >>> cached >>> cl
+        $1
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-int> [1]
+A-instructions/04-switch.c:60:14: debug: instruction: cl <<<
+        <instruction> [PLUS (BINOP)]: A-instructions/04-switch.c:60:14
+            <binop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:60:14
+            <binop-src1>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:44:11
+            <binop-src2>
+                <operand> {kind=CST, scope=GLOBAL}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <constant-int> [1]
+A-instructions/04-switch.c:60:14: debug: instruction: sp >>>
+        store.32    %r13 -> 0[i]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r13
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:60:14
+A-instructions/04-switch.c:60:14: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/04-switch.c:60:14
+            <unop-dst>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+            <unop-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:60:14
+A-instructions/04-switch.c:61:13: debug: instruction: sp >>>
+        br          .L0x7f03a171b330
+A-instructions/04-switch.c:61:13: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/04-switch.c:61:13
+            <jmp-label> [7]
+	debug: basic-block: open [5]
+A-instructions/04-switch.c:72:14: debug: instruction: sp >>>
+        add.32      %r15 <- %r8(i), $1
+	debug: operand-pseudo: sp >>>
+        %r15
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=8, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:72:14
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r8(i)
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:44:11
+	debug: operand-pseudo: sp >>> cached >>> cl
+        $1
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-int> [1]
+A-instructions/04-switch.c:72:14: debug: instruction: cl <<<
+        <instruction> [PLUS (BINOP)]: A-instructions/04-switch.c:72:14
+            <binop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=8, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:72:14
+            <binop-src1>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:44:11
+            <binop-src2>
+                <operand> {kind=CST, scope=GLOBAL}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <constant-int> [1]
+A-instructions/04-switch.c:72:14: debug: instruction: sp >>>
+        store.32    %r15 -> 0[i]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r15
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=8, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:72:14
+A-instructions/04-switch.c:72:14: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/04-switch.c:72:14
+            <unop-dst>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+            <unop-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=8, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:72:14
+A-instructions/04-switch.c:73:13: debug: instruction: sp >>>
+        br          .L0x7f03a171b330
+A-instructions/04-switch.c:73:13: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/04-switch.c:73:13
+            <jmp-label> [7]
+	debug: basic-block: open [6]
+A-instructions/04-switch.c:81:14: debug: instruction: sp >>>
+        add.32      %r17 <- %r8(i), $1
+	debug: operand-pseudo: sp >>>
+        %r17
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:81:14
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r8(i)
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:44:11
+	debug: operand-pseudo: sp >>> cached >>> cl
+        $1
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-int> [1]
+A-instructions/04-switch.c:81:14: debug: instruction: cl <<<
+        <instruction> [PLUS (BINOP)]: A-instructions/04-switch.c:81:14
+            <binop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:81:14
+            <binop-src1>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:44:11
+            <binop-src2>
+                <operand> {kind=CST, scope=GLOBAL}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <constant-int> [1]
+A-instructions/04-switch.c:81:14: debug: instruction: sp >>>
+        store.32    %r17 -> 0[i]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r17
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:81:14
+A-instructions/04-switch.c:81:14: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/04-switch.c:81:14
+            <unop-dst>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/04-switch.c:2:12
+            <unop-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:81:14
+A-instructions/04-switch.c:82:13: debug: instruction: sp >>>
+        br          .L0x7f03a171b330
+A-instructions/04-switch.c:82:13: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/04-switch.c:82:13
+            <jmp-label> [7]
+	debug: basic-block: open [7]
+A-instructions/04-switch.c:82:13: debug: instruction: sp >>>
+        ret
+A-instructions/04-switch.c:82:13: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/04-switch.c:82:13
+            <ret-src>
+                <operand> {kind=VOID, scope=N/A}
+A-instructions/04-switch.c:43:1: debug: function: end switch_2
+A-instructions/04-switch.c:43:1: debug: file: end (last symbol)

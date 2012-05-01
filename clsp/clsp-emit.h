@@ -96,7 +96,7 @@ static inline struct cl_type *
 new_type(void)
 {
     struct cl_type *retval;
-    return empty_type((MEM_NEW(retval)));  // guaranteed not to return NULL
+    return empty_type(MEM_NEW(retval));  // guaranteed not to return NULL
 }
 
 
@@ -117,11 +117,15 @@ sizeof_from_bits(int bits)
 static inline struct cl_type_item *
 type_append_item(struct cl_type *clt)
 {
+    struct cl_type_item *ret;
+
     if (!clt->items)
         clt->item_cnt = 0;
 
     // guaranteed to continue only in case of success
-    return MEM_ARR_APPEND(clt->items, clt->item_cnt);
+    ret = MEM_ARR_APPEND(clt->items, clt->item_cnt);
+    ret->type = NULL;
+    return ret;
 }
 
 

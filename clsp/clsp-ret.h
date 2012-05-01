@@ -99,7 +99,7 @@ enum {
     NOTE:  no fancy highlighting here + common printf format specifications
  */
 #define DIE(...)         DIE_(__VA_ARGS__, "")
-#define DIE_(fmt, ...)   DIE__(fmt "%s\n", __VA_ARGS__)
+#define DIE_(fmt, ...)   DIE__(fmt "%s", __VA_ARGS__)
 #define DIE__(fmt, ...)                                                        \
     ((*fmt != *DCHR_ERRNO && *fmt != *DCHR_ERRNOCODE)                          \
         ? PUT__(err, *fmt == *DCHR_ECODE ? 2 : 0, fmt "\n" LOCFMT,             \

@@ -247,7 +247,7 @@ type_ptr_db_insert(struct type_ptr_db *db, struct cl_type *clt,
                    const struct symbol *type, struct ptr_db_item **ptr)
 #define PTRDBARR_SIZE  (128)
 {
-    WITH_DEBUG_LEVEL(inst) {
+    WITH_DEBUG_LEVEL(d_tins) {
         if (clt->loc.file)
             PUT(debug, CLPOSFMT_1 ": " HIGHLIGHT("type-db") ": add "
                        HIGHLIGHT(_4(s)) " (uid="_5(d)", clt="_6(p)
@@ -364,7 +364,7 @@ type_ptr_db_destroy(struct type_ptr_db* db)
             free_type(item->clt);
 
         /* item->arr */
-        int j;
+        //int j;
 
         /* XXX off-by-one error */
         //PUT(err, "cnt is:" _1(d), item->arr_cnt);

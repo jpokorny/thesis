@@ -145,6 +145,8 @@ pseudo_t linearize_expression(struct entrypoint *ep, struct expression *expr);
 #define API_SPARSE_first_ptr_list             C,U,1,X
 /*storage.h:    void free_storage (void)*/
 #define API_SPARSE_free_storage               C,N,0,X
+/*symbol.h:     const char* get_type_name(enum type type)*/
+#define API_SPARSE_get_type_name              C,U,1,X
 /*scope.h       int is_outer_scope(struct scope *)*/
 #define API_SPARSE_is_outer_scope             C,U,1,X
 /*ptrlist.h:    int ptr_list_size (struct ptr_list *)*/
@@ -202,6 +204,7 @@ pseudo_t linearize_expression(struct entrypoint *ep, struct expression *expr);
     /* silent functions */                                 \
     first_ptr_list,                                        \
     free_storage,                                          \
+    get_type_name,                                         \
     is_outer_scope,                                        \
     ptr_list_size,                                         \
     show_typename,                                         \

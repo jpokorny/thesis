@@ -22,7 +22,6 @@
 #include <ctype.h>   /* isdigit */
 #include <assert.h>
 #include <libgen.h>  /* POSIX basename */
-#include <stddef.h>  /* ptrdiff_t */
 
 #include "clsp-options.h"
 #include "clsp-version.h"
@@ -31,7 +30,7 @@
 #include "clsp-api-sparse.h" /* SPARSE_OPT_PP */
 
 
-#define OPTSARGS_SEP  "--"
+#define OPTSARGS_SEP  "--"  /* options-arguments separator */
 
 /* "is binary option" X option prefix product */
 #define OPT_RAW        false,""
@@ -68,7 +67,7 @@ get_nonnegative_num(const char *what, const char *value)
     if (!isdigit(value[0]))
         DIE( ECODE(OPT,"option %s: not a numeric value: %s",what,value) );
     int ret = strtol(value, NULL, 10);
-    if (ret < 0)
+    if (0 > ret)
         DIE( ECODE(OPT,"option %s: must be positive number",what) );
     return ret;
 }
@@ -309,15 +308,10 @@ print_help(const char *cmd)
     APPLY(x, SHORT, ftabstop)
 
 static void
-print_completion_bash(const char *cmd)
+print_completion_bash(const char *basename)
 {
 #define X1(type, name)        " \\\n" PREFIX(type) #name
 #define X2(norm, high, code)  " \\\n" #norm
-
-    /* (POSIX) basename may modify in-place which is not desired */
-    char *copy = strdup(cmd);
-    if (copy)
-        cmd = basename(copy);
 
     PUT(out,"\
 # "_1(s)" bash completion start\n\
@@ -345,9 +339,7 @@ _clsp()\n\
 }\n\
 complete -o plusdirs -F _clsp \""_1(s)"\"\n\
 \n\
-# "_2(s)" bash completion end", cmd, cmd);
-
-    free(copy);
+# "_2(s)" bash completion end", basename, basename);
 
 #undef X2
 #undef X1
@@ -373,8 +365,6 @@ options_initialize(struct options *opts)
 {
     opts->finalized = false;
 
-    INTERNALS(emit_props) = emit_vanilla /*| emit_skip_origin */;
-
 #define X(name, fdnum, nnorm, nhigh, ncode, hnorm, hhigh, hcode) \
     OUTSTREAM(name) = (struct outstream_props) {                 \
         .fd = fdnum,                                             \
@@ -384,6 +374,7 @@ options_initialize(struct options *opts)
 #undef X
 
     INTERNALS(debug)   = 0;
+    INTERNALS(emit_props) = emit_vanilla /*| emit_skip_origin */;
 
     CL(listeners.cnt)  = 0;
     CL(listeners.arr)  = NULL;
@@ -429,14 +420,13 @@ recognize_outstream(const char *what, char initial, const char **value)
         case 's': return outstream_sp;
         case 'w': return outstream_warn;
         case 'c':
-            if ('\0' == **value) return outstream_cl;
             switch (*(*value+1)) {
                 case 'd':
                     /* -debug = SHORT_OPT debug */
                     *value = PREFIXEQ(*value, SHORT, "debug");
                     return outstream_cl_debug;
             }
-            /*FALLTHROUGH*/
+            return outstream_cl;  /* ('\0' == **value) is not 100% */
         default: DIE( ECODE(OPT,"unexpected case: %s",what) );
     }
 }
@@ -469,7 +459,7 @@ options_proceed_internal(struct options *opts, const char *args[],
 
     } else if ((value = PREFIXEQ(*args, LONG_BIN, "bash"))) {
 
-        print_completion_bash(argv0);
+        print_completion_bash(INTERNALS(basename));
         ret = proceeded_exit;
 
     } else if ((value = PREFIXEQ(*args, SHORT_BIN, "k"))
@@ -669,6 +659,12 @@ options_proceed(struct options *opts, int argc, const char *argv[])
     bool consume_options = true, consumed;
     int i = 0, kept = 0, ret;
     const char *value;
+
+    /* (POSIX) basename may modify in-place which is not desired */
+    INTERNALS(basename) = argv[0];
+    INTERNALS(basename_free) = strdup(argv[0]);
+    if (INTERNALS(basename_free))
+        INTERNALS(basename) = basename((char *) INTERNALS(basename_free));
 
     while (++i < argc) {
         assert(empty != argv[i]);

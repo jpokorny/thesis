@@ -21,7 +21,7 @@ CFLAGS    += -Wall -Wextra -Wwrite-strings -pedantic #-errors
 CFLAGS    += -pipe
 LDFLAGS   += -Wl,--as-needed
 LDFLAGS   += -ldl  # dlopen, ...
-DBGCFLAGS  = -O0 -gdwarf-4 -g3
+DBGCFLAGS  = -O0 -gdwarf-4 -g3 -fno-inline
 
 RELEASE    = 0
 USE_LTO    = 1
@@ -140,7 +140,7 @@ ${TEST_PROGRAMS}:: % : %.c
 	$(CC) $(CFLAGS) -o $@ $<
 
 check:: $(PROGRAM)
-	./tests.sh
+	tests/tests.sh
 
 clean: clean-check
 	$(RM) -f -- $(OBJECTS) ${TEST_PROGRAMS} ${DEP_FILES} core vgcore.*

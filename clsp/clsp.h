@@ -30,6 +30,8 @@
 #define USE_INT3_AS_BRK
 #include "trap.h"
 
+#include <stdint.h>  /* uintptr_t */
+
 
 /*
     Here comes the bootstrap process to solve circular dependency (globals
@@ -48,7 +50,8 @@
  */
 
 /* macros to access globals (declared below), also used by other modules */
-#define GLOBALS(what)  (globals.what)
+#define GLOBALS_PTR    (&globals)
+#define GLOBALS(what)  (GLOBALS_PTR->what)
 #ifndef STREAM   /* due to test_swapfd.c */
 # define STREAMSTRUCT(which)   GLOBALS(outstreams)[outstream_##which]
 # define STREAM(which)         GLOBALS(outstreams)[outstream_##which].stream
@@ -69,13 +72,17 @@ extern struct globals {
     int           debug;
     int           indent;
 
+    const char    *basename;
+    const char    *basename_free;
+
     struct cl_code_listener
                   *cl;
     struct type_ptr_db type_ptr_db;
 
     struct {
-        int       fnc;
-        int       var;
+        uintptr_t fnc;
+        uintptr_t var;
+        uintptr_t bb;
     } counters;
 
     /* API functions resolved in compile-/run-time set here */

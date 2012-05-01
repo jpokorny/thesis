@@ -1,0 +1,294 @@
+A-instructions/03-br.c:2:12: debug: file: begin (first symbol)
+A-instructions/03-br.c:4:1: debug: operand-symbol: sp >>> br_1
+        {kind=node, initializer=N, scope=file}
+void static [toplevel] br_1( ... )
+A-instructions/03-br.c:4:1: debug: operand-symbol: cl <<< br_1
+        <operand> {kind=CST, scope=STATIC}
+            <type> {kind=FNC, uid=23, name=(none), sizeof=0, item_cnt=1, is_unsigned=N}: A-instructions/03-br.c:4:6
+                <type-item> {name=(anonymous)}
+                    <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-fnc> {name=br_1, uid=1, extern=N}: A-instructions/03-br.c:4:1
+A-instructions/03-br.c:4:1: debug: function: begin br_1
+A-instructions/03-br.c:4:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/03-br.c:4:1
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/03-br.c:4:1: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/03-br.c:6:7: debug: instruction: sp >>>
+        load.32     %r1(i) <- 0[i]
+	debug: operand-pseudo: sp >>>
+        %r1(i)
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:6:7
+A-instructions/03-br.c:2:12: debug: operand-symbol: sp >>> i
+        {kind=node, initializer=N, scope=file}
+int static [signed] [toplevel] [assigned] i
+A-instructions/03-br.c:2:12: debug: operand-symbol: cl <<< i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+A-instructions/03-br.c:6:7: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/03-br.c:6:7
+            <unop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=1, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:6:7
+            <unop-src>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+A-instructions/03-br.c:6:7: debug: instruction: sp >>>
+        br          %r1(i), .L0x7f10be3f4150, .L0x7f10be3f40b0
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r1(i)
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:6:7
+A-instructions/03-br.c:6:7: debug: instruction: cl <<<
+        <instruction> [COND]: A-instructions/03-br.c:6:7
+            <cond-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=1, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:6:7
+            <cond-then-label> [3]
+            <cond-else-label> [2]
+	debug: basic-block: open [2]
+A-instructions/03-br.c:8:4: debug: instruction: sp >>>
+        add.32      %r3 <- %r1(i), $1
+	debug: operand-pseudo: sp >>>
+        %r3
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:8:4
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r1(i)
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:6:7
+	debug: operand-pseudo: sp >>>
+        $1
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-int> [1]
+A-instructions/03-br.c:8:4: debug: instruction: cl <<<
+        <instruction> [PLUS (BINOP)]: A-instructions/03-br.c:8:4
+            <binop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:8:4
+            <binop-src1>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=1, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:6:7
+            <binop-src2>
+                <operand> {kind=CST, scope=GLOBAL}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <constant-int> [1]
+A-instructions/03-br.c:8:4: debug: instruction: sp >>>
+        store.32    %r3 -> 0[i]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r3
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:8:4
+A-instructions/03-br.c:8:4: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/03-br.c:8:4
+            <unop-dst>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+            <unop-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:8:4
+A-instructions/03-br.c:9:1: debug: instruction: sp >>>
+        br          .L0x7f10be3f4150
+A-instructions/03-br.c:9:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/03-br.c:9:1
+            <jmp-label> [3]
+	debug: basic-block: open [3]
+A-instructions/03-br.c:10:3: debug: instruction: sp >>>
+        ret
+A-instructions/03-br.c:10:3: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/03-br.c:10:3
+            <ret-src>
+                <operand> {kind=VOID, scope=N/A}
+A-instructions/03-br.c:5:1: debug: function: end br_1
+A-instructions/03-br.c:14:1: debug: operand-symbol: sp >>> br_2
+        {kind=node, initializer=N, scope=file}
+void static [toplevel] br_2( ... )
+A-instructions/03-br.c:14:1: debug: operand-symbol: cl <<< br_2
+        <operand> {kind=CST, scope=STATIC}
+            <type> {kind=FNC, uid=24, name=(none), sizeof=0, item_cnt=1, is_unsigned=N}: A-instructions/03-br.c:14:6
+                <type-item> {name=(anonymous)}
+                    <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-fnc> {name=br_2, uid=2, extern=N}: A-instructions/03-br.c:14:1
+A-instructions/03-br.c:14:1: debug: function: begin br_2
+A-instructions/03-br.c:14:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/03-br.c:14:1
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/03-br.c:14:1: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/03-br.c:16:3: debug: instruction: sp >>>
+        br          .L0x7f10be3f42e0
+A-instructions/03-br.c:16:3: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/03-br.c:16:3
+            <jmp-label> [2]
+	debug: basic-block: open [2]
+A-instructions/03-br.c:16:15: debug: instruction: sp >>>
+        load.32     %r4(i) <- 0[i]
+	debug: operand-pseudo: sp >>>
+        %r4(i)
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:16:15
+A-instructions/03-br.c:2:12: debug: operand-symbol: sp >>> i
+        {kind=node, initializer=N, scope=file}
+int static [signed] [toplevel] [assigned] i
+A-instructions/03-br.c:2:12: debug: operand-symbol: cl <<< i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+A-instructions/03-br.c:16:15: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/03-br.c:16:15
+            <unop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:16:15
+            <unop-src>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+A-instructions/03-br.c:16:15: debug: instruction: sp >>>
+        setgt.32    %r5 <- $42, %r4(i)
+	debug: operand-pseudo: sp >>>
+        %r5
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=BOOL, uid=19, name=bool, sizeof=1, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+            <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:16:15
+	debug: operand-pseudo: sp >>>
+        $42
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-int> [42]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r4(i)
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:16:15
+A-instructions/03-br.c:16:15: debug: instruction: cl <<<
+        <instruction> [GT (BINOP)]: A-instructions/03-br.c:16:15
+            <binop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=BOOL, uid=19, name=bool, sizeof=1, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+                    <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:16:15
+            <binop-src1>
+                <operand> {kind=CST, scope=GLOBAL}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <constant-int> [42]
+            <binop-src2>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:16:15
+A-instructions/03-br.c:16:15: debug: instruction: sp >>>
+        br          %r5, .L0x7f10be3f41f0, .L0x7f10be3f4330
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r5
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=BOOL, uid=19, name=bool, sizeof=1, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+            <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:16:15
+A-instructions/03-br.c:16:15: debug: instruction: cl <<<
+        <instruction> [COND]: A-instructions/03-br.c:16:15
+            <cond-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=BOOL, uid=19, name=bool, sizeof=1, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+                    <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:16:15
+            <cond-then-label> [3]
+            <cond-else-label> [4]
+	debug: basic-block: open [3]
+A-instructions/03-br.c:17:6: debug: instruction: sp >>>
+        add.32      %r7 <- %r4(i), $1
+	debug: operand-pseudo: sp >>>
+        %r7
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:17:6
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r4(i)
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:16:15
+	debug: operand-pseudo: sp >>> cached >>> cl
+        $1
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-int> [1]
+A-instructions/03-br.c:17:6: debug: instruction: cl <<<
+        <instruction> [PLUS (BINOP)]: A-instructions/03-br.c:17:6
+            <binop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:17:6
+            <binop-src1>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:16:15
+            <binop-src2>
+                <operand> {kind=CST, scope=GLOBAL}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <constant-int> [1]
+A-instructions/03-br.c:17:6: debug: instruction: sp >>>
+        store.32    %r7 -> 0[i]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r7
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:17:6
+A-instructions/03-br.c:17:6: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/03-br.c:17:6
+            <unop-dst>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+            <unop-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:17:6
+A-instructions/03-br.c:17:6: debug: instruction: sp >>>
+        br          .L0x7f10be3f42e0
+A-instructions/03-br.c:17:6: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/03-br.c:17:6
+            <jmp-label> [2]
+	debug: basic-block: open [4]
+A-instructions/03-br.c:18:3: debug: instruction: sp >>>
+        ret
+A-instructions/03-br.c:18:3: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/03-br.c:18:3
+            <ret-src>
+                <operand> {kind=VOID, scope=N/A}
+A-instructions/03-br.c:15:1: debug: function: end br_2
+A-instructions/03-br.c:15:1: debug: file: end (last symbol)

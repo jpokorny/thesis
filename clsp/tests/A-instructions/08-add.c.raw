@@ -1,0 +1,24 @@
+#define BINOP(x, y)   (x) + (y)
+
+#define USE_CHAR
+#define USE_INT
+#define USE_UINT
+#define USE_FLOAT
+#define USE_DOUBLE
+
+#define USE_INT_INT_UINT
+#define USE_DOUBLE_DOUBLE_INT
+#define USE_PTR_PTR_INT
+#define USE_PTR_INT_PTR
+
+#define USE_INT_ZERO
+#define USE_INT_ONE
+
+#include "binops.h"
+
+/*
+    clsp-options:   -d 1848
+    simdiff-limit:  1.0
+
+    vim: ft=c:
+ */

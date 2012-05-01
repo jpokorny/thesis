@@ -90,16 +90,23 @@ sparse_ident(const struct ident *src, const char *def)
     debug macros: type
  */
 
+#define DEBUG_TYPE_FROM_SYMBOL_CACHE(sym, clt)                              \
+    WITH_DEBUG_LEVEL(d_type|d_chit) {                                       \
+        PUT(debug, "\tdebug: " HIGHLIGHT("type") ": sp >>> cached >>> cl"); \
+        PUTHI(debug, sp, GLOBALS(indent), _1(s), SP(show_typename, sym));   \
+        debug_cl_type(clt, GLOBALS(indent), GLOBALS(indent) + 16);          \
+    }
+
 #define DEBUG_TYPE_FROM_SYMBOL_SP(sym)                                    \
-    WITH_DEBUG_LEVEL(type) {                                              \
+    WITH_DEBUG_LEVEL(d_type) {                                            \
         PUT(debug, "\tdebug: " HIGHLIGHT("type") ": sp >>>");             \
         PUTHI(debug, sp, GLOBALS(indent), _1(s), SP(show_typename, sym)); \
     }
 
-#define DEBUG_TYPE_FROM_SYMBOL_CL(clt)                          \
-    WITH_DEBUG_LEVEL(type) {                                    \
-        PUT(debug, "\tdebug: " HIGHLIGHT("type") ": cl <<<");   \
-        debug_cl_type(clt, GLOBALS(indent));                    \
+#define DEBUG_TYPE_FROM_SYMBOL_CL(clt)                             \
+    WITH_DEBUG_LEVEL(d_type) {                                     \
+        PUT(debug, "\tdebug: " HIGHLIGHT("type") ": cl <<<");      \
+        debug_cl_type(clt, GLOBALS(indent), GLOBALS(indent) + 16); \
     }
 
 
@@ -108,19 +115,26 @@ sparse_ident(const struct ident *src, const char *def)
  */
 
 #define DEBUG_INSN_SP(insn)                                                  \
-    WITH_DEBUG_LEVEL(insn) {                                                 \
+    WITH_DEBUG_LEVEL(d_insn) {                                               \
         PUT(debug,                                                           \
-            SPPOSFMT_1 ": debug: " HIGHLIGHT("insn") ": sp >>>",             \
+            SPPOSFMT_1 ": debug: " HIGHLIGHT("instruction") ": sp >>>",      \
             SPPOS(insn->pos));                                               \
         PUTHI(debug, sp, GLOBALS(indent),_1(s), SP(show_instruction, insn)); \
     }
 
-#define DEBUG_INSN_CL(cli)                                        \
-    WITH_DEBUG_LEVEL(insn) {                                      \
-        PUT(debug,                                                \
-            CLPOSFMT_1 ": debug: " HIGHLIGHT("insn") ": cl <<<",  \
-            CLPOS(cli.loc));                                      \
-        debug_cl_insn(&cli, GLOBALS(indent), false);              \
+#define DEBUG_INSN_CL(cli)                                              \
+    WITH_DEBUG_LEVEL(d_insn) {                                          \
+        PUT(debug,                                                      \
+            CLPOSFMT_1 ": debug: " HIGHLIGHT("instruction") ": cl <<<", \
+            CLPOS((cli)->loc));                                         \
+        debug_cl_insn((cli), GLOBALS(indent), false);                   \
+    }
+
+#define DEBUG_INSN_CL_SPECIAL(...)                            \
+    WITH_DEBUG_LEVEL(d_insn) {                                \
+        PUT(debug,                                            \
+            "\tdebug: " HIGHLIGHT("instruction") ": cl <<<"); \
+        PUTHI(debug, cl_debug, GLOBALS(indent), __VA_ARGS__); \
     }
 
 
@@ -128,52 +142,43 @@ sparse_ident(const struct ident *src, const char *def)
     debug macros: operand
  */
 
-#define DEBUG_OP_FROM_PSEUDO_CACHE(pseudo)                                \
-    WITH_DEBUG_LEVEL(oper) {                                              \
-        PUT(debug, "\tdebug: " HIGHLIGHT("pseudo") ": cache hit");        \
-        /* do it safely as it may be "LHS found when initializing it" */  \
-        debug_cl_operand(pseudo->priv, GLOBALS(indent), true);            \
+#define DEBUG_OP_FROM_PSEUDO_CACHE(pseudo)                                     \
+    WITH_DEBUG_LEVEL(d_oper|d_chit) {                                          \
+        PUT(debug, "\tdebug: " HIGHLIGHT("operand-pseudo")                     \
+                   ": sp >>> cached >>> cl");                                  \
+        PUTHI(debug, sp, GLOBALS(indent), _1(s), SP(show_pseudo, pseudo));     \
+        /* do it safely as it may be "LHS found when initializing it" */       \
+        debug_cl_operand(pseudo->priv, GLOBALS(indent), true);                 \
     }
 
-#define DEBUG_OP_FROM_SYMBOL_CACHE(sym)                                   \
-    WITH_DEBUG_LEVEL(oper) {                                              \
-        PUT(debug,                                                        \
-            SPPOSFMT_1 ": debug: " HIGHLIGHT("symbol") ": cache hit: "    \
-            HIGHLIGHT(_4(s)), SPPOS(sym->pos),                            \
-            sym->ident ? sym->ident->name : "<anon-sym>");                \
-        /* do it safely as it may be "LHS found when initializing it" */  \
-        debug_cl_operand((const struct cl_operand *) sym->pseudo,         \
-                         GLOBALS(indent), true);                          \
+#define DEBUG_OP_FROM_PSEUDO_SP(pseudo)                                        \
+    WITH_DEBUG_LEVEL(d_oper) {                                                 \
+        PUT(debug, "\tdebug: " HIGHLIGHT("operand-pseudo") ": sp >>>");        \
+        PUTHI(debug, sp, GLOBALS(indent), _1(s), SP(show_pseudo, pseudo));     \
     }
 
-#define DEBUG_OP_FROM_PSEUDO_SP(pseudo)                                    \
-    WITH_DEBUG_LEVEL(oper) {                                               \
-        PUT(debug, "\tdebug: " HIGHLIGHT("pseudo") ": sp >>>");            \
-        PUTHI(debug, sp, GLOBALS(indent), _1(s), SP(show_pseudo, pseudo)); \
+#define DEBUG_OP_FROM_SYMBOL_SP(sym)                                           \
+    WITH_DEBUG_LEVEL(d_oper) {                                                 \
+        PUT(debug,                                                             \
+            SPPOSFMT_1 ": debug: " HIGHLIGHT("operand-symbol") ": sp >>> "     \
+            HIGHLIGHT(_4(s)), SPPOS(sym->pos),                                 \
+            sym->ident ? sym->ident->name : "(anon-sym)");                     \
+        debug_sparse_symbol(sym, GLOBALS(indent), GLOBALS(debug) & d_ndtm);    \
     }
 
-#define DEBUG_OP_FROM_SYMBOL_SP(sym)                                      \
-    WITH_DEBUG_LEVEL(oper) {                                              \
-        PUT(debug,                                                        \
-            SPPOSFMT_1 ": debug: " HIGHLIGHT("symbol") ": sp >>> "        \
-            HIGHLIGHT(_4(s)), SPPOS(sym->pos),                            \
-            sym->ident ? sym->ident->name : "<anon-sym>");                \
-        debug_sparse_symbol(sym, GLOBALS(indent));                        \
+#define DEBUG_OP_FROM_PSEUDO_CL(op)                                            \
+    WITH_DEBUG_LEVEL(d_oper) {                                                 \
+        PUT(debug, "\tdebug: " HIGHLIGHT("operand-pseudo") ": cl <<<");        \
+        debug_cl_operand((op), GLOBALS(indent), false);                        \
     }
 
-#define DEBUG_OP_FROM_PSEUDO_CL(op)                                       \
-    WITH_DEBUG_LEVEL(oper) {                                              \
-        PUT(debug, "\tdebug: " HIGHLIGHT("pseudo") ": cl <<<");           \
-        debug_cl_operand(op, GLOBALS(indent), false);                     \
-    }
-
-#define DEBUG_OP_FROM_SYMBOL_CL(sym, op)                                  \
-    WITH_DEBUG_LEVEL(oper) {                                              \
-        PUT(debug,                                                        \
-            SPPOSFMT_1 ": debug: " HIGHLIGHT("symbol") ": cl <<< "        \
-            HIGHLIGHT(_4(s)), SPPOS(sym->pos),                            \
-            sym->ident ? sym->ident->name : "<anon-sym>");                \
-        debug_cl_operand(op, GLOBALS(indent), false);                     \
+#define DEBUG_OP_FROM_SYMBOL_CL(sym, op)                                       \
+    WITH_DEBUG_LEVEL(d_oper) {                                                 \
+        PUT(debug,                                                             \
+            SPPOSFMT_1 ": debug: " HIGHLIGHT("operand-symbol") ": cl <<< "     \
+            HIGHLIGHT(_4(s)), SPPOS(sym->pos),                                 \
+            sym->ident ? sym->ident->name : "(anon-sym)");                     \
+        debug_cl_operand((op), GLOBALS(indent), false);                        \
     }
 
 
@@ -181,40 +186,54 @@ sparse_ident(const struct ident *src, const char *def)
     debug macros: initializer
  */
 
-#define DEBUG_INITIALIZER_EXPR_START()                               \
-    do {                                                             \
-        DLOG(init, "\tdebug: " HIGHLIGHT("initializer") ": start");  \
-        GLOBALS(indent) += 8/INDENT_MULT ;                           \
+#define DEBUG_INITIALIZER_EXPR_START()                                   \
+    do {                                                                 \
+        DLOG(d_init,                                                     \
+             "\tdebug: " HIGHLIGHT("initializer-expression") ": start"); \
+        GLOBALS(indent) += 8/INDENT_MULT;                                \
     } while (0)
 
-#define DEBUG_INITIALIZER_EXPR_STOP()                                \
-     do {                                                            \
-        GLOBALS(indent) -= 8/INDENT_MULT ;                           \
-        DLOG(init, "\tdebug: " HIGHLIGHT("initializer") ": stop");   \
+#define DEBUG_INITIALIZER_EXPR_STOP()                                   \
+     do {                                                               \
+        GLOBALS(indent) -= 8/INDENT_MULT;                               \
+        DLOG(d_init,                                                    \
+             "\tdebug: " HIGHLIGHT("initializer-expression") ": stop"); \
     } while (0)
 
 #define DEBUG_INITIALIZER_EXPR_SP(insn)                                       \
-    WITH_DEBUG_LEVEL(init) {                                                  \
-        DLOG(init, "\tdebug: " HIGHLIGHT("initializer") ": sp >>>");          \
+    WITH_DEBUG_LEVEL(d_init) {                                                \
+        PUT(debug,                                                            \
+            "\tdebug: " HIGHLIGHT("initializer-expression") ": sp >>>");      \
         PUTHI(debug, sp, GLOBALS(indent), _1(s), SP(show_instruction, insn)); \
+        GLOBALS(indent) += 8/INDENT_MULT;                                     \
     }
 
-#define DEBUG_INITIALIZER_EXPR_CL(initial)                                   \
-    WITH_DEBUG_LEVEL(init) {                                                 \
-        DLOG(init, "\tdebug: " HIGHLIGHT("initializer") ": cl <<<");         \
-        debug_cl_insn(&(initial)->insn, GLOBALS(indent), true);              \
+#define DEBUG_INITIALIZER_EXPR_CL(initial)                               \
+    WITH_DEBUG_LEVEL(d_init) {                                           \
+        GLOBALS(indent) -= 8/INDENT_MULT;                                \
+        PUT(debug,                                                       \
+            "\tdebug: " HIGHLIGHT("initializer-expression") ": cl <<<"); \
+        debug_cl_insn(&(initial)->insn, GLOBALS(indent), true);          \
     }
 
-#define DEBUG_INITIALIZER_SP(expr)                                           \
-    WITH_DEBUG_LEVEL(init) {                                                 \
-        PUT(debug, "\tdebug: " HIGHLIGHT("initializer") ": sp >>>");         \
-        SP(show_expression, expr);                                           \
+#define DEBUG_INITIALIZER_EXPR_CL_SPECIAL(...)                           \
+    WITH_DEBUG_LEVEL(d_init) {                                           \
+        GLOBALS(indent) -= 8/INDENT_MULT;                                \
+        PUT(debug,                                                       \
+            "\tdebug: " HIGHLIGHT("initializer-expression") ": cl <<<"); \
+        PUTHI(debug, cl_debug, GLOBALS(indent), __VA_ARGS__);            \
     }
 
-#define DEBUG_INITIALIZER_CL(initial)                                        \
-    WITH_DEBUG_LEVEL(init) {                                                 \
-        PUT(debug, "\tdebug: " HIGHLIGHT("initializer") ": cl <<<");         \
-        debug_cl_initializer(initial, GLOBALS(indent));                      \
+#define DEBUG_INITIALIZER_SP(expr)                                       \
+    WITH_DEBUG_LEVEL(d_init) {                                           \
+        PUT(debug, "\tdebug: " HIGHLIGHT("initializer") ": sp >>>");     \
+        SP(show_expression, expr);                                       \
+    }
+
+#define DEBUG_INITIALIZER_CL(initial)                                    \
+    WITH_DEBUG_LEVEL(d_init) {                                           \
+        PUT(debug, "\tdebug: " HIGHLIGHT("initializer") ": cl <<<");     \
+        debug_cl_initializer(initial, GLOBALS(indent), true);            \
     }
 
 

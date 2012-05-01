@@ -40,6 +40,8 @@ struct options {
     struct {
         int             debug;
         int             emit_props;
+        const char      *basename;
+        const char      *basename_free;
     } internals;
     /* output streams */
     opts_outstreams     outstreams;

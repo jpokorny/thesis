@@ -57,7 +57,7 @@ char error_ = "missing some macros that should be defined already"[-1];
  */
 
 #define LOCFMT \
-    __FILE__ ":" STRINGIFY(__LINE__) ": note: from %s [internal location]"
+    __FILE__ ":" STRINGIFY(__LINE__) ": note: from %s [internal location]\n"
 
 #define LOCFMT_1 \
     __FILE__ ":" STRINGIFY(__LINE__) ": note: from "_1(s)" [internal location]"
@@ -87,28 +87,36 @@ char error_ = "missing some macros that should be defined already"[-1];
 #define D_PLUGIN         plug, "print diagnostics regarding plugins"
 #define D_FILE           file, "print current file being proceeded"
 #define D_FUNCTION       func, "print current function being proceeded"
-#define D_INSTRUCTION    insn, "print instruction being processed"
-#define D_SYMBOL         symb, "print current symbol being proceeded"
-#define D_INITIALIZATOR  init, "print current initializator being processed"
+#define D_BASICBLOCK     bblk, "print event of opening new basic block"
+#define D_SYMBOL         symb, "print current symbol being considered"
 #define D_TYPE           type, "print type being processed"
-#define D_INSERT_TYPE    inst, "print type being inserted into type DB"
+#define D_INSTRUCTION    insn, "print instruction being proceeded"
 #define D_OPERAND        oper, "print instruction operands details"
+#define D_INITIALIZATOR  init, "print initializator being proceeded"
+#define D_CACHE_HIT      chit, "print event of cache hit"
+#define D_INSERT_TYPE    tins, "print type being inserted into type DB"
 #define D_SP_ALLOC       allo, "print final allocators state"
 #define D_MISC           misc, "random print-outs, work in progress"
+/*keep this last*/
+#define D_NONDETERM      ndtm, "allow extra, yet nondeterministic info"
 #define DLIST(x)              \
     APPLY(x, D_OPTIONS      ) \
     APPLY(x, D_STREAM       ) \
     APPLY(x, D_PLUGIN       ) \
     APPLY(x, D_FILE         ) \
     APPLY(x, D_FUNCTION     ) \
-    APPLY(x, D_INSTRUCTION  ) \
+    APPLY(x, D_BASICBLOCK   ) \
     APPLY(x, D_SYMBOL       ) \
-    APPLY(x, D_INITIALIZATOR) \
     APPLY(x, D_TYPE         ) \
-    APPLY(x, D_INSERT_TYPE  ) \
+    APPLY(x, D_INSTRUCTION  ) \
     APPLY(x, D_OPERAND      ) \
+    APPLY(x, D_INITIALIZATOR) \
+    APPLY(x, D_CACHE_HIT    ) \
+    APPLY(x, D_INSERT_TYPE  ) \
     APPLY(x, D_SP_ALLOC     ) \
-    APPLY(x, D_MISC         )
+    APPLY(x, D_MISC         ) \
+    APPLY(x, D_NONDETERM    )
+
 
 enum debugs {
 #define X(name,desc)  debug_##name,
@@ -117,21 +125,27 @@ enum debugs {
     debug_cnt,
     debug_last  = debug_cnt - 1,
     debug_first = 0,
-    debug_none  = 0   /* orthogonal as it denotes absolute value */
+};
+
+enum debugs_use {
+#define X(name,desc)  d_##name = DVALUE(debug_##name),
+    DLIST(X)
+#undef X
+    d_none  = 0
 };
 
 extern const char *const debug_str[debug_cnt];
 
 /* two forms of usage... */
-#define DLOG(level, ...)                     \
-    (GLOBALS(debug) & DVALUE(debug_##level)) \
-        ? PUT(debug, __VA_ARGS__)            \
+#define DLOG(level, ...)          \
+    (GLOBALS(debug) & (level))    \
+        ? PUT(debug, __VA_ARGS__) \
         : 0
 
-#define WITH_DEBUG_LEVEL(level)                                      \
-    for (int i_=0; 0==i_ && (GLOBALS(debug) & DVALUE(debug_##level)) \
-         ? 1                                                         \
-         : 0                                                         \
+#define WITH_DEBUG_LEVEL(level)                        \
+    for (int i_=0; 0==i_ && (GLOBALS(debug) & (level)) \
+         ? 1                                           \
+         : 0                                           \
          ; i_++)
 
 
@@ -145,9 +159,10 @@ swap_stream(FILE *f1, FILE *f2) {
     if (f1 == f2 || (fd1 = fileno(f1)) == (fd2 = fileno(f2)))
         return;
 
-    DLOG(strm, "\t" HIGHLIGHT("stream") ": swap: " _1(p)
-               " ("_2(d)") - "_3(p)" ("_4(d)")",
-               (void *)f1, fd1, (void*)f2, fd2);
+    DLOG(d_strm,
+         "\t" HIGHLIGHT("stream") ": swap: " _1(p)" ("_2(d)") - "_3(p)" ("
+         _4(d)")",
+         (void *)f1, fd1, (void*)f2, fd2);
 
     /* this is always needed due to (at the very least) using colors (?) */
     fflush(f1); fflush(f2);

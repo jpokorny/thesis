@@ -81,19 +81,23 @@
  */
 
 /*
-    This expects enum "enum" to be arranged such that the first valid
-    element is accessible via "enum_first" item and the last valid
-    element via "enum_last" (both may be aliases, indeed).
-
     NOTE: temporarily turning off one innocent and otherwise annoying warning
  */
-#define ASSERT_ENUM_RANGE(enum, test)                  \
+#define ASSERT_ENUM_RANGE(first, test, last)           \
     do {                                               \
     PRAGMA_RAW(GCC diagnostic push)                    \
     PRAGMA_RAW(GCC diagnostic ignored "-Wtype-limits") \
-    assert(ORDERED(enum##_first, test, enum##_last));  \
+    assert(ORDERED(first, test, last));                \
     PRAGMA_RAW(GCC diagnostic pop)                     \
     } while (0)
+
+/*
+    This expects enum "enum" to be arranged such that the first valid
+    element is accessible via "enum_first" item and the last valid
+    element via "enum_last" (both may be aliases, indeed).
+ */
+#define ASSERT_ENUM_RANGE_INTERNAL(enum, test) \
+    ASSERT_ENUM_RANGE(enum##_first, test, enum##_last)
 
 /*
     Example usage: enum "frobs" comprises "frob_foo" and "frob_bar", "frob_baz"

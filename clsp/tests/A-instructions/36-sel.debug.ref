@@ -1,0 +1,145 @@
+A-instructions/36-sel.c:2:12: debug: file: begin (first symbol)
+A-instructions/36-sel.c:4:1: debug: operand-symbol: sp >>> sel_1
+        {kind=node, initializer=N, scope=file}
+void static [toplevel] sel_1( ... )
+A-instructions/36-sel.c:4:1: debug: operand-symbol: cl <<< sel_1
+        <operand> {kind=CST, scope=STATIC}
+            <type> {kind=FNC, uid=23, name=(none), sizeof=0, item_cnt=1, is_unsigned=N}: A-instructions/36-sel.c:4:7
+                <type-item> {name=(anonymous)}
+                    <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-fnc> {name=sel_1, uid=1, extern=N}: A-instructions/36-sel.c:4:1
+A-instructions/36-sel.c:4:1: debug: function: begin sel_1
+A-instructions/36-sel.c:4:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/36-sel.c:4:1
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/36-sel.c:4:1: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/36-sel.c:6:15: debug: instruction: sp >>>
+        load.32     %r1 <- 0[i]
+	debug: operand-pseudo: sp >>>
+        %r1
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
+A-instructions/36-sel.c:2:12: debug: operand-symbol: sp >>> i
+        {kind=node, initializer=N, scope=file}
+int static [signed] [toplevel] [assigned] i
+A-instructions/36-sel.c:2:12: debug: operand-symbol: cl <<< i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/36-sel.c:2:12
+A-instructions/36-sel.c:6:15: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/36-sel.c:6:15
+            <unop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
+            <unop-src>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/36-sel.c:2:12
+A-instructions/36-sel.c:6:7: debug: instruction: sp >>>
+        select.32   %r3 <- %r1, $0, %r1
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r1
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r1
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
+A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
+        <instruction> [COND]: A-instructions/36-sel.c:6:7
+            <cond-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
+            <cond-then-label> [2]
+            <cond-else-label> [3]
+	debug: basic-block: open [2]
+	debug: operand-pseudo: sp >>>
+        %r3
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:7
+	debug: operand-pseudo: sp >>>
+        $0
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-int> [0]
+A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/36-sel.c:6:7
+            <unop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:7
+            <unop-src>
+                <operand> {kind=CST, scope=GLOBAL}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <constant-int> [0]
+A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/36-sel.c:6:7
+            <jmp-label> [4]
+	debug: basic-block: open [3]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r3
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:7
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r1
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
+A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/36-sel.c:6:7
+            <unop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:7
+            <unop-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
+A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/36-sel.c:6:7
+            <jmp-label> [4]
+	debug: basic-block: open [4]
+A-instructions/36-sel.c:6:7: debug: instruction: sp >>>
+        store.32    %r3 -> 0[i]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        i
+        <operand> {kind=VAR, scope=STATIC}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/36-sel.c:2:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r3
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:7
+A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/36-sel.c:6:7
+            <unop-dst>
+                <operand> {kind=VAR, scope=STATIC}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/36-sel.c:2:12
+            <unop-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:7
+A-instructions/36-sel.c:6:7: debug: instruction: sp >>>
+        ret
+A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/36-sel.c:6:7
+            <ret-src>
+                <operand> {kind=VOID, scope=N/A}
+A-instructions/36-sel.c:5:1: debug: function: end sel_1
+A-instructions/36-sel.c:5:1: debug: file: end (last symbol)
