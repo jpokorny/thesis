@@ -118,6 +118,7 @@ do_tests () {
     lastdir=
 
     echo $DLINE
+    echo "outputs dir: ${tmpdir}"
 
     for src in $(find -name "*.debug.ref"|sed 's/\.\//|/1'|cut -d"|" -f2|sort); do
         dstdir="${tmpdir}/$(dirname "${src}")"
