@@ -1,0 +1,36 @@
+#define BINOP(x, y)   (x) != (y)
+
+#define USE_INT_ZERO
+#define USE_INT_ONE
+
+#define USE_CMP_CHAR
+#define USE_CMP_INT
+#define USE_CMP_UINT
+#define USE_CMP_DOUBLE
+#define USE_CMP_PTR
+
+#include "binops.h"
+
+
+#define VAR  i
+#ifndef VAR_DECL
+# define VAR_DECL  static int VAR
+#endif
+
+VAR_DECL;
+
+static int set_ne_1(void) {
+    if (VAR)
+        return 1;
+    return 0;
+}
+
+static int set_ne_2(void) {
+    return VAR ? 1 : 0;
+}
+
+/*
+    clsp-options:   -d 1848
+
+    vim: ft=c:
+ */

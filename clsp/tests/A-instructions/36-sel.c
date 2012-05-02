@@ -7,7 +7,6 @@ sel_1 (void)
 }
 /*
     clsp-options:   -d 1848
-    simdiff-limit:  1.0
 
     vim: ft=c:
  */

@@ -595,6 +595,7 @@ type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
      */
     if (insn->target == pseudo && PSEUDO_REG == pseudo->type) {
         pu = SP(first_ptr_list, (struct ptr_list *) pseudo->users);
+        assert(pu->insn);
         if (OP_CAST == pu->insn->opcode
           || OP_SCAST == pu->insn->opcode
           || OP_FPCAST == pu->insn->opcode
@@ -602,8 +603,8 @@ type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
             type = pu->insn->orig_type;
         else if (OP_RET == pu->insn->opcode)
             type = pu->insn->type;
-        assert(type);
-        return type_from_symbol(type, NULL);
+        if (type)
+            return type_from_symbol(type, NULL);
     }
 
     if (insn)  /* XXX see assert above */
@@ -611,6 +612,28 @@ type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
 
     /* type fallback */
     return &int_clt;
+}
+
+/**
+    Get scope from register (either CL_SCOPE_FUNCTION or CL_SCOPE_BB)
+
+    CL_SCOPE_BB is considered a special case of CL_SCOPE_FUNCTION
+    where all the register users are present in the same BB.
+    Otherwise, the register is used accross more BBs (within the same
+    function) and thus its scope has to be CL_SCOPE_FUNCTION
+ */
+static enum cl_scope_e
+scope_from_register(const pseudo_t pseudo, const struct basic_block *bb)
+{
+    assert(PSEUDO_REG == pseudo->type);
+
+    struct pseudo_user *pu;
+
+    FOR_EACH_PTR(pseudo->users, pu)
+        if (pu->insn->bb != bb)
+            return CL_SCOPE_FUNCTION;
+    END_FOR_EACH_PTR(pu);
+    return CL_SCOPE_BB;
 }
 
 
@@ -1085,7 +1108,7 @@ op_from_register(const struct instruction *insn, const pseudo_t pseudo)
 {
     struct cl_operand *op = op_make_var();
 
-    op->scope = CL_SCOPE_BB;  /* XXX what if has identifier? */
+    op->scope = scope_from_register(pseudo, insn->bb);
     op->type  = type_from_instruction(pseudo->def, pseudo);
 
     VAR(op)->name = sparse_ident(pseudo->ident, NULL);

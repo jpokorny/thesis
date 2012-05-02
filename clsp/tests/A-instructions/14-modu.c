@@ -12,7 +12,6 @@ binop_int_int_uint (int a, unsigned b)
 }
 /*
     clsp-options:   -d 1848
-    simdiff-limit:  1.0
 
     vim: ft=c:
  */

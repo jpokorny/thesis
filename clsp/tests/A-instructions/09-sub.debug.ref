@@ -531,7 +531,7 @@ A-instructions/09-sub.c:35:17: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>>
         %r27
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
             <operand-var> {uid=21, name=(none), artificial=Y, initialized=N}: A-instructions/09-sub.c:35:17
 	debug: operand-pseudo: sp >>> cached >>> cl
@@ -547,7 +547,7 @@ A-instructions/09-sub.c:35:17: debug: instruction: sp >>>
 A-instructions/09-sub.c:35:17: debug: instruction: cl <<<
         <instruction> [MINUS (BINOP)]: A-instructions/09-sub.c:35:17
             <binop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                     <operand-var> {uid=21, name=(none), artificial=Y, initialized=N}: A-instructions/09-sub.c:35:17
             <binop-src1>
@@ -562,13 +562,13 @@ A-instructions/09-sub.c:35:17: debug: instruction: sp >>>
         ret.32      %r27
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r27
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
             <operand-var> {uid=21, name=(none), artificial=Y, initialized=N}: A-instructions/09-sub.c:35:17
 A-instructions/09-sub.c:35:17: debug: instruction: cl <<<
         <instruction> [RET]: A-instructions/09-sub.c:35:17
             <ret-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                     <operand-var> {uid=21, name=(none), artificial=Y, initialized=N}: A-instructions/09-sub.c:35:17
 A-instructions/09-sub.c:34:1: debug: function: end binop_int_int_uint

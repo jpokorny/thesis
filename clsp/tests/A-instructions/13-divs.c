@@ -12,7 +12,6 @@ binop_int_one (int a)
 }
 /*
     clsp-options:   -d 1848
-    simdiff-limit:  1.0
 
     vim: ft=c:
  */
