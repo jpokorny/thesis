@@ -644,6 +644,7 @@ enum copy_depth {
     copy_shallow,
     copy_shallow_ac_deep,
     copy_shallow_ac_null,
+    copy_shallow_var_deep,
 };
 
 
@@ -655,6 +656,11 @@ accessor_copy(const struct cl_accessor *orig)
     return ret;
 }
 
+/**
+    Copy operand
+
+    params[in] new_var  Whether to associate new UID with the operand.
+ */
 static inline struct cl_operand *
 op_copy(const struct cl_operand *op_src, enum copy_depth copy_depth)
 {
@@ -671,6 +677,13 @@ op_copy(const struct cl_operand *op_src, enum copy_depth copy_depth)
             ac_chain = &(*ac_chain)->next;
         }
     }
+
+    if (copy_shallow_var_deep == copy_depth && CL_OPERAND_VAR == op_src->code) {
+        ret->data.var = alloc_cl_var();
+        *ret->data.var = *op_src->data.var;
+        VAR(ret)->uid = ++COUNTER(var);
+    }
+
     return ret;
 }
 
@@ -878,7 +891,7 @@ op_from_primitive_literal(const struct expression *expr)
 static inline struct cl_operand *op_from_symbol(struct symbol *sym);
 
 static inline struct cl_insn *
-insn_setops_store(struct cl_insn *cli, const struct instruction *insn);
+insn_setops_store(struct cl_insn *cli, const struct instruction **insn);
 
 
 /**
@@ -942,7 +955,8 @@ op_initialize_var_from_initializer(struct cl_initializer **initial,
                 conv_position(&(*initial)->insn.loc, &insn->pos);
                 (*initial)->insn.code = CL_INSN_UNOP;
                 (*initial)->insn.data.insn_unop.code = CL_UNOP_ASSIGN;
-                insn_setops_store(&(*initial)->insn, insn);
+                insn_setops_store(&(*initial)->insn, &insn);
+                assert(!insn); /* not a multi-phased instruction */
                 break;
             case OP_SYMADDR:
                 /* this marks end of initializer (?) */
@@ -1138,11 +1152,12 @@ op_from_intval(int value)
        (it is reachable from insn however)
  */
 static inline struct cl_operand *
-op_from_pseudo(const struct instruction *insn, const pseudo_t pseudo)
+op_from_pseudo_maybe(const struct instruction *insn, const pseudo_t pseudo)
 {
-    assert(pseudo);
-
     struct cl_operand *op;
+
+    if (!pseudo)
+        return NO_OPERAND_USE;
 
     if (pseudo->priv) {
         DEBUG_OP_FROM_PSEUDO_CACHE(pseudo);
@@ -1169,6 +1184,18 @@ op_from_pseudo(const struct instruction *insn, const pseudo_t pseudo)
     return pseudo->priv = op;
 }
 
+
+/**
+    Wrapper for @c op_from_pseudo_maybe when void is not expected
+ */
+static inline struct cl_operand *
+op_from_pseudo(const struct instruction *insn, const pseudo_t pseudo)
+{
+    /*assert(pseudo);*/
+    struct cl_operand *ret = op_from_pseudo_maybe(insn, pseudo);
+    assert(NO_OPERAND_USE != ret);
+    return ret;
+}
 
 static inline void
 accessor_array_index(struct cl_accessor *ac, int index)
@@ -1547,20 +1574,23 @@ insn_assignment_mod_rhs(struct cl_operand **op_rhs, pseudo_t rhs,
        (`insn->orig_type') for this adjustment.
  */
 static struct cl_insn *
-insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
+insn_assignment_base(struct cl_insn *cli, const struct instruction **insn,
                      pseudo_t lhs,    /* := */    pseudo_t rhs,
                      enum assignment_ops_handling ops_handling)
 {
+    struct instruction *assign = *insn;
     struct cl_operand
-        **op_lhs = (struct cl_operand **) &cli->data.insn_unop.dst,
-        **op_rhs = (struct cl_operand **) &cli->data.insn_unop.src;
+        **op_lhs = (struct cl_operand **) &UNOP(cli)->dst,
+        **op_rhs = (struct cl_operand **) &UNOP(cli)->src;
+
+    *insn = NULL;
 
     /* prepare LHS */
 
-    *op_lhs = op_from_pseudo(insn, lhs);
+    *op_lhs = op_from_pseudo(assign, lhs);
 
     if (ops_handling & TYPE_LHS_DIG) {
-        struct cl_type *type = type_from_symbol(insn->type, NULL);
+        struct cl_type *type = type_from_symbol(assign->type, NULL);
         if (!type_match((*op_lhs)->type, type)) {
             if (!op_accessible(*op_lhs)) {
                 struct cl_accessor *ac = op_append_accessor(*op_lhs, NULL);
@@ -1570,15 +1600,15 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
                 (*op_lhs)->type = type;
             } else {
                 op_dig_for_type_match((const struct cl_operand **) op_lhs,
-                                      type, insn->offset);
+                                      type, assign->offset);
             }
         }
     }
 
     /* prepare RHS (quite complicated compared to LHS) */
 
-    *op_rhs = op_from_pseudo(insn, rhs);
-    insn_assignment_mod_rhs(op_rhs, rhs, insn, ops_handling);
+    *op_rhs = op_from_pseudo(assign, rhs);
+    insn_assignment_mod_rhs(op_rhs, rhs, assign, ops_handling);
 
     /*
         FIXME (SPARSE?):  sparse generates (due to execution model?) extra
@@ -1591,7 +1621,7 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
         return cli;
 #if FIX_SPARSE_EXTRA_ARG_TO_MEM
     WARN("instruction omitted: " HIGHLIGHT(_1(s)),
-         show_instruction((struct instruction *) insn));
+         show_instruction((struct instruction *) assign));
     return NULL;
 #endif
 }
@@ -1605,10 +1635,10 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction *insn,
         insn->type:   type of value to be assigned
  */
 static inline struct cl_insn *
-insn_setops_store(struct cl_insn *cli, const struct instruction *insn)
+insn_setops_store(struct cl_insn *cli, const struct instruction **insn)
 {
     return insn_assignment_base(cli, insn,
-        insn->src,     /* := */  insn->target,
+        (*insn)->src,     /* := */  (*insn)->target,
         TYPE_LHS_DIG       |     (TYPE_RHS_DIG | TYPE_RHS_REFERENCE)
     );
 }
@@ -1623,12 +1653,12 @@ insn_setops_store(struct cl_insn *cli, const struct instruction *insn)
 
  */
 static inline struct cl_insn *
-insn_setops_load(struct cl_insn *cli, const struct instruction *insn)
+insn_setops_load(struct cl_insn *cli, const struct instruction **insn)
 {
-    assert(PSEUDO_REG == insn->target->type);
+    assert(PSEUDO_REG == (*insn)->target->type);
 
     return insn_assignment_base(cli, insn,
-        insn->target,  /* := */  insn->src,
+        (*insn)->target,  /* := */  (*insn)->src,
         TYPE_LHS_KEEP      |     (TYPE_RHS_DIG | TYPE_RHS_DIG_ANY)
     );
 }
@@ -1647,12 +1677,12 @@ insn_setops_load(struct cl_insn *cli, const struct instruction *insn)
     FIXME: are cast operations OK?
  */
 static inline struct cl_insn *
-insn_setops_copy(struct cl_insn *cli, const struct instruction *insn)
+insn_setops_copy(struct cl_insn *cli, const struct instruction **insn)
 {
-    assert(PSEUDO_REG == insn->target->type);
+    assert(PSEUDO_REG == (*insn)->target->type);
 
     return insn_assignment_base(cli, insn,
-        insn->target,  /* := */  insn->src,
+        (*insn)->target,  /* := */  (*insn)->src,
         TYPE_LHS_KEEP      |     TYPE_RHS_KEEP
     );
 }
@@ -1673,22 +1703,23 @@ insn_setops_copy(struct cl_insn *cli, const struct instruction *insn)
     rid of unwanted garbage (e.g., data from the next bitfield item).
  */
 static inline struct cl_insn *
-insn_setops_cast(struct cl_insn *cli, const struct instruction *insn)
+insn_setops_cast(struct cl_insn *cli, const struct instruction **insn)
 {
-  if (insn->orig_type->bit_size < insn->type->bit_size
-             && insn->orig_type->ctype.base_type->type == SYM_BITFIELD) {
+  if ((*insn)->orig_type->bit_size < (*insn)->type->bit_size
+    && (*insn)->orig_type->ctype.base_type->type == SYM_BITFIELD) {
         // we have to apply CL_BINOP_BIT_AND on `insn->src' using mask
         // (currently of int size XXX?) with additional higher bits zeroed
 
-        int mask = ~((~0) << insn->orig_type->bit_size);
+        int mask = ~((~0) << (*insn)->orig_type->bit_size);
         struct cl_operand dst, lhs, op_mask;
 
         cli->code = CL_INSN_BINOP;
-        cli->data.insn_binop.code = CL_BINOP_BIT_AND;
-        cli->data.insn_binop.dst  = op_from_pseudo(insn, insn->target);
-        cli->data.insn_binop.src1 = op_from_pseudo(insn, insn->src);
-        cli->data.insn_binop.src2 = op_from_intval(mask);
+        BINOP(cli)->code = CL_BINOP_BIT_AND;
+        BINOP(cli)->dst  = op_from_pseudo(*insn, (*insn)->target);
+        BINOP(cli)->src1 = op_from_pseudo(*insn, (*insn)->src);
+        BINOP(cli)->src2 = op_from_intval(mask);
 
+        *insn = NULL;
         return cli;
     }
 
@@ -1712,10 +1743,10 @@ insn_setops_cast(struct cl_insn *cli, const struct instruction *insn)
 
  */
 static inline struct cl_insn *
-insn_setops_ptrcast(struct cl_insn *cli, const struct instruction *insn)
+insn_setops_ptrcast(struct cl_insn *cli, const struct instruction **insn)
 {
     return insn_assignment_base(cli, insn,
-        insn->target,  /* := */  insn->src,
+        (*insn)->target,  /* := */  (*insn)->src,
         TYPE_LHS_KEEP      |     (TYPE_RHS_DIG | TYPE_RHS_REFERENCE)
     );
 }
@@ -1733,81 +1764,108 @@ insn_setops_ptrcast(struct cl_insn *cli, const struct instruction *insn)
     XXX See `op_from_expression'.
  */
 static inline struct cl_insn *
-insn_setops_setval(struct cl_insn *cli, const struct instruction *insn)
+insn_setops_setval(struct cl_insn *cli, const struct instruction **insn)
 {
-    cli->data.insn_unop.dst = op_from_pseudo(insn, insn->target);
-    cli->data.insn_unop.src = op_from_primitive_literal(insn->val);
+    UNOP(cli)->dst = op_from_pseudo(*insn, (*insn)->target);
+    UNOP(cli)->src = op_from_primitive_literal((*insn)->val);
+
+    *insn = NULL;
     return cli;
 }
 
 /**
     Set operands for unary operations (except for assignments)
-
-    [input] OP_NOT, OP_NEG
-        insn->target: destination
-        insn->src1:   source
-
-    Problems/exceptions/notes:
-    1. OP_NEG means "unary minus" when applied on int.
  */
 static inline struct cl_insn *
-insn_setops_unop(struct cl_insn *cli, const struct instruction *insn)
+insn_setops_unop(struct cl_insn *cli, const struct instruction **insn)
 {
-    cli->data.insn_unop.dst = op_from_pseudo(insn, insn->target);
-    cli->data.insn_unop.src = op_from_pseudo(insn, insn->src1);
+    UNOP(cli)->dst = op_from_pseudo(*insn, (*insn)->target);
+    UNOP(cli)->src = op_from_pseudo(*insn, (*insn)->src1);
 
-    /* for "unary minus", rewrite unary operation */
-    if (CL_TYPE_INT == cli->data.insn_unop.src->type->code
-      && OP_NEG == insn->opcode)
-        cli->data.insn_unop.code = CL_UNOP_MINUS;
-
+    *insn = NULL;
     return cli;
 }
 
 /**
-    Set operands for binary operations
+    Set operands for binary operations, taking care of pointer arithmetics
  */
 static struct cl_insn *
-insn_setops_binop(struct cl_insn *cli, const struct instruction *insn)
+insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
 {
     const struct cl_type *t1, *t2;
+    struct cl_operand *src2;
+    struct cl_instruction *next;
 
-    cli->data.insn_binop.dst  = op_from_pseudo(insn, insn->target);
-    cli->data.insn_binop.src1 = op_from_pseudo(insn, insn->src1);
-    cli->data.insn_binop.src2 = op_from_pseudo(insn, insn->src2);
+    BINOP(cli)->dst  = op_from_pseudo(*insn, (*insn)->target);
+    BINOP(cli)->src1 = op_from_pseudo(*insn, (*insn)->src1);
+    BINOP(cli)->src2 = src2 = op_from_pseudo(*insn, (*insn)->src2);
 
-    t1 = cli->data.insn_binop.src1->type;
-    t2 = cli->data.insn_binop.src2->type;
+    t1 = BINOP(cli)->src1->type;
+    t2 = BINOP(cli)->src2->type;
 
-    /* for pointer arithmetics, rewrite binary operation */
-    assert((t1->code|t2->code) < sizeof(int) * 8);  /* shift overflow check*/
-    if ((1<<t1->code | 1<<t2->code) & (1<<CL_TYPE_ARRAY | 1<<CL_TYPE_PTR)) {
-        switch (cli->data.insn_binop.code) {
-            case CL_BINOP_EQ: 
-            case CL_BINOP_NE:
-            case CL_BINOP_LT:
-            case CL_BINOP_GT:
-            case CL_BINOP_LE:
-            case CL_BINOP_GE:
-                break;  /* comparing pointers may make sense */
-            case CL_BINOP_PLUS:
-                /* XXX either src1 or src2 should be CL_TYPE_INT */
-                cli->data.insn_binop.code = CL_BINOP_POINTER_PLUS;
-                break;
-            case CL_BINOP_MINUS:
+    /* for pointer vs. non-pointer, there are some special cases */
+    if (cl_type_ptrlike(t1->code) && !cl_type_ptrlike(t2->code)) {
+        /*
+            but only if second operand is integral which means
+            we are heading towards CL_BINOP_POINTER_PLUS
+            (asymmetrical pointer +- int operation)
+         */
+        if (CL_TYPE_INT == t2->code) {
+            if (CL_BINOP_PLUS == BINOP(cli)->code) {
+
+                BINOP(cli)->code = CL_BINOP_POINTER_PLUS;
+
+            } else if (CL_BINOP_MINUS == BINOP(cli)->code
+              && CL_OPERAND_CST == src2->code) {
+
+                BINOP(cli)->src2 =
+                    op_make_cst_int(0 - CST_INT(BINOP(cli)->src2)->value);
+                BINOP(cli)->code = CL_BINOP_POINTER_PLUS;
+
+            } else if (CL_BINOP_MINUS == BINOP(cli)->code) {
+
                 /*
-                    XXX src2 should be CL_TYPE_INT or pointer - pointer;
-                    could be done as "pointer minus = -pointer plus"
-                    or new CL binop
+                    a bit more work with non-constant; emit UNOP_MINUS first,
+                    postponing the actual instruction to the next round (rare)
+                    -- in fact we make a copy of both instruction and second
+                    operand pseudo as we need to "precache" its CL counterpart
+                    we evaluated here already and this change has to be local
+                    to this operation only
                  */
-                break;
-            default:
+                cli->code = CL_INSN_UNOP;
+                UNOP(cli)->code = CL_UNOP_MINUS;
+                UNOP(cli)->dst  = op_copy(src2, copy_shallow_var_deep);
+                UNOP(cli)->src  = src2;
+
+                struct instruction *next = __alloc_instruction(0);
+                pseudo_t modified_src2 = __alloc_pseudo(0);
+
+                *next = **insn;              /* instruction shallow copy */
+                next->opcode = OP_ADD;
+
+                *modified_src2 = *(*insn)->src2;  /* pseudo shallow copy */
+                modified_src2->priv = UNOP(cli)->dst;
+
+                next->src2 = modified_src2;
+                *insn = next;
+
+                return cli;
+
+            } else {
+
                 /* something suspicious */
-                WARN("unexpect binary operation with pointers/arrays"
+                WARN("unexpect binary operation pointer vs. int\n"
                      CLPOSFMT_1 ": note: here", CLPOS(cli->loc));
+
+            }
+        } else {
+            /* something suspicious */
+            WARN("unexpect binary operation pointer vs. non-pointer\n"
+                 CLPOSFMT_1 ": note: here", CLPOS(cli->loc));
         }
     }
 
+    *insn = NULL;
     return cli;
 }
 
@@ -1817,8 +1875,6 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction *insn)
     [input] OP_RET
         insn->src:  value to be used as a return value (extra case: NULL)
         insn->type: type of return value
-    [output] CL_INSN_RET
-        cl_insn.insn_ret.src ~ insn->src
 
     Problems:
     1. Problem with a "right form" of the operand (whether to consider
@@ -1826,20 +1882,19 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction *insn)
     S. Combine `op_dig_for_type_match' and `insn->type' for adjustment.
  */
 static inline struct cl_insn *
-insn_setops_ret(struct cl_insn *cli, const struct instruction *insn)
+insn_setops_ret(struct cl_insn *cli, const struct instruction **insn)
 {
     const struct cl_type *resulting_type;
 
-    cli->data.insn_ret.src = insn->src ? op_from_pseudo(insn, insn->src)
-                                       : NO_OPERAND;
+    RET(cli)->src = op_from_pseudo_maybe(*insn, (*insn)->src);
 
     /* TODO: decide according to the pseudo instead? */
-    if (op_accessible(cli->data.insn_ret.src)) {
-        resulting_type = type_from_symbol(insn->type, NULL);
-        op_dig_for_type_match(&cli->data.insn_ret.src, resulting_type,
-                              insn->offset);
+    if (op_accessible(RET(cli)->src)) {
+        resulting_type = type_from_symbol((*insn)->type, NULL);
+        op_dig_for_type_match(&RET(cli)->src, resulting_type, (*insn)->offset);
     }
 
+    *insn = NULL;
     return cli;
 }
 
@@ -1851,8 +1906,8 @@ insn_setops_ret(struct cl_insn *cli, const struct instruction *insn)
 static inline void
 insn_emit_jmp(struct cl_insn *cli, const char *label)
 {
-    cli->code                = CL_INSN_JMP;
-    cli->data.insn_jmp.label = label;
+    cli->code = CL_INSN_JMP;
+    JMP(cli)->label = label;
     DEBUG_INSN_CL(cli);
     API_EMIT(insn, cli);
 }
@@ -1861,10 +1916,11 @@ static inline void
 insn_emit_cond(struct cl_insn *cli, struct cl_operand *op_cond,
                const char *then_label, const char *else_label)
 {
-    cli->code                      = CL_INSN_COND;
-    cli->data.insn_cond.src        = op_cond;
-    cli->data.insn_cond.then_label = then_label;
-    cli->data.insn_cond.else_label = else_label;
+    cli->code = CL_INSN_COND;
+    COND(cli)->src        = op_cond;
+    COND(cli)->then_label = then_label;
+    COND(cli)->else_label = else_label;
+
     DEBUG_INSN_CL(cli);
     API_EMIT(insn, cli);
 }
@@ -1873,9 +1929,10 @@ static inline void
 insn_emit_copy(struct cl_insn *cli, const struct instruction *insn,
                pseudo_t lhs, pseudo_t rhs)
 {
-    cli->code                = CL_INSN_UNOP;
-    cli->data.insn_unop.code = CL_UNOP_ASSIGN;
-    if (insn_assignment_base(cli, insn,
+    cli->code = CL_INSN_UNOP;
+    UNOP(cli)->code = CL_UNOP_ASSIGN;
+
+    if (insn_assignment_base(cli, &insn,
         lhs,           /* := */  rhs,
         TYPE_LHS_KEEP      |     TYPE_RHS_KEEP
     )) {
@@ -2057,7 +2114,7 @@ consider_instruction(struct instruction *insn)
 {
     typedef struct cl_insn *(*insn_setops)(
         struct cl_insn *,
-        const struct instruction *);
+        const struct instruction **);
     typedef void (*insn_emit)(struct cl_insn *, const struct instruction *);
 
     static const struct insn_conversion {
@@ -2132,7 +2189,7 @@ consider_instruction(struct instruction *insn)
         INSN_BIN( SET_AE          , GE /*XXX: unsigned*/, insn_setops_binop   ),
         /* Uni */
         INSN_UNI( NOT             , BIT_NOT             , insn_setops_unop    ),
-        INSN_UNI( NEG             , TRUTH_NOT/*u.minus*/, insn_setops_unop    ),
+        INSN_UNI( NEG             , MINUS               , insn_setops_unop    ),
         /* Select - three input values */
         INSN_EMT( SEL             , /*COND*/            , insn_emit_sel       ),
         /* Memory */
@@ -2184,37 +2241,48 @@ consider_instruction(struct instruction *insn)
 
     DEBUG_INSN_SP(insn);
 
-    conversion = &insn_conversions[insn->opcode];
-    conv_position(&cli.loc, &insn->pos);
+    do {
 
-    enum conv_type conv = conv_setops;
-    if (CL_INSN_UNOP == conversion->insn_code)
-        cli.data.insn_unop.code = conversion->code.unop;
-    else if (CL_INSN_BINOP == conversion->insn_code)
-        cli.data.insn_binop.code = conversion->code.binop;
-    else
-        conv = conversion->code.conv;
+        conversion = &insn_conversions[insn->opcode];
+        conv_position(&cli.loc, &insn->pos);
 
-    switch (conv) {
-        case conv_ignore:
-            DEBUG_INSN_CL_SPECIAL(_1(s), "(ignored)");
-            return ret_negative;
-        case conv_setops:
-            cli.code = conversion->insn_code;
-            if (conversion->prop.setops(&cli, insn)) {
-                DEBUG_INSN_CL(&cli);
-                API_EMIT(insn, &cli);
-            }
-            return ret_positive;
-        case conv_emit:
-            /* (initial) instruction position is set */
-            conversion->prop.emit(&cli, insn);
-            return CL_INSN_ABORT == cli.code ? ret_escape : ret_positive;
-        case conv_warn:
-        default:
-            WARN_UNHANDLED(insn->pos, conversion->prop.string);
-            return ret_negative;
-    }
+        enum conv_type conv = conv_setops;
+        if (CL_INSN_UNOP == conversion->insn_code)
+            cli.data.insn_unop.code = conversion->code.unop;
+        else if (CL_INSN_BINOP == conversion->insn_code)
+            cli.data.insn_binop.code = conversion->code.binop;
+        else
+            conv = conversion->code.conv;
+
+        switch (conv) {
+            case conv_ignore:
+                DEBUG_INSN_CL_SPECIAL(_1(s), "(ignored)");
+                return ret_negative;
+            case conv_setops:
+                cli.code = conversion->insn_code;
+                if (conversion->prop.setops(&cli, &insn)) {
+                    DEBUG_INSN_CL(&cli);
+                    API_EMIT(insn, &cli);
+                }
+                /*
+                    this case may loop repeatedly, depending on whether
+                    the conversion is 1:1 or 1:M
+                    (e.g., x = ptr - i  ::=  i' = -i;  x = ptr POINTER_PLUS i')
+                 */
+                break;
+            case conv_emit:
+                /* (initial) instruction position is set */
+                conversion->prop.emit(&cli, insn);
+                return CL_INSN_ABORT == cli.code ? ret_escape : ret_positive;
+            case conv_warn:
+            default:
+                WARN_UNHANDLED(insn->pos, conversion->prop.string);
+                return ret_negative;
+        }
+
+    } while (insn);
+
+    return ret_positive;
 }
 
 

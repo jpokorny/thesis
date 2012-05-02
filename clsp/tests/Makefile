@@ -20,20 +20,23 @@ CLSP = ../clsp
 TEST_RUNNER = ./tests.sh
 
 FILES_IN  := $(shell find -name '*.c.raw' | sort)
-FILES_OUT := $(FILES_IN:%.c.raw=%.c)
+FILES_REF := $(FILES_IN:%.c.raw=%.debug.ref)
 
-all : files check
+all : check
 
-files :: ${FILES_OUT}
+files :: ${FILES_REF}
 
 # first preserve comments as they carry control tags
-${FILES_OUT} :: %.c : %.c.raw | ${CLSP}
+%.c :: %.c.raw | ${CLSP}
 	sed -n '/\/\*/bbgn;d;:bgn;p;n;/\*\//bend;bbgn;:end;p' $< > $@.tail
 	${CLSP} -E $< | indent | cat - $@.tail > $@
-	rm -f -- $@.tail $(@:.c=.debug.ref)
-	${TEST_RUNNER} $@
+	rm -f -- $@.tail
 
-check :: ${FILES_OUT}
+# these needs preprocessed source files from raw ones
+${FILES_REF} :: %.debug.ref : %.c
+	${TEST_RUNNER} $<
+
+check :: ${FILES_REF} ${CLSP}
 	${TEST_RUNNER}
 
 ${CLSP}:

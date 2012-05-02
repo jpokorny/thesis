@@ -70,6 +70,12 @@ extern const struct cl_operand no_operand;
 
 #define VAR(op)      (op->data.var)
 
+#define UNOP(insn)   (&insn->data.insn_unop)
+#define BINOP(insn)  (&insn->data.insn_binop)
+#define RET(insn)    (&insn->data.insn_ret)
+#define COND(insn)   (&insn->data.insn_cond)
+#define JMP(insn)    (&insn->data.insn_jmp)
+
 
 /*
     output
@@ -138,6 +144,12 @@ debug_cl_scope_code(enum cl_scope_e scope)
 #define CL_TYPE_RESERVED  16
 
 extern const char *const cl_type_codelist_str[CL_TYPE_RESERVED];
+
+static inline bool
+cl_type_ptrlike(enum cl_type_e typecode)
+{
+    return CL_TYPE_ARRAY == typecode || CL_TYPE_PTR == typecode;
+}
 
 /**
     Basic type to string reprezentation

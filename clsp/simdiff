@@ -21,8 +21,9 @@
 Purpose-specific front-end to difflib
 
 Get the ratio of match between two text-based files and if it fits
-in the limit, accept the match (exit code 0), otherwise reject it
-(exit code 1).  Either way, print informative value of this ratio.
+in the limit (specified by lower bound or 1.0 by default [no tolerance]),
+accept the match (exit code 0), otherwise reject it (exit code 1).
+Either way, print informative value of this ratio.
 """
 
 __author__ = "Jan Pokorny <xpokor04@stud.fit.vutbr.cz,pokorny_jan@seznam.cz>"
@@ -31,20 +32,21 @@ from sys import argv, exit as sysexit #, stderr
 from os.path import exists
 from difflib import SequenceMatcher
 
-DEFAULT_LIMIT = 0.9970  # accept only very little variance by default
+DEFAULT_LIMIT = 1.0
 
 def simdiff(file1, file2):
     m = SequenceMatcher(None, open(file1).read(), open(file2).read())
     return m.quick_ratio() # m.ratio()
 
 if __name__ == "__main__":
+    #print >> stderr, argv
     if 3 <= len(argv) <= 4:
         limit = (4 == len(argv)) and float(argv[3]) or DEFAULT_LIMIT
         #print >> stderr, limit
         if exists(argv[1]) and exists(argv[2]):
             ret = round(simdiff(argv[1], argv[2]), 4)
             #print >> stderr, ret
-            if (limit >= ret):
+            if (limit > ret):
                 print (ret)
                 sysexit(1)
             print ("~ 1.00")
@@ -52,5 +54,5 @@ if __name__ == "__main__":
         else:
             sysexit(2)
     else:
-        print ("Usage: %(script)s file1 file2" % {"script": argv[0]})
+        print ("Usage: %(script)s file1 file2 [limit]" % {"script": argv[0]})
         sysexit(2)

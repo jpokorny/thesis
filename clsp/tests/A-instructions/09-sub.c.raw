@@ -8,6 +8,7 @@
 
 #define USE_INT_INT_UINT
 #define USE_DOUBLE_DOUBLE_INT
+#define USE_PTR_PTR_INT
 
 #define USE_INT_ZERO
 #define USE_INT_ONE

@@ -41,6 +41,12 @@ binop_double_double_int (double a, int b)
   return (a) - (b);
 }
 
+static void *
+binop_ptr_ptr_int (void *a, int b)
+{
+  return (a) - (b);
+}
+
 static int
 binop_int_zero (int a)
 {
