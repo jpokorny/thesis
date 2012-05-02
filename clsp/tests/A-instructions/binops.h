@@ -1,8 +1,7 @@
-#define DO_BINOP_SIMPLE(t) \
-    static t binop_##t(t a, t b) { return BINOP(a, b); }
-
 #define DO_BINOP(name, ret, x, y) \
     static ret binop_##name(x a, y b) { return BINOP(a, b); }
+
+#define DO_BINOP_SIMPLE(t)  DO_BINOP(t, t, t, t)
 
 #define DO_BINOP_IMPLICIT(name, t, implicit) \
     static t binop_##name(t a) { return BINOP(a, implicit); }
@@ -65,4 +64,32 @@ DO_BINOP_IMPLICIT(int_zero, int, 0)
 
 #ifdef USE_INT_ONE
 DO_BINOP_IMPLICIT(int_one, int, 1)
+#endif
+
+/* comparisons */
+
+#ifdef USE_CMP_BOOL
+DO_BINOP(bool_bool_bool, bool, bool, bool)
+#endif
+
+
+#ifdef USE_CMP_CHAR
+DO_BINOP(bool_char_char, bool, char, char)
+#endif
+
+#ifdef USE_CMP_INT
+DO_BINOP(bool_int_int, bool, int, int)
+DO_BINOP(int_int_int, int, int, int)
+#endif
+
+#ifdef USE_CMP_UINT
+DO_BINOP(bool_uint_uint, bool, unsigned, unsigned)
+#endif
+
+#ifdef USE_CMP_DOUBLE
+DO_BINOP(bool_double_double, bool, double, double)
+#endif
+
+#ifdef USE_CMP_PTR
+DO_BINOP(bool_ptr_ptr, bool, void *, void *)
 #endif

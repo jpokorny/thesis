@@ -86,7 +86,7 @@ switch_2 (void)
 }
 /*
     clsp-options:   -d 1848
-    simdiff-limit:  0.9950
+    simdiff-limit:  0.9947
 
     vim: ft=c:
  */

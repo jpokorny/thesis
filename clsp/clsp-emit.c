@@ -573,46 +573,44 @@ type_from_symbol(struct symbol *raw_symbol, struct ptr_db_item **ptr)
     return clt;
 }
 
-static inline struct cl_type *
+static struct cl_type *
 type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
 {
-    //struct pseudo_user *pu;
+    struct pseudo_user *pu;
+    struct symbol *type = NULL;
 
-    // Note: pseudo->def == NULL for copy.32
-    if (insn && insn->type) {
+    assert(insn);  /* pseudo->def == NULL for copy.32 (?) */
 
-#if 0
-        // TODO: for casts only?
-        // first and most authoritative way of getting the type;
-        // if the pseudo is the target pseudo, check whether its immediate
-        // user/instruction has `orig_type' and use it if available
-        if (insn->target == pseudo) {
-            pu = (struct pseudo_user *)
-                 PTR_ENTRY((struct ptr_list *) insn->target->users, 0);
-            if (pu && pu->insn->orig_type)
-                return type_from_symbol(pu->insn->orig_type, NULL);
-        }
-#endif
+    /*
+        most accurate way of getting the output type (type of target
+        pseudo) when not properly exposed by some instructions
+        (OP_CALL, binary comparisons)
 
-        if (ORDERED(OP_BINCMP, insn->opcode, OP_BINCMP_END))
-            return &bool_clt;
+        check whether immediate user (instruction) of target pseudo
+        has "authority to decide the type" (casts and OP_RET)
 
-        if (insn->opcode == OP_CALL) {
-            // NOTE: experimental, mainly for alloc et al.
-            // try to find immediatelly following OP_CAST
-            // (normally suppressed) and set the type respectively
-            if (SP(ptr_list_size, (struct ptr_list *) insn->target->users)) {
-                struct pseudo_user *u;
-                u = (struct pseudo_user *)PTR_ENTRY(insn->target->users,3);
-                if (u->insn->opcode == OP_CAST)
-                    return type_from_symbol(u->insn->type, NULL);
-            }
-        }
-        return type_from_symbol(insn->type, NULL);
-    } else {
-        // type fallback
-        return &int_clt;
+        it is desired to have the pseudo type correct from the beginning,
+        but also as we cache the whole pseudo, it is a must to do
+        this forward analysis (currently of depth 1)
+     */
+    if (insn->target == pseudo && PSEUDO_REG == pseudo->type) {
+        pu = SP(first_ptr_list, (struct ptr_list *) pseudo->users);
+        if (OP_CAST == pu->insn->opcode
+          || OP_SCAST == pu->insn->opcode
+          || OP_FPCAST == pu->insn->opcode
+          || OP_PTRCAST == pu->insn->opcode)
+            type = pu->insn->orig_type;
+        else if (OP_RET == pu->insn->opcode)
+            type = pu->insn->type;
+        assert(type);
+        return type_from_symbol(type, NULL);
     }
+
+    if (insn)  /* XXX see assert above */
+        return type_from_symbol(insn->type, NULL);
+
+    /* type fallback */
+    return &int_clt;
 }
 
 
@@ -1745,11 +1743,6 @@ insn_setops_unop(struct cl_insn *cli, const struct instruction *insn)
 
 /**
     Set operands for binary operations
-
-    Problems/exceptions/notes:
-    1. Binary arithmetics case has to be detected and imposed explicitly.
-    S. If any of the operand is a pointer or an array, promote CL_BINOP_PLUS
-       to CL_BINOP_POINTER_PLUS (other operations not expected in this case).
  */
 static struct cl_insn *
 insn_setops_binop(struct cl_insn *cli, const struct instruction *insn)
@@ -1766,18 +1759,29 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction *insn)
     /* for pointer arithmetics, rewrite binary operation */
     assert((t1->code|t2->code) < sizeof(int) * 8);  /* shift overflow check*/
     if ((1<<t1->code | 1<<t2->code) & (1<<CL_TYPE_ARRAY | 1<<CL_TYPE_PTR)) {
-        if (CL_BINOP_PLUS == cli->data.insn_binop.code) {
-            /* XXX either src1 or src2 should be CL_TYPE_INT */
-            cli->data.insn_binop.code = CL_BINOP_POINTER_PLUS;
-        } else if (CL_BINOP_MINUS == cli->data.insn_binop.code) {
-            /*
-                XXX src2 should be CL_TYPE_INT or pointer - pointer;
-                could be done as "pointer minus = -pointer plus"
-                or new CL binop
-             */
-        } else {
-            /* something suspicious */
-            CL_TRAP;
+        switch (cli->data.insn_binop.code) {
+            case CL_BINOP_EQ: 
+            case CL_BINOP_NE:
+            case CL_BINOP_LT:
+            case CL_BINOP_GT:
+            case CL_BINOP_LE:
+            case CL_BINOP_GE:
+                break;  /* comparing pointers may make sense */
+            case CL_BINOP_PLUS:
+                /* XXX either src1 or src2 should be CL_TYPE_INT */
+                cli->data.insn_binop.code = CL_BINOP_POINTER_PLUS;
+                break;
+            case CL_BINOP_MINUS:
+                /*
+                    XXX src2 should be CL_TYPE_INT or pointer - pointer;
+                    could be done as "pointer minus = -pointer plus"
+                    or new CL binop
+                 */
+                break;
+            default:
+                /* something suspicious */
+                WARN("unexpect binary operation with pointers/arrays"
+                     CLPOSFMT_1 ": note: here", CLPOS(cli->loc));
         }
     }
 
