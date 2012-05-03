@@ -41,7 +41,7 @@ int static [signed] [toplevel] i
 A-instructions/40-load.c:2:12: debug: operand-symbol: cl <<< i
         <operand> {kind=VAR, scope=STATIC}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-            <operand-var> {uid=3, name=i, artificial=N, initialized=Y}: A-instructions/40-load.c:2:12
+            <operand-var> {uid=3, name=i, artificial=N, initialized=N}: A-instructions/40-load.c:2:12
 A-instructions/40-load.c:8:10: debug: instruction: cl <<<
         <instruction> [ASSIGN (UNOP)]: A-instructions/40-load.c:8:10
             <unop-dst>
@@ -51,7 +51,7 @@ A-instructions/40-load.c:8:10: debug: instruction: cl <<<
             <unop-src>
                 <operand> {kind=VAR, scope=STATIC}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                    <operand-var> {uid=3, name=i, artificial=N, initialized=Y}: A-instructions/40-load.c:2:12
+                    <operand-var> {uid=3, name=i, artificial=N, initialized=N}: A-instructions/40-load.c:2:12
 A-instructions/40-load.c:8:10: debug: instruction: sp >>>
         ret.32      %r1
 	debug: operand-pseudo: sp >>> cached >>> cl
@@ -284,7 +284,7 @@ A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
                             <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                                 <type-item> {name=(anonymous)}
                                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                            <operand-var> {uid=11, name=j, artificial=N, initialized=Y}: A-instructions/40-load.c:3:12
+                            <operand-var> {uid=11, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
 	debug: operand-pseudo: sp >>>
                         $0
 	debug: operand-pseudo: cl <<<
@@ -304,7 +304,7 @@ A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
                                     <operand> {kind=CST, scope=GLOBAL}
                                         <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                         <constant-int> [0]
-                            <operand-var> {uid=11, name=j, artificial=N, initialized=Y}: A-instructions/40-load.c:3:12
+                            <operand-var> {uid=11, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
                     <unop-src>
                         <operand> {kind=CST, scope=GLOBAL}
                             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
@@ -317,7 +317,7 @@ A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
                             <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                                 <type-item> {name=(anonymous)}
                                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                            <operand-var> {uid=11, name=j, artificial=N, initialized=Y}: A-instructions/40-load.c:3:12
+                            <operand-var> {uid=11, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
 	debug: operand-pseudo: sp >>>
                         $1
 	debug: operand-pseudo: cl <<<
@@ -337,7 +337,7 @@ A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
                                     <operand> {kind=CST, scope=GLOBAL}
                                         <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                         <constant-int> [1]
-                            <operand-var> {uid=11, name=j, artificial=N, initialized=Y}: A-instructions/40-load.c:3:12
+                            <operand-var> {uid=11, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
                     <unop-src>
                         <operand> {kind=CST, scope=GLOBAL}
                             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
@@ -352,7 +352,7 @@ A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
             <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-            <operand-var> {uid=10, name=j, artificial=N, initialized=Y}: A-instructions/40-load.c:3:12
+            <operand-var> {uid=10, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
                 <initializer>
                     <instruction> [ASSIGN (UNOP)]: A-instructions/40-load.c:3:20
                         <unop-dst>
@@ -366,7 +366,7 @@ A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
                                         <operand> {kind=CST, scope=GLOBAL}
                                             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                             <constant-int> [0]
-                                <operand-var> {uid=11, name=j, artificial=N, initialized=Y}: A-instructions/40-load.c:3:12
+                                <operand-var> {uid=11, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
                         <unop-src>
                             <operand> {kind=CST, scope=GLOBAL}
                                 <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
@@ -383,7 +383,7 @@ A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
                                         <operand> {kind=CST, scope=GLOBAL}
                                             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                             <constant-int> [1]
-                                <operand-var> {uid=11, name=j, artificial=N, initialized=Y}: A-instructions/40-load.c:3:12
+                                <operand-var> {uid=11, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
                         <unop-src>
                             <operand> {kind=CST, scope=GLOBAL}
                                 <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
@@ -395,7 +395,7 @@ A-instructions/40-load.c:20:11: debug: instruction: sp >>>
 	debug: operand-pseudo: cl <<<
         <operand> {kind=VAR, scope=BB}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-            <operand-var> {uid=13, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:11
+            <operand-var> {uid=12, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:11
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r10
         <operand> {kind=VAR, scope=STATIC}
@@ -418,7 +418,7 @@ A-instructions/40-load.c:20:11: debug: instruction: cl <<<
             <unop-dst>
                 <operand> {kind=VAR, scope=BB}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                    <operand-var> {uid=13, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:11
+                    <operand-var> {uid=12, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:11
             <unop-src>
                 <operand> {kind=VAR, scope=STATIC}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
@@ -430,7 +430,7 @@ A-instructions/40-load.c:20:11: debug: instruction: cl <<<
                             <operand> {kind=VAR, scope=BB}
                                 <type> {kind=INT, uid=10, name=long, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                 <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:12
-                    <operand-var> {uid=12, name=j, artificial=N, initialized=Y}: A-instructions/40-load.c:3:12
+                    <operand-var> {uid=10, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
                         <initializer>
                             <instruction> [ASSIGN (UNOP)]: A-instructions/40-load.c:3:20
                                 <unop-dst>
@@ -444,7 +444,7 @@ A-instructions/40-load.c:20:11: debug: instruction: cl <<<
                                                 <operand> {kind=CST, scope=GLOBAL}
                                                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                                     <constant-int> [0]
-                                        <operand-var> {uid=11, name=j, artificial=N, initialized=Y}: A-instructions/40-load.c:3:12
+                                        <operand-var> {uid=11, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
                                 <unop-src>
                                     <operand> {kind=CST, scope=GLOBAL}
                                         <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
@@ -461,7 +461,7 @@ A-instructions/40-load.c:20:11: debug: instruction: cl <<<
                                                 <operand> {kind=CST, scope=GLOBAL}
                                                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                                     <constant-int> [1]
-                                        <operand-var> {uid=11, name=j, artificial=N, initialized=Y}: A-instructions/40-load.c:3:12
+                                        <operand-var> {uid=11, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
                                 <unop-src>
                                     <operand> {kind=CST, scope=GLOBAL}
                                         <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
@@ -472,12 +472,12 @@ A-instructions/40-load.c:20:11: debug: instruction: sp >>>
         %r11
         <operand> {kind=VAR, scope=BB}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-            <operand-var> {uid=13, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:11
+            <operand-var> {uid=12, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:11
 A-instructions/40-load.c:20:11: debug: instruction: cl <<<
         <instruction> [RET]: A-instructions/40-load.c:20:11
             <ret-src>
                 <operand> {kind=VAR, scope=BB}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                    <operand-var> {uid=13, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:11
+                    <operand-var> {uid=12, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:11
 A-instructions/40-load.c:19:1: debug: function: end load_from_reg
 A-instructions/40-load.c:19:1: debug: file: end (last symbol)

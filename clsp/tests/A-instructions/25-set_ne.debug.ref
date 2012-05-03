@@ -816,7 +816,7 @@ int static [signed] [toplevel] i
 A-instructions/25-set_ne.c:50:12: debug: operand-symbol: cl <<< i
         <operand> {kind=VAR, scope=STATIC}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-            <operand-var> {uid=29, name=i, artificial=N, initialized=Y}: A-instructions/25-set_ne.c:50:12
+            <operand-var> {uid=29, name=i, artificial=N, initialized=N}: A-instructions/25-set_ne.c:50:12
 A-instructions/25-set_ne.c:54:7: debug: instruction: cl <<<
         <instruction> [ASSIGN (UNOP)]: A-instructions/25-set_ne.c:54:7
             <unop-dst>
@@ -826,7 +826,7 @@ A-instructions/25-set_ne.c:54:7: debug: instruction: cl <<<
             <unop-src>
                 <operand> {kind=VAR, scope=STATIC}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                    <operand-var> {uid=29, name=i, artificial=N, initialized=Y}: A-instructions/25-set_ne.c:50:12
+                    <operand-var> {uid=29, name=i, artificial=N, initialized=N}: A-instructions/25-set_ne.c:50:12
 A-instructions/25-set_ne.c:56:10: debug: instruction: sp >>>
         setne.32    %r37 <- %r36, $0
 	debug: operand-pseudo: sp >>>
@@ -905,7 +905,7 @@ int static [signed] [toplevel] i
 A-instructions/25-set_ne.c:50:12: debug: operand-symbol: cl <<< i
         <operand> {kind=VAR, scope=STATIC}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-            <operand-var> {uid=32, name=i, artificial=N, initialized=Y}: A-instructions/25-set_ne.c:50:12
+            <operand-var> {uid=32, name=i, artificial=N, initialized=N}: A-instructions/25-set_ne.c:50:12
 A-instructions/25-set_ne.c:62:10: debug: instruction: cl <<<
         <instruction> [ASSIGN (UNOP)]: A-instructions/25-set_ne.c:62:10
             <unop-dst>
@@ -915,7 +915,7 @@ A-instructions/25-set_ne.c:62:10: debug: instruction: cl <<<
             <unop-src>
                 <operand> {kind=VAR, scope=STATIC}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                    <operand-var> {uid=32, name=i, artificial=N, initialized=Y}: A-instructions/25-set_ne.c:50:12
+                    <operand-var> {uid=32, name=i, artificial=N, initialized=N}: A-instructions/25-set_ne.c:50:12
 A-instructions/25-set_ne.c:62:10: debug: instruction: sp >>>
         setne.32    %r39 <- %r38, $0
 	debug: operand-pseudo: sp >>>

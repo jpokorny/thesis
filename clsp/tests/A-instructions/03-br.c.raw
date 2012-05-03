@@ -24,7 +24,7 @@ static void br_2(void) {
 
 /*
     clsp-options:   -d 1848
-    simdiff-limit:  0.9970
+    makeinv:        yes
 
     br_1 also example of named PSEUDO_REG:  load.32     %r1(i) <- 0[i]
 

@@ -139,7 +139,7 @@ int static [signed] [toplevel] i
 A-instructions/02-ret.c:2:12: debug: operand-symbol: cl <<< i
         <operand> {kind=VAR, scope=STATIC}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-            <operand-var> {uid=3, name=i, artificial=N, initialized=Y}: A-instructions/02-ret.c:2:12
+            <operand-var> {uid=3, name=i, artificial=N, initialized=N}: A-instructions/02-ret.c:2:12
 A-instructions/02-ret.c:24:10: debug: instruction: cl <<<
         <instruction> [ASSIGN (UNOP)]: A-instructions/02-ret.c:24:10
             <unop-dst>
@@ -149,7 +149,7 @@ A-instructions/02-ret.c:24:10: debug: instruction: cl <<<
             <unop-src>
                 <operand> {kind=VAR, scope=STATIC}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                    <operand-var> {uid=3, name=i, artificial=N, initialized=Y}: A-instructions/02-ret.c:2:12
+                    <operand-var> {uid=3, name=i, artificial=N, initialized=N}: A-instructions/02-ret.c:2:12
 A-instructions/02-ret.c:24:14: debug: instruction: sp >>>
         add.32      %r5 <- %r4, $42
 	debug: operand-pseudo: sp >>>

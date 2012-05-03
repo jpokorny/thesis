@@ -31,7 +31,7 @@ int static [signed] [toplevel] [assigned] i
 A-instructions/03-br.c:2:12: debug: operand-symbol: cl <<< i
         <operand> {kind=VAR, scope=STATIC}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-            <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+            <operand-var> {uid=2, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
 A-instructions/03-br.c:6:7: debug: instruction: cl <<<
         <instruction> [ASSIGN (UNOP)]: A-instructions/03-br.c:6:7
             <unop-dst>
@@ -41,9 +41,9 @@ A-instructions/03-br.c:6:7: debug: instruction: cl <<<
             <unop-src>
                 <operand> {kind=VAR, scope=STATIC}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                    <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+                    <operand-var> {uid=2, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
 A-instructions/03-br.c:6:7: debug: instruction: sp >>>
-        br          %r1(i), .L0x7f3a1d88a150, .L0x7f3a1d88a0b0
+        br          %r1(i), .L0x7fb5e7096150, .L0x7fb5e70960b0
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r1(i)
         <operand> {kind=VAR, scope=FUNCTION}
@@ -97,7 +97,7 @@ A-instructions/03-br.c:8:4: debug: instruction: sp >>>
         i
         <operand> {kind=VAR, scope=STATIC}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-            <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+            <operand-var> {uid=2, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r3
         <operand> {kind=VAR, scope=BB}
@@ -108,13 +108,13 @@ A-instructions/03-br.c:8:4: debug: instruction: cl <<<
             <unop-dst>
                 <operand> {kind=VAR, scope=STATIC}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                    <operand-var> {uid=2, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+                    <operand-var> {uid=2, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
             <unop-src>
                 <operand> {kind=VAR, scope=BB}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:8:4
 A-instructions/03-br.c:9:1: debug: instruction: sp >>>
-        br          .L0x7f3a1d88a150
+        br          .L0x7fb5e7096150
 A-instructions/03-br.c:9:1: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/03-br.c:9:1
             <jmp-label> [3]
@@ -145,7 +145,7 @@ A-instructions/03-br.c:14:1: debug: instruction: sp >>>
 	debug: instruction: cl <<<
         (ignored)
 A-instructions/03-br.c:16:3: debug: instruction: sp >>>
-        br          .L0x7f3a1d88a2e0
+        br          .L0x7fb5e70962e0
 A-instructions/03-br.c:16:3: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/03-br.c:16:3
             <jmp-label> [2]
@@ -164,7 +164,7 @@ int static [signed] [toplevel] [assigned] i
 A-instructions/03-br.c:2:12: debug: operand-symbol: cl <<< i
         <operand> {kind=VAR, scope=STATIC}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-            <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+            <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
 A-instructions/03-br.c:16:15: debug: instruction: cl <<<
         <instruction> [ASSIGN (UNOP)]: A-instructions/03-br.c:16:15
             <unop-dst>
@@ -174,7 +174,7 @@ A-instructions/03-br.c:16:15: debug: instruction: cl <<<
             <unop-src>
                 <operand> {kind=VAR, scope=STATIC}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                    <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+                    <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
 A-instructions/03-br.c:16:15: debug: instruction: sp >>>
         setgt.32    %r5 <- $42, %r4(i)
 	debug: operand-pseudo: sp >>>
@@ -209,7 +209,7 @@ A-instructions/03-br.c:16:15: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:16:15
 A-instructions/03-br.c:16:15: debug: instruction: sp >>>
-        br          %r5, .L0x7f3a1d88a1f0, .L0x7f3a1d88a330
+        br          %r5, .L0x7fb5e70961f0, .L0x7fb5e7096330
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r5
         <operand> {kind=VAR, scope=BB}
@@ -262,7 +262,7 @@ A-instructions/03-br.c:17:6: debug: instruction: sp >>>
         i
         <operand> {kind=VAR, scope=STATIC}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-            <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+            <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r7
         <operand> {kind=VAR, scope=BB}
@@ -273,13 +273,13 @@ A-instructions/03-br.c:17:6: debug: instruction: cl <<<
             <unop-dst>
                 <operand> {kind=VAR, scope=STATIC}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                    <operand-var> {uid=5, name=i, artificial=N, initialized=Y}: A-instructions/03-br.c:2:12
+                    <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
             <unop-src>
                 <operand> {kind=VAR, scope=BB}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:17:6
 A-instructions/03-br.c:17:6: debug: instruction: sp >>>
-        br          .L0x7f3a1d88a2e0
+        br          .L0x7fb5e70962e0
 A-instructions/03-br.c:17:6: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/03-br.c:17:6
             <jmp-label> [2]

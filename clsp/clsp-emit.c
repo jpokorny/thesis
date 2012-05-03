@@ -34,14 +34,16 @@
 #include "clsp-interact.h"
 
 
-/* compile options */
+/*
+    compile options
+ */
 
-// general
+/* general */
 #define DO_EXTRA_CHECKS              0
 #define USE_EXTENDED_TYPE_CMP        0
 #define SHOW_PSEUDO_INSNS            0
 
-// sparse
+/* sparse */
 #define FIX_SPARSE_EXTRA_ARG_TO_MEM  0
 
 /* assertions */
@@ -650,6 +652,7 @@ enum copy_depth {
     copy_shallow_ac_deep,
     copy_shallow_ac_null,
     copy_shallow_var_deep,
+    copy_shallow_var_deep_uid,
 };
 
 
@@ -686,7 +689,15 @@ op_copy(const struct cl_operand *op_src, enum copy_depth copy_depth)
     if (copy_shallow_var_deep == copy_depth && CL_OPERAND_VAR == op_src->code) {
         ret->data.var = alloc_cl_var();
         *ret->data.var = *op_src->data.var;
-        VAR(ret)->uid = ++COUNTER(var);
+    }
+
+    if (copy_shallow_var_deep == copy_depth
+      || copy_shallow_var_deep_uid == copy_depth
+      && CL_OPERAND_VAR == op_src->code) {
+        ret->data.var = alloc_cl_var();
+        *ret->data.var = *op_src->data.var;
+        if (copy_shallow_var_deep_uid == copy_depth)
+            VAR(ret)->uid = ++COUNTER(var);
     }
 
     return ret;
@@ -902,6 +913,16 @@ insn_setops_store(struct cl_insn *cli, const struct instruction **insn);
 /**
     Initialize var operand from sparse symbol initializer
 
+    This is only for static/extern globals which apparently could not
+    be linearized in per-entrypoint pass because they are not local
+    to particular entry point.  We make a fake entry point and force
+    sparse to linearize this initializator and proceed resulting
+    instruction to build real CL initializator.
+
+    [ Per function initialized variables have the initializator
+    spread directly in instruction stream (STORE instructions) and thus
+    CL will receive it in such a form as well ]
+
     @param[in,out] initial  Address where to start initializators chain
     @param[in]     sym      Initializator of this symbol is examined
     @return  Value to be set to VAR(op)->initialized
@@ -911,6 +932,7 @@ op_initialize_var_from_initializer(struct cl_initializer **initial,
                                    struct symbol *sym)
 {
     assert(sym->initializer);
+    assert(sym->ctype.modifiers & (MOD_STATIC | MOD_TOPLEVEL));
 
     /*
         we have to mock environment for sparse before calling
@@ -979,7 +1001,7 @@ op_initialize_var_from_initializer(struct cl_initializer **initial,
 
     DEBUG_INITIALIZER_EXPR_STOP();
 
-    return true;
+    return false;  /* initialization implied by the scope */
 }
 
 /**
@@ -998,8 +1020,11 @@ op_initialize_var_maybe(struct cl_operand *op,
     struct cl_operand *from;
 
     if (!expr)
-        /* XXX static globals are implicitly initialized to {0} */
-        return sym->ctype.modifiers & MOD_STATIC;
+        /*
+            static/extern globals are implicitly initialized to {0}
+            but this is implied by the scope
+         */
+        return false;
 
     DEBUG_INITIALIZER_SP(expr);
 
@@ -1905,7 +1930,7 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
                  */
                 cli->code = CL_INSN_UNOP;
                 UNOP(cli)->code = CL_UNOP_MINUS;
-                UNOP(cli)->dst  = op_copy(src2, copy_shallow_var_deep);
+                UNOP(cli)->dst  = op_copy(src2, copy_shallow_var_deep_uid);
                 UNOP(cli)->src  = src2;
 
                 struct instruction *next = __alloc_instruction(0);
