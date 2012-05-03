@@ -1,0 +1,2 @@
+http://git.kernel.org/?p=devel/sparse/chrisl/sparse.git;a=commitdiff;h=db72a46
+http://comments.gmane.org/gmane.comp.parsers.sparse/2802

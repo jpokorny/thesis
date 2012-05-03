@@ -612,8 +612,9 @@ type_from_register(const pseudo_t pseudo)
                 break;
             case OP_RET:
             case OP_COPY:
-                /* OP_COPY needs this patch applied:
-                   http://comments.gmane.org/gmane.comp.parsers.sparse/2802 */
+                /* OP_COPY needs upstream patch:
+                   http://git.kernel.org/?p=devel/sparse/chrisl/
+                   sparse.git;a=commitdiff;h=db72a46 */
                 type = pu->insn->type;
                 break;
             default:
