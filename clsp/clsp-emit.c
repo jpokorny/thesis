@@ -1907,8 +1907,7 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
              */
             assert(!src2->accessor);
 
-            //VAR(src2)->uid = VAR(dst)->uid;
-            t1 = dst->type;
+            t1 = dst->type;  /* preserve for future use */
 
             dst = op_copy(src2, copy_shallow_var_deep);
 
