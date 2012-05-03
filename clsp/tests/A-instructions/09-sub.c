@@ -62,7 +62,6 @@ binop_int_one (int a)
     clsp-options:   -d 1848
 
     USE_PTR_PTR_PTR skipped, see binops.h
-    USE_PTR_PTR_INT needs probably new CL binop
 
     vim: ft=c:
  */

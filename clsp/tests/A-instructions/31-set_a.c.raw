@@ -1,0 +1,11 @@
+#define BINOP(x, y)   (x) > (y)
+
+#define USE_CMP_UINT
+
+#include "binops.h"
+
+/*
+    clsp-options:   -d 1848
+
+    vim: ft=c:
+ */

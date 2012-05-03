@@ -1,0 +1,197 @@
+A-instructions/34-not.c:3:1: debug: file: begin (first symbol)
+A-instructions/34-not.c:3:1: debug: operand-symbol: sp >>> unop_char
+        {kind=node, initializer=N, scope=file}
+char static [signed] [toplevel] unop_char( ... )
+A-instructions/34-not.c:3:1: debug: operand-symbol: cl <<< unop_char
+        <operand> {kind=CST, scope=STATIC}
+            <type> {kind=FNC, uid=23, name=(none), sizeof=1, item_cnt=2, is_unsigned=N}: A-instructions/34-not.c:3:11
+                <type-item> {name=(anonymous)}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=a}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-fnc> {name=unop_char, uid=1, extern=N}: A-instructions/34-not.c:3:1
+A-instructions/34-not.c:3:1: debug: function: begin unop_char
+	debug: function: argument 1
+A-instructions/34-not.c:3:12: debug: operand-symbol: sp >>> a
+        {kind=node, initializer=N, scope=unknown-toplevel:outer}
+char [signed] a
+A-instructions/34-not.c:3:12: debug: operand-symbol: cl <<< a
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=a, artificial=N, initialized=N}: A-instructions/34-not.c:3:12
+A-instructions/34-not.c:3:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/34-not.c:3:1
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/34-not.c:3:1: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/34-not.c:5:12: debug: instruction: sp >>>
+        not.8       %r2 <- %arg1
+	debug: operand-pseudo: sp >>>
+        %r2
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=2, name=(none), artificial=Y, initialized=N}: A-instructions/34-not.c:5:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %arg1
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=a, artificial=N, initialized=N}: A-instructions/34-not.c:3:12
+A-instructions/34-not.c:5:12: debug: instruction: cl <<<
+        <instruction> [BIT_NOT (UNOP)]: A-instructions/34-not.c:5:12
+            <unop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=2, name=(none), artificial=Y, initialized=N}: A-instructions/34-not.c:5:12
+            <unop-src>
+                <operand> {kind=VAR, scope=FUNCTION}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=1, name=a, artificial=N, initialized=N}: A-instructions/34-not.c:3:12
+A-instructions/34-not.c:5:12: debug: instruction: sp >>>
+        ret.8       %r2
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r2
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=2, name=(none), artificial=Y, initialized=N}: A-instructions/34-not.c:5:12
+A-instructions/34-not.c:5:12: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/34-not.c:5:12
+            <ret-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=2, name=(none), artificial=Y, initialized=N}: A-instructions/34-not.c:5:12
+A-instructions/34-not.c:4:1: debug: function: end unop_char
+A-instructions/34-not.c:9:1: debug: operand-symbol: sp >>> unop_int
+        {kind=node, initializer=N, scope=file}
+int static [signed] [toplevel] unop_int( ... )
+A-instructions/34-not.c:9:1: debug: operand-symbol: cl <<< unop_int
+        <operand> {kind=CST, scope=STATIC}
+            <type> {kind=FNC, uid=24, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/34-not.c:9:10
+                <type-item> {name=(anonymous)}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=a}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-fnc> {name=unop_int, uid=2, extern=N}: A-instructions/34-not.c:9:1
+A-instructions/34-not.c:9:1: debug: function: begin unop_int
+	debug: function: argument 1
+A-instructions/34-not.c:9:11: debug: operand-symbol: sp >>> a
+        {kind=node, initializer=N, scope=unknown-toplevel:outer}
+int [signed] a
+A-instructions/34-not.c:9:11: debug: operand-symbol: cl <<< a
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=a, artificial=N, initialized=N}: A-instructions/34-not.c:9:11
+A-instructions/34-not.c:9:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/34-not.c:9:1
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/34-not.c:9:1: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/34-not.c:11:12: debug: instruction: sp >>>
+        not.32      %r5 <- %arg1
+	debug: operand-pseudo: sp >>>
+        %r5
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=(none), artificial=Y, initialized=N}: A-instructions/34-not.c:11:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %arg1
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=a, artificial=N, initialized=N}: A-instructions/34-not.c:9:11
+A-instructions/34-not.c:11:12: debug: instruction: cl <<<
+        <instruction> [BIT_NOT (UNOP)]: A-instructions/34-not.c:11:12
+            <unop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=4, name=(none), artificial=Y, initialized=N}: A-instructions/34-not.c:11:12
+            <unop-src>
+                <operand> {kind=VAR, scope=FUNCTION}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=3, name=a, artificial=N, initialized=N}: A-instructions/34-not.c:9:11
+A-instructions/34-not.c:11:12: debug: instruction: sp >>>
+        ret.32      %r5
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r5
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=(none), artificial=Y, initialized=N}: A-instructions/34-not.c:11:12
+A-instructions/34-not.c:11:12: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/34-not.c:11:12
+            <ret-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=4, name=(none), artificial=Y, initialized=N}: A-instructions/34-not.c:11:12
+A-instructions/34-not.c:10:1: debug: function: end unop_int
+A-instructions/34-not.c:15:1: debug: operand-symbol: sp >>> unop_unsigned
+        {kind=node, initializer=N, scope=file}
+unsigned int static [unsigned] [toplevel] unop_unsigned( ... )
+A-instructions/34-not.c:15:1: debug: operand-symbol: cl <<< unop_unsigned
+        <operand> {kind=CST, scope=STATIC}
+            <type> {kind=FNC, uid=25, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/34-not.c:15:15
+                <type-item> {name=(anonymous)}
+                    <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+                <type-item> {name=a}
+                    <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+            <constant-fnc> {name=unop_unsigned, uid=3, extern=N}: A-instructions/34-not.c:15:1
+A-instructions/34-not.c:15:1: debug: function: begin unop_unsigned
+	debug: function: argument 1
+A-instructions/34-not.c:15:16: debug: operand-symbol: sp >>> a
+        {kind=node, initializer=N, scope=unknown-toplevel:outer}
+unsigned int [unsigned] a
+A-instructions/34-not.c:15:16: debug: operand-symbol: cl <<< a
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+            <operand-var> {uid=5, name=a, artificial=N, initialized=N}: A-instructions/34-not.c:15:16
+A-instructions/34-not.c:15:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/34-not.c:15:1
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/34-not.c:15:1: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/34-not.c:17:12: debug: instruction: sp >>>
+        not.32      %r8 <- %arg1
+	debug: operand-pseudo: sp >>>
+        %r8
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+            <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/34-not.c:17:12
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %arg1
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+            <operand-var> {uid=5, name=a, artificial=N, initialized=N}: A-instructions/34-not.c:15:16
+A-instructions/34-not.c:17:12: debug: instruction: cl <<<
+        <instruction> [BIT_NOT (UNOP)]: A-instructions/34-not.c:17:12
+            <unop-dst>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+                    <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/34-not.c:17:12
+            <unop-src>
+                <operand> {kind=VAR, scope=FUNCTION}
+                    <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+                    <operand-var> {uid=5, name=a, artificial=N, initialized=N}: A-instructions/34-not.c:15:16
+A-instructions/34-not.c:17:12: debug: instruction: sp >>>
+        ret.32      %r8
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r8
+        <operand> {kind=VAR, scope=BB}
+            <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+            <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/34-not.c:17:12
+A-instructions/34-not.c:17:12: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/34-not.c:17:12
+            <ret-src>
+                <operand> {kind=VAR, scope=BB}
+                    <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+                    <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/34-not.c:17:12
+A-instructions/34-not.c:16:1: debug: function: end unop_unsigned
+A-instructions/34-not.c:16:1: debug: file: end (last symbol)

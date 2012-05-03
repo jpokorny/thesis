@@ -1,0 +1,13 @@
+#define UNOP(x)   ~(x)
+
+#define USE_CHAR
+#define USE_INT
+#define USE_UINT
+
+#include "unops.h"
+
+/*
+    clsp-options:   -d 1848
+
+    vim: ft=c:
+ */
