@@ -1830,7 +1830,8 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
                 "int A + array(T)" denotes late phase of accessing array,
                 where the int A is computed offset from the start of
                 the array;
-                we just rewrite this addition to assign of:
+                we just replace the target operand with type-enhanced
+                version so the upcoming LOAD can use it appropriately:
 
                     type: ptr(T)  (this top-level is implicit)
                       - accessor: ref on type T
