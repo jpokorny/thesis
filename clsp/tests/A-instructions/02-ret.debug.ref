@@ -233,6 +233,7 @@ char static <noident>[4]
                         <type> {kind=ARRAY, uid=29, name=(none), sizeof=4, item_cnt=1, is_unsigned=N}: A-instructions/02-ret.c:30:10
                             <type-item> {name=(anonymous)}
                                 <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                        <operand-var> {uid=5, name=(none), artificial=Y, initialized=N}: A-instructions/02-ret.c:30:10
                         (skipped for possible initialization infloop)
                 <unop-src>
                     <operand> {kind=CST, scope=GLOBAL}
@@ -253,6 +254,7 @@ A-instructions/02-ret.c:30:10: debug: operand-symbol: cl <<< (anon-sym)
                                 <type> {kind=ARRAY, uid=29, name=(none), sizeof=4, item_cnt=1, is_unsigned=N}: A-instructions/02-ret.c:30:10
                                     <type-item> {name=(anonymous)}
                                         <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                                <operand-var> {uid=5, name=(none), artificial=Y, initialized=Y}: A-instructions/02-ret.c:30:10
                                 (skipped for possible initialization infloop)
                         <unop-src>
                             <operand> {kind=CST, scope=GLOBAL}
@@ -275,6 +277,7 @@ A-instructions/02-ret.c:30:10: debug: instruction: cl <<<
                                         <type> {kind=ARRAY, uid=29, name=(none), sizeof=4, item_cnt=1, is_unsigned=N}: A-instructions/02-ret.c:30:10
                                             <type-item> {name=(anonymous)}
                                                 <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                                        <operand-var> {uid=5, name=(none), artificial=Y, initialized=Y}: A-instructions/02-ret.c:30:10
                                         (skipped for possible initialization infloop)
                                 <unop-src>
                                     <operand> {kind=CST, scope=GLOBAL}

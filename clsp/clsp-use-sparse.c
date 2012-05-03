@@ -54,6 +54,7 @@ debug_sparse_symbol(struct symbol *sym, int indent, bool nondeterm)
 #endif
     sym->ctype.alignment = 0;
 
+
     if (SYM_FN == sym->ctype.base_type->type) {
         stmt_backup = sym->ctype.base_type->stmt;
         sym->ctype.base_type->stmt = NULL;
@@ -63,10 +64,11 @@ debug_sparse_symbol(struct symbol *sym, int indent, bool nondeterm)
 
     if (SYM_FN == sym->ctype.base_type->type)
         sym->ctype.base_type->stmt = stmt_backup;
+
+    sym->ctype.alignment = alignment_backup;
 #if HIDE_INITIALIZER
     sym->initializer = initializer_backup;
 #endif
-    sym->ctype.alignment = alignment_backup;
 }
 
 

@@ -595,7 +595,7 @@ type_from_register(const pseudo_t pseudo)
         has "authority to decide the type" (casts, OP_RET, OP_COPY)
 
         it is desired to have the pseudo type correct from the beginning,
-        but also as we cache the whole pseudo, it is a must to do
+        but also as we cache the whole pseudo, it is an imperative to do
         this forward analysis (currently of depth 1)
 
         note: the target of CALL may not be used at all (no users), still
@@ -941,53 +941,59 @@ insn_setops_store(struct cl_insn *cli, const struct instruction **insn);
     spread directly in instruction stream (STORE instructions) and thus
     CL will receive it in such a form as well ]
 
+    This should never get into recursion as it is prevented early
+    in @c op_from_symbol, looking at sym->pseudo we set here.
+
+
     @param[in,out] initial  Address where to start initializators chain
     @param[in]     sym      Initializator of this symbol is examined
     @return  Value to be set to VAR(op)->initialized
  */
 static bool
-op_initialize_var_from_initializer(struct cl_initializer **initial,
+op_initialize_var_from_initializer(struct cl_operand *op,
                                    struct symbol *sym)
 {
     assert(sym->initializer);
     assert(sym->ctype.modifiers & (MOD_STATIC | MOD_TOPLEVEL));
 
+    struct expression *expr;
+    struct instruction *insn;
+    struct cl_initializer **initial = &VAR(op)->initial;
+
     /*
         we have to mock environment for sparse before calling
         linearize_expression yielding the required instructions
      */
-    struct instruction *insn;
-    unsigned long orig_modifiers = sym->ctype.modifiers;
-    struct expression *expr = sym->initializer;
-    pseudo_t pseudo_backup = sym->pseudo;
 
     /* XXX block to consider for upstreaming start XXX */
+
+    unsigned long backup_modifiers = sym->ctype.modifiers;
     struct entrypoint *ep = __alloc_entrypoint(0);
 
     ep->active = __alloc_basic_block(0);
     ep->active->ep = ep;
 
-    expr = alloc_expression(expr->pos, EXPR_SYMBOL);
+    expr = alloc_expression(sym->initializer->pos, EXPR_SYMBOL);
     expr->symbol = sym;
 
     /* trick sparse to accept this symbol for initialization */
-    sym->pseudo = NULL;
+    assert(!sym->pseudo);
     sym->ctype.modifiers &= ~(MOD_STATIC | MOD_TOPLEVEL);
 
     SP(linearize_expression, ep, expr);
     assert(!ptr_list_empty(ep->active->insns));
 
-    /*
-        restore (sym->pseudo is set by linearize_expression, but
-        no longer needed, so we set the operand being created right
-        now here to avoid recursive infloop when converting
-        initializer operands as it contains self-references)
-     */
-    sym->ctype.modifiers = orig_modifiers;
-    sym->pseudo = pseudo_backup;
+    sym->ctype.modifiers = backup_modifiers;
 
     /* XXX block to consider for upstreaming end XXX */
 
+    /*
+        sym->pseudo is set by linearize_expression, but no longer needed,
+        so we set the operand being created right now here to avoid recursive
+        infloop/duplicated variables (which is bad) when converting
+        initializer operands as it contains self-references
+     */
+    sym->pseudo = (void *) op;
     DEBUG_INITIALIZER_EXPR_START();
 
     FOR_EACH_PTR(ep->active->insns, insn) {
@@ -1018,6 +1024,7 @@ op_initialize_var_from_initializer(struct cl_initializer **initial,
     } END_FOR_EACH_PTR(insn);
 
     DEBUG_INITIALIZER_EXPR_STOP();
+    sym->pseudo = NULL;  /* in-depth initialization done, no longer needed */
 
     return false;  /* initialization implied by the scope */
 }
@@ -1075,7 +1082,7 @@ op_initialize_var_maybe(struct cl_operand *op,
             break;
         case EXPR_INITIALIZER:
             /* no need to "debug" the same over again */
-            return op_initialize_var_from_initializer(&VAR(op)->initial, sym);
+            return op_initialize_var_from_initializer(op, sym);
         default:
             WARN("unhandled initializer expression type");
             return false;
@@ -1093,8 +1100,13 @@ static inline struct cl_operand *
 op_from_symbol(struct symbol *sym)
 {
     struct cl_operand *op = NO_OPERAND_USE;
+    if (sym->pseudo)
+        op = (struct cl_operand *) sym->pseudo;
 
     DEBUG_OP_FROM_SYMBOL_SP(sym);
+
+    if (NO_OPERAND_USE != op)
+        return op;
 
     /*
         no identifier -> may be a primitive literal;
@@ -1346,7 +1358,7 @@ op_dig_step(const struct cl_operand **op_composite, unsigned insn_offset)
                 retval = indexes.rem;
             } else {
                 /* {deref, ref} = {} */
-                if (CL_ACCESSOR_REF == op->accessor->code) {
+                if (op->accessor && CL_ACCESSOR_REF == op->accessor->code) {
                     struct cl_operand *clone = op_copy(op, copy_shallow_ac_null);
                     op_prepend_accessor(clone, op->accessor->next);
                     clone->type = op->accessor->type;
@@ -1894,27 +1906,31 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
                 (2) CL infrastructure is capable of dealing with it
              */
             assert(!src2->accessor);
-            src2 = op_copy(src2, copy_shallow_var_deep);
+
+            //VAR(src2)->uid = VAR(dst)->uid;
+            t1 = dst->type;
+
+            dst = op_copy(src2, copy_shallow_var_deep);
 
             /* build the accessor chain from the back */
 
-            struct cl_accessor *ac = op_prepend_accessor(src2, NULL);
+            struct cl_accessor *ac = op_prepend_accessor(dst, NULL);
             ac->code = CL_ACCESSOR_DEREF_ARRAY;
-            ac->type = src2->type;
+            ac->type = t2;
 
             struct instruction *def_offset = (*insn)->src1->def;
             assert(OP_MULS == def_offset->opcode && def_offset->src1->priv);
 
             ac->data.array.index = def_offset->src1->priv;
 
-            ac = op_prepend_accessor(src2, NULL);
+            ac = op_prepend_accessor(dst, NULL);
             ac->code = CL_ACCESSOR_REF;
-            ac->type = src2->type->items->type;
+            ac->type = dst->type->items->type;
 
-            src2->type = dst->type;
+            dst->type = t1;
 
             /* set adjusted operand for load to see; do not emitting anything */
-            (*insn)->target->priv = src2;
+            (*insn)->target->priv = dst;
 
             *insn = NULL;
             return NULL;

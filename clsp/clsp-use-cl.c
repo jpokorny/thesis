@@ -182,7 +182,13 @@ debug_cl_var(const struct cl_var *var, int indent, bool safely)
           GET_YN(var->artificial),
           GET_YN(var->initialized),
           CLPOS(var->loc));
-    debug_cl_initializer(var->initial, indent+1, safely);
+
+    if (safely && var->initial)
+        PUTHI(debug, cl_debug, indent,
+              _1(s), "(skipped for possible initialization infloop)");
+    else
+        /* next time safely for sure */
+        debug_cl_initializer(var->initial, indent+1, true);
 }
 
 void
@@ -314,11 +320,8 @@ debug_cl_operand(const struct cl_operand *op, int indent, bool safely)
 
     if (CL_OPERAND_CST == op->code)
         debug_cl_cst(&op->data.cst, indent);
-    else if (!safely || !op->data.var->initial)
-        debug_cl_var(op->data.var, indent, true);
     else
-        PUTHI(debug, cl_debug, indent,
-              _1(s), "(skipped for possible initialization infloop)");
+        debug_cl_var(op->data.var, indent, safely);
 }
 
 void
