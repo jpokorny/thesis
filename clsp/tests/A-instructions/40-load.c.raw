@@ -5,7 +5,7 @@
 
 #define ARR  j
 #ifndef ARR_DECL
-# define ARR_DECL  static int ARR[] = { 0, 1};
+# define ARR_DECL  static int ARR[] = { 0, 1}
 #endif
 
 #ifndef SIDEEFFECT

@@ -1,3 +1,4 @@
+
 A-instructions/36-sel.c:2:12: debug: file: begin (first symbol)
 A-instructions/36-sel.c:4:1: debug: operand-symbol: sp >>> sel_1
         {kind=node, initializer=N, scope=file}
@@ -8,6 +9,7 @@ A-instructions/36-sel.c:4:1: debug: operand-symbol: cl <<< sel_1
                 <type-item> {name=(anonymous)}
                     <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=sel_1, uid=1, extern=N}: A-instructions/36-sel.c:4:1
+
 A-instructions/36-sel.c:4:1: debug: function: begin sel_1
 A-instructions/36-sel.c:4:1: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/36-sel.c:4:1
@@ -142,4 +144,6 @@ A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
             <ret-src>
                 <operand> {kind=VOID, scope=N/A}
 A-instructions/36-sel.c:5:1: debug: function: end sel_1
+
 A-instructions/36-sel.c:5:1: debug: file: end (last symbol)
+

@@ -1,3 +1,4 @@
+
 A-instructions/11-muls.c:3:1: debug: file: begin (first symbol)
 A-instructions/11-muls.c:3:1: debug: operand-symbol: sp >>> binop_int
         {kind=node, initializer=N, scope=file}
@@ -12,6 +13,7 @@ A-instructions/11-muls.c:3:1: debug: operand-symbol: cl <<< binop_int
                 <type-item> {name=b}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=binop_int, uid=1, extern=N}: A-instructions/11-muls.c:3:1
+
 A-instructions/11-muls.c:3:1: debug: function: begin binop_int
 	debug: function: argument 1
 A-instructions/11-muls.c:3:12: debug: operand-symbol: sp >>> a
@@ -83,6 +85,7 @@ A-instructions/11-muls.c:5:17: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/11-muls.c:5:17
 A-instructions/11-muls.c:4:1: debug: function: end binop_int
+
 A-instructions/11-muls.c:9:1: debug: operand-symbol: sp >>> binop_int_zero
         {kind=node, initializer=N, scope=file}
 int static [signed] [toplevel] binop_int_zero( ... )
@@ -94,6 +97,7 @@ A-instructions/11-muls.c:9:1: debug: operand-symbol: cl <<< binop_int_zero
                 <type-item> {name=a}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=binop_int_zero, uid=2, extern=N}: A-instructions/11-muls.c:9:1
+
 A-instructions/11-muls.c:9:1: debug: function: begin binop_int_zero
 	debug: function: argument 1
 A-instructions/11-muls.c:9:17: debug: operand-symbol: sp >>> a
@@ -126,6 +130,7 @@ A-instructions/11-muls.c:11:17: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <constant-int> [0]
 A-instructions/11-muls.c:10:1: debug: function: end binop_int_zero
+
 A-instructions/11-muls.c:15:1: debug: operand-symbol: sp >>> binop_int_one
         {kind=node, initializer=N, scope=file}
 int static [signed] [toplevel] binop_int_one( ... )
@@ -137,6 +142,7 @@ A-instructions/11-muls.c:15:1: debug: operand-symbol: cl <<< binop_int_one
                 <type-item> {name=a}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=binop_int_one, uid=3, extern=N}: A-instructions/11-muls.c:15:1
+
 A-instructions/11-muls.c:15:1: debug: function: begin binop_int_one
 	debug: function: argument 1
 A-instructions/11-muls.c:15:16: debug: operand-symbol: sp >>> a
@@ -168,4 +174,6 @@ A-instructions/11-muls.c:17:17: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=5, name=a, artificial=N, initialized=N}: A-instructions/11-muls.c:15:16
 A-instructions/11-muls.c:16:1: debug: function: end binop_int_one
+
 A-instructions/11-muls.c:16:1: debug: file: end (last symbol)
+

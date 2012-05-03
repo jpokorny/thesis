@@ -212,9 +212,12 @@ debug_cl_type(const struct cl_type *clt, int indent, int recursion_limit)
           CLPOS(clt->loc));
 
     if (indent > recursion_limit && 0 < clt->item_cnt) {
-        PUTHI(debug, cl_debug, indent,
-              _1(s), "(forcibly skipped: guard for recursive data types)");
-        return;
+        if (CL_TYPE_STRUCT == clt->code) {
+            PUTHI(debug, cl_debug, indent,
+                  _1(s), "(forcibly skipped: guard for recursive data types)");
+            return;
+        }
+        ++recursion_limit;
     }
 
     for (int i = 0; i < clt->item_cnt; i++) {

@@ -1,6 +1,6 @@
 
 static int i;
-static int j[] = { 0, 1 };;
+static int j[] = { 0, 1 };
 
 static int
 load_from_sym (int arg)

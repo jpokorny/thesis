@@ -81,67 +81,67 @@ static const char *const initial_file = "<initial-metafile>";
         debug_cl_switch_case(val_lo, val_hi, GLOBALS(indent)+1); \
     }
 
-#define WITH_FILE_TO_EMIT(file, symref, private)                             \
-    for (int i_=0; i_==0                                                     \
-        ? (                                                                  \
-          (initial_file == file                                              \
-            ? DLOG(d_file, _1(s)": debug: " HIGHLIGHT("file") ": begin"      \
-                           " (aggregation of various sources)", file)        \
-            : DLOG(d_file, SPPOSFMT_1 ": debug: " HIGHLIGHT("file")          \
-                           ": begin (first symbol)",                         \
-                           SPPOS((symref)->pos))),                           \
-          private ? (void) 0 : API_EMIT(file_open, file),                    \
-          1                                                                  \
-        ) : (                                                                \
-          private ? (void) 0 : API_EMIT(file_close),                         \
-          (initial_file == file                                              \
-            ? DLOG(d_file, _1(s)": debug: " HIGHLIGHT("file") ": end", file) \
-            : DLOG(d_file, SPPOSFMT_1 ": debug: " HIGHLIGHT("file")          \
-                           ": end (last symbol)",                            \
-                           SPPOS((symref)->endpos))),                        \
-          0                                                                  \
+#define WITH_FILE_TO_EMIT(file, symref, private)                               \
+    for (int i_=0; i_==0                                                       \
+        ? (                                                                    \
+          (initial_file == file                                                \
+            ? DLOG(d_file, "\n"_1(s)": debug: " HIGHLIGHT("file") ": begin"    \
+                           " (aggregation of various sources)", file)          \
+            : DLOG(d_file, "\n" SPPOSFMT_1 ": debug: " HIGHLIGHT("file")       \
+                           ": begin (first symbol)",                           \
+                           SPPOS((symref)->pos))),                             \
+          private ? (void) 0 : API_EMIT(file_open, file),                      \
+          1                                                                    \
+        ) : (                                                                  \
+          private ? (void) 0 : API_EMIT(file_close),                           \
+          (initial_file == file                                                \
+            ? DLOG(d_file, _1(s)": debug: " HIGHLIGHT("file") ": end\n", file) \
+            : DLOG(d_file, SPPOSFMT_1 ": debug: " HIGHLIGHT("file")            \
+                           ": end (last symbol)\n",                            \
+                           SPPOS((symref)->endpos))),                          \
+          0                                                                    \
         ) ; i_++)
 
-#define WITH_CALL_TO_EMIT(loc, dst, fnc)                                     \
-    for (int i_=0; 0==i_                                                     \
-         ? (                                                                 \
-           API_EMIT(insn_call_open, loc, dst, fnc),                          \
-           1                                                                 \
-         ) : (                                                               \
-           API_EMIT(insn_call_close),                                        \
-           0                                                                 \
+#define WITH_CALL_TO_EMIT(loc, dst, fnc)                                       \
+    for (int i_=0; 0==i_                                                       \
+         ? (                                                                   \
+           API_EMIT(insn_call_open, loc, dst, fnc),                            \
+           1                                                                   \
+         ) : (                                                                 \
+           API_EMIT(insn_call_close),                                          \
+           0                                                                   \
          ) ; i_++)
 
-#define WITH_SWITCH_TO_EMIT(loc, op)                                         \
-    for (int i_=0; 0==i_                                                     \
-         ? (                                                                 \
-           DLOG(d_insn, CLPOSFMT_1 ": debug: " HIGHLIGHT("instruction")      \
-                ": cl <<< switch begin", CLPOS(*loc)),                       \
-           API_EMIT(insn_switch_open, loc, op),                              \
-           1                                                                 \
-         ) : (                                                               \
-           API_EMIT(insn_switch_close),                                      \
-           DLOG(d_insn,                                                      \
-                "\tdebug: " HIGHLIGHT("instruction") ": cl <<< switch end"), \
-           0                                                                 \
+#define WITH_SWITCH_TO_EMIT(loc, op)                                           \
+    for (int i_=0; 0==i_                                                       \
+         ? (                                                                   \
+           DLOG(d_insn, CLPOSFMT_1 ": debug: " HIGHLIGHT("instruction")        \
+                ": cl <<< switch begin", CLPOS(*loc)),                         \
+           API_EMIT(insn_switch_open, loc, op),                                \
+           1                                                                   \
+         ) : (                                                                 \
+           API_EMIT(insn_switch_close),                                        \
+           DLOG(d_insn,                                                        \
+                "\tdebug: " HIGHLIGHT("instruction") ": cl <<< switch end"),   \
+           0                                                                   \
          ) ; i_++)
 
 
-#define WITH_FUNCTION_TO_EMIT(fnc, endpos)                                   \
-    for (int i_=0; 0==i_                                                     \
-        ? (                                                                  \
-          DLOG(d_func,                                                       \
-               CLPOSFMT_1 ": debug: " HIGHLIGHT("function") ": begin "       \
-               HIGHLIGHT(_4(s)),                                             \
-               CLPOS(CST_FNC(fnc)->loc), CST_FNC(fnc)->name),                \
-          API_EMIT(fnc_open, fnc),                                           \
-          1                                                                  \
-        ) : (                                                                \
-          API_EMIT(fnc_close),                                               \
-          DLOG(d_func,                                                       \
-               SPPOSFMT_1 ": debug: " HIGHLIGHT("function") ": end "         \
-               HIGHLIGHT(_4(s)), SPPOS(endpos), CST_FNC(fnc)->name),         \
-          0                                                                  \
+#define WITH_FUNCTION_TO_EMIT(fnc, endpos)                                     \
+    for (int i_=0; 0==i_                                                       \
+        ? (                                                                    \
+          DLOG(d_func,                                                         \
+               "\n" CLPOSFMT_1 ": debug: " HIGHLIGHT("function") ": begin "    \
+               HIGHLIGHT(_4(s)),                                               \
+               CLPOS(CST_FNC(fnc)->loc), CST_FNC(fnc)->name),                  \
+          API_EMIT(fnc_open, fnc),                                             \
+          1                                                                    \
+        ) : (                                                                  \
+          API_EMIT(fnc_close),                                                 \
+          DLOG(d_func,                                                         \
+               SPPOSFMT_1 ": debug: " HIGHLIGHT("function") ": end "           \
+               HIGHLIGHT(_4(s)) "\n", SPPOS(endpos), CST_FNC(fnc)->name),      \
+          0                                                                    \
         ) ; i_++)
 
 
@@ -981,19 +981,20 @@ op_initialize_var_from_initializer(struct cl_operand *op,
     sym->ctype.modifiers &= ~(MOD_STATIC | MOD_TOPLEVEL);
 
     SP(linearize_expression, ep, expr);
-    assert(!ptr_list_empty(ep->active->insns));
 
     sym->ctype.modifiers = backup_modifiers;
 
     /* XXX block to consider for upstreaming end XXX */
 
     /*
-        sym->pseudo is set by linearize_expression, but no longer needed,
-        so we set the operand being created right now here to avoid recursive
-        infloop/duplicated variables (which is bad) when converting
-        initializer operands as it contains self-references
+        sym->pseudo is set by our call to linearize_expression and kept around,
+        so we use its priv to set the operand being created right now
+        here to avoid recursive infloop/duplicated variables (which is bad)
+        when converting initializer operands as it contains self-references
      */
-    sym->pseudo = (void *) op;
+    assert(sym->pseudo && !sym->pseudo->priv);
+    sym->pseudo->priv = (void *) op;
+
     DEBUG_INITIALIZER_EXPR_START();
 
     FOR_EACH_PTR(ep->active->insns, insn) {
@@ -1003,14 +1004,17 @@ op_initialize_var_from_initializer(struct cl_operand *op,
             case OP_STORE:
                 /* XXX recursion (orig. pseudo can be passed and precached) */
                 *initial = alloc_cl_initializer_safe();
-                conv_position(&(*initial)->insn.loc, &insn->pos);
                 (*initial)->insn.code = CL_INSN_UNOP;
                 (*initial)->insn.data.insn_unop.code = CL_UNOP_ASSIGN;
+                conv_position(&(*initial)->insn.loc, &insn->pos);
                 insn_setops_store(&(*initial)->insn, &insn);
                 assert(!insn); /* not a multi-phased instruction */
                 break;
             case OP_SYMADDR:
-                /* this marks end of initializer (?) */
+                /*
+                    this ends the initializer,
+                    insn->symbol refers (should refer) to sym->pseudo
+                 */
                 DEBUG_INITIALIZER_EXPR_CL_SPECIAL(_1(s), "(ignored)");
                 continue;
             default:
@@ -1024,10 +1028,12 @@ op_initialize_var_from_initializer(struct cl_operand *op,
     } END_FOR_EACH_PTR(insn);
 
     DEBUG_INITIALIZER_EXPR_STOP();
-    sym->pseudo = NULL;  /* in-depth initialization done, no longer needed */
 
     return false;  /* initialization implied by the scope */
 }
+
+static inline struct cl_accessor *
+op_append_accessor(struct cl_operand *op, struct cl_accessor *ac);
 
 /**
     Try to initialize operand using symbol's initializer
@@ -1035,8 +1041,7 @@ op_initialize_var_from_initializer(struct cl_operand *op,
     @return  Value to be set to VAR(op)->initialized
  */
 static bool
-op_initialize_var_maybe(struct cl_operand *op,
-                        struct symbol *sym)
+op_initialize_var_maybe(struct cl_operand *op, struct symbol *sym)
 {
     assert(CL_OPERAND_VAR == op->code);
 
@@ -1045,10 +1050,7 @@ op_initialize_var_maybe(struct cl_operand *op,
     struct cl_operand *from;
 
     if (!expr)
-        /*
-            static/extern globals are implicitly initialized to {0}
-            but this is implied by the scope
-         */
+        /* initialization of static/extern globals implied by the scope */
         return false;
 
     DEBUG_INITIALIZER_SP(expr);
@@ -1064,25 +1066,45 @@ op_initialize_var_maybe(struct cl_operand *op,
              */
             VAR(op)->initial = alloc_cl_initializer_safe();
             VAR(op)->initial->insn.code = CL_INSN_UNOP;
-            VAR(op)->initial->insn.data.insn_unop.code = CL_UNOP_ASSIGN;
             conv_position(&VAR(op)->initial->insn.loc, &expr->pos);
 
-            VAR(op)->initial->insn.data.insn_unop.dst = op;
-            VAR(op)->initial->insn.data.insn_unop.src = op_make_cst_string(expr);
+            UNOP(&VAR(op)->initial->insn)->code = CL_UNOP_ASSIGN;
+            UNOP(&VAR(op)->initial->insn)->dst  = op;
+            UNOP(&VAR(op)->initial->insn)->src  = op_make_cst_string(expr);
             break;
+
         case EXPR_SYMBOL:
             /*
                 get operand for that symbol (good as we cache the resolution
-                anyway), then steal its initializer;
-                hopefully no self-recursion...
+                anyway), then use this symbol itself as source of
+                initialization;  hopefully no recursion drama ahead
              */
             from = op_from_symbol(expr->symbol);
-            assert(OP_INITIALIZED_VAR(from));
-            VAR(op)->initial = from->data.var->initial;
+            /* XXX CL_TYPE_STRING easier way? */
+
+            assert(!from->accessor);
+            struct cl_operand *clone = op_copy(from, copy_shallow);
+            struct cl_accessor *ac = op_append_accessor(clone, NULL);
+            ac->code = CL_ACCESSOR_REF;
+            ac->type = clone->type;
+            clone->type = build_referenced_type(clone->type);
+
+            VAR(op)->initial = alloc_cl_initializer_safe();
+            VAR(op)->initial->insn.code = CL_INSN_UNOP;
+            conv_position(&VAR(op)->initial->insn.loc, &expr->pos);
+
+            UNOP(&VAR(op)->initial->insn)->code = CL_UNOP_ASSIGN;
+            UNOP(&VAR(op)->initial->insn)->dst  = op;
+            UNOP(&VAR(op)->initial->insn)->src  = clone;
+
             break;
+
         case EXPR_INITIALIZER:
+            expr = alloc_expression(sym->initializer->pos, EXPR_SYMBOL);
+            expr->symbol = sym;
             /* no need to "debug" the same over again */
             return op_initialize_var_from_initializer(op, sym);
+
         default:
             WARN("unhandled initializer expression type");
             return false;
@@ -1090,7 +1112,8 @@ op_initialize_var_maybe(struct cl_operand *op,
 
     DEBUG_INITIALIZER_CL(VAR(op)->initial);
 
-    return true;
+    /* XXX empty initializer chain for local variables */
+    return sym->ctype.modifiers & (MOD_STATIC | MOD_TOPLEVEL);
 }
 
 /**
@@ -1100,8 +1123,8 @@ static inline struct cl_operand *
 op_from_symbol(struct symbol *sym)
 {
     struct cl_operand *op = NO_OPERAND_USE;
-    if (sym->pseudo)
-        op = (struct cl_operand *) sym->pseudo;
+    if (sym->pseudo && sym->pseudo->priv)
+        op = (struct cl_operand *) sym->pseudo->priv;
 
     DEBUG_OP_FROM_SYMBOL_SP(sym);
 

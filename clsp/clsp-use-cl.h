@@ -70,11 +70,11 @@ extern const struct cl_operand no_operand;
 
 #define VAR(op)      (op->data.var)
 
-#define UNOP(insn)   (&insn->data.insn_unop)
-#define BINOP(insn)  (&insn->data.insn_binop)
-#define RET(insn)    (&insn->data.insn_ret)
-#define COND(insn)   (&insn->data.insn_cond)
-#define JMP(insn)    (&insn->data.insn_jmp)
+#define UNOP(insn)   (&(insn)->data.insn_unop)
+#define BINOP(insn)  (&(insn)->data.insn_binop)
+#define RET(insn)    (&(insn)->data.insn_ret)
+#define COND(insn)   (&(insn)->data.insn_cond)
+#define JMP(insn)    (&(insn)->data.insn_jmp)
 
 
 /*

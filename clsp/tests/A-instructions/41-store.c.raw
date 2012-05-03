@@ -1,0 +1,106 @@
+#define VAR  i
+#ifndef VAR_DECL
+# define VAR_DECL  static int VAR
+#endif
+
+#define VAR_AUX  aux
+#ifndef VAR_AUX_DECL
+# define VAR_AUX_DECL  static int VAR_AUX
+#endif
+
+#define PTR_VAR  ptr
+#ifndef PTR_VAR_DECL
+# define PTR_VAR_DECL  static int *PTR_VAR = &VAR
+#endif
+
+#define PTR_PTR_VAR  ptrptr
+#ifndef PTR_PTR_VAR_DECL
+# define PTR_PTR_VAR_DECL  static int **PTR_PTR_VAR = &PTR_VAR
+#endif
+
+#define STRUCT_VAR  s
+#ifndef STRUCT_VAR_DECL
+# define STRUCT_VAR_DECL  static struct { int first; int second; } STRUCT_VAR
+#endif
+
+#ifndef SIDEEFFECT
+# define SIDEEFFECT(x) x+1
+#endif
+
+VAR_DECL;
+VAR_AUX_DECL;
+PTR_VAR_DECL;
+PTR_PTR_VAR_DECL;
+STRUCT_VAR_DECL;
+
+
+#define APPLY(f, ...)   f(__VA_ARGS__)
+
+#define FROM_SYM_TO(name, target)                                            \
+    static void sym_to_##name(int **arg)        { target = &VAR_AUX; }       \
+
+#define FROM_ARG_TO(name, target) \
+    static void arg_to_##name(int *arg, int arg_aux) { target = arg_aux; }
+
+#define FROM_REG_TO(name, target) \
+    static void reg_to_##name(int *arg)  { target = SIDEEFFECT(VAR_AUX); }
+
+#define FROM_VAL_TO(name, target) \
+    static void val_to_##name(int *arg)                   { target = 42; }
+
+
+#define TO_SYM 1
+#define TO_REG 1
+#define TO_ARG 1
+#define TO_VAL 1
+
+
+#if TO_SYM
+FROM_SYM_TO(sym, PTR_VAR)
+FROM_ARG_TO(sym, VAR)
+FROM_REG_TO(sym, VAR)
+FROM_VAL_TO(sym, VAR)
+#endif
+
+#if TO_REG
+FROM_SYM_TO(reg, *PTR_PTR_VAR)
+FROM_ARG_TO(reg, *PTR_VAR)
+FROM_REG_TO(reg, *PTR_VAR)
+FROM_VAL_TO(reg, *PTR_VAR)
+#endif
+
+#if TO_ARG
+FROM_SYM_TO(arg, *arg)
+FROM_ARG_TO(arg, *arg)
+FROM_REG_TO(arg, *arg)
+FROM_VAL_TO(arg, *arg)
+#endif
+
+#if TO_VAL
+FROM_SYM_TO(val, *((int **) 0))
+FROM_ARG_TO(val, *((int *) 0))
+FROM_REG_TO(val, *((int *) 0))
+FROM_VAL_TO(val, *((int *) 0))
+#endif
+
+
+/*
+    clsp-options:   -d 1848
+
+    to be added to FROM_SYM_TO:
+
+    static void sym_offset_to_##name(int **arg) { *(&target+1) = &VAR_AUX; }
+
+    generating something like "store.64 aux -> 8[ptr]" and via this:
+
+    static void
+    sym_offset_to_sym (int **arg)
+    {
+      *(&ptr + 1) = &aux;
+    }
+
+    but currently does not work (pretends the addition is not here)
+
+
+    vim: ft=c:
+ */

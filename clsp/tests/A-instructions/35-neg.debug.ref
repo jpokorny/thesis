@@ -1,3 +1,4 @@
+
 A-instructions/35-neg.c:3:1: debug: file: begin (first symbol)
 A-instructions/35-neg.c:3:1: debug: operand-symbol: sp >>> unop_char
         {kind=node, initializer=N, scope=file}
@@ -10,6 +11,7 @@ A-instructions/35-neg.c:3:1: debug: operand-symbol: cl <<< unop_char
                 <type-item> {name=a}
                     <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=unop_char, uid=1, extern=N}: A-instructions/35-neg.c:3:1
+
 A-instructions/35-neg.c:3:1: debug: function: begin unop_char
 	debug: function: argument 1
 A-instructions/35-neg.c:3:12: debug: operand-symbol: sp >>> a
@@ -110,6 +112,7 @@ A-instructions/35-neg.c:5:12: debug: instruction: cl <<<
                     <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=4, name=(none), artificial=Y, initialized=N}: A-instructions/35-neg.c:5:12
 A-instructions/35-neg.c:4:1: debug: function: end unop_char
+
 A-instructions/35-neg.c:9:1: debug: operand-symbol: sp >>> unop_int
         {kind=node, initializer=N, scope=file}
 int static [signed] [toplevel] unop_int( ... )
@@ -121,6 +124,7 @@ A-instructions/35-neg.c:9:1: debug: operand-symbol: cl <<< unop_int
                 <type-item> {name=a}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=unop_int, uid=2, extern=N}: A-instructions/35-neg.c:9:1
+
 A-instructions/35-neg.c:9:1: debug: function: begin unop_int
 	debug: function: argument 1
 A-instructions/35-neg.c:9:11: debug: operand-symbol: sp >>> a
@@ -175,4 +179,6 @@ A-instructions/35-neg.c:11:12: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/35-neg.c:11:12
 A-instructions/35-neg.c:10:1: debug: function: end unop_int
+
 A-instructions/35-neg.c:10:1: debug: file: end (last symbol)
+

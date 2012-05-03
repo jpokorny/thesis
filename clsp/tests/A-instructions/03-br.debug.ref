@@ -1,3 +1,4 @@
+
 A-instructions/03-br.c:2:12: debug: file: begin (first symbol)
 A-instructions/03-br.c:4:1: debug: operand-symbol: sp >>> br_1
         {kind=node, initializer=N, scope=file}
@@ -8,6 +9,7 @@ A-instructions/03-br.c:4:1: debug: operand-symbol: cl <<< br_1
                 <type-item> {name=(anonymous)}
                     <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=br_1, uid=1, extern=N}: A-instructions/03-br.c:4:1
+
 A-instructions/03-br.c:4:1: debug: function: begin br_1
 A-instructions/03-br.c:4:1: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/03-br.c:4:1
@@ -43,7 +45,7 @@ A-instructions/03-br.c:6:7: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=2, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
 A-instructions/03-br.c:6:7: debug: instruction: sp >>>
-        br          %r1(i), .L0x7fb5e7096150, .L0x7fb5e70960b0
+        br          %r1(i), .L0x7f309898a150, .L0x7f309898a0b0
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r1(i)
         <operand> {kind=VAR, scope=FUNCTION}
@@ -114,7 +116,7 @@ A-instructions/03-br.c:8:4: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:8:4
 A-instructions/03-br.c:9:1: debug: instruction: sp >>>
-        br          .L0x7fb5e7096150
+        br          .L0x7f309898a150
 A-instructions/03-br.c:9:1: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/03-br.c:9:1
             <jmp-label> [3]
@@ -126,6 +128,7 @@ A-instructions/03-br.c:10:3: debug: instruction: cl <<<
             <ret-src>
                 <operand> {kind=VOID, scope=N/A}
 A-instructions/03-br.c:5:1: debug: function: end br_1
+
 A-instructions/03-br.c:14:1: debug: operand-symbol: sp >>> br_2
         {kind=node, initializer=N, scope=file}
 void static [toplevel] br_2( ... )
@@ -135,6 +138,7 @@ A-instructions/03-br.c:14:1: debug: operand-symbol: cl <<< br_2
                 <type-item> {name=(anonymous)}
                     <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=br_2, uid=2, extern=N}: A-instructions/03-br.c:14:1
+
 A-instructions/03-br.c:14:1: debug: function: begin br_2
 A-instructions/03-br.c:14:1: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/03-br.c:14:1
@@ -145,7 +149,7 @@ A-instructions/03-br.c:14:1: debug: instruction: sp >>>
 	debug: instruction: cl <<<
         (ignored)
 A-instructions/03-br.c:16:3: debug: instruction: sp >>>
-        br          .L0x7fb5e70962e0
+        br          .L0x7f309898a2e0
 A-instructions/03-br.c:16:3: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/03-br.c:16:3
             <jmp-label> [2]
@@ -209,7 +213,7 @@ A-instructions/03-br.c:16:15: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:16:15
 A-instructions/03-br.c:16:15: debug: instruction: sp >>>
-        br          %r5, .L0x7fb5e70961f0, .L0x7fb5e7096330
+        br          %r5, .L0x7f309898a1f0, .L0x7f309898a330
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r5
         <operand> {kind=VAR, scope=BB}
@@ -279,7 +283,7 @@ A-instructions/03-br.c:17:6: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:17:6
 A-instructions/03-br.c:17:6: debug: instruction: sp >>>
-        br          .L0x7fb5e70962e0
+        br          .L0x7f309898a2e0
 A-instructions/03-br.c:17:6: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/03-br.c:17:6
             <jmp-label> [2]
@@ -291,4 +295,6 @@ A-instructions/03-br.c:18:3: debug: instruction: cl <<<
             <ret-src>
                 <operand> {kind=VOID, scope=N/A}
 A-instructions/03-br.c:15:1: debug: function: end br_2
+
 A-instructions/03-br.c:15:1: debug: file: end (last symbol)
+

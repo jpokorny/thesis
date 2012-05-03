@@ -1,3 +1,4 @@
+
 A-instructions/33-set_ae.c:3:1: debug: file: begin (first symbol)
 A-instructions/33-set_ae.c:3:1: debug: operand-symbol: sp >>> binop_bool_uint_uint
         {kind=node, initializer=N, scope=file}
@@ -12,6 +13,7 @@ A-instructions/33-set_ae.c:3:1: debug: operand-symbol: cl <<< binop_bool_uint_ui
                 <type-item> {name=b}
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
             <constant-fnc> {name=binop_bool_uint_uint, uid=1, extern=N}: A-instructions/33-set_ae.c:3:1
+
 A-instructions/33-set_ae.c:3:1: debug: function: begin binop_bool_uint_uint
 	debug: function: argument 1
 A-instructions/33-set_ae.c:3:23: debug: operand-symbol: sp >>> a
@@ -83,4 +85,6 @@ A-instructions/33-set_ae.c:5:18: debug: instruction: cl <<<
                     <type> {kind=BOOL, uid=19, name=bool, sizeof=1, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/33-set_ae.c:5:18
 A-instructions/33-set_ae.c:4:1: debug: function: end binop_bool_uint_uint
+
 A-instructions/33-set_ae.c:4:1: debug: file: end (last symbol)
+

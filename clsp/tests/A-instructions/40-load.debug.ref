@@ -1,3 +1,4 @@
+
 A-instructions/40-load.c:2:12: debug: file: begin (first symbol)
 A-instructions/40-load.c:6:1: debug: operand-symbol: sp >>> load_from_sym
         {kind=node, initializer=N, scope=file}
@@ -10,6 +11,7 @@ A-instructions/40-load.c:6:1: debug: operand-symbol: cl <<< load_from_sym
                 <type-item> {name=arg}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=load_from_sym, uid=1, extern=N}: A-instructions/40-load.c:6:1
+
 A-instructions/40-load.c:6:1: debug: function: begin load_from_sym
 	debug: function: argument 1
 A-instructions/40-load.c:6:16: debug: operand-symbol: sp >>> arg
@@ -66,6 +68,7 @@ A-instructions/40-load.c:8:10: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=2, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:8:10
 A-instructions/40-load.c:7:1: debug: function: end load_from_sym
+
 A-instructions/40-load.c:12:1: debug: operand-symbol: sp >>> load_from_arg
         {kind=node, initializer=N, scope=file}
 int static [signed] [toplevel] load_from_arg( ... )
@@ -79,6 +82,7 @@ A-instructions/40-load.c:12:1: debug: operand-symbol: cl <<< load_from_arg
                         <type-item> {name=(anonymous)}
                             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=load_from_arg, uid=2, extern=N}: A-instructions/40-load.c:12:1
+
 A-instructions/40-load.c:12:1: debug: function: begin load_from_arg
 	debug: function: argument 1
 A-instructions/40-load.c:12:16: debug: operand-symbol: sp >>> arg
@@ -145,6 +149,7 @@ A-instructions/40-load.c:14:10: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=5, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:14:10
 A-instructions/40-load.c:13:1: debug: function: end load_from_arg
+
 A-instructions/40-load.c:18:1: debug: operand-symbol: sp >>> load_from_reg
         {kind=node, initializer=N, scope=file}
 int static [signed] [toplevel] load_from_reg( ... )
@@ -156,6 +161,7 @@ A-instructions/40-load.c:18:1: debug: operand-symbol: cl <<< load_from_reg
                 <type-item> {name=arg}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=load_from_reg, uid=3, extern=N}: A-instructions/40-load.c:18:1
+
 A-instructions/40-load.c:18:1: debug: function: begin load_from_reg
 	debug: function: argument 1
 A-instructions/40-load.c:18:16: debug: operand-symbol: sp >>> arg
@@ -260,14 +266,14 @@ int static [toplevel] j[0]
 	debug: initializer-expression: start
 	debug: initializer-expression: sp >>>
                 store.32    $0 -> 0[j]
-A-instructions/40-load.c:3:12: debug: operand-symbol: sp >>> j
-                        {kind=node, initializer=Y, scope=file}
-int static [toplevel] j[0]
- = 
-	movi.32		v5,$0
-	insert v5 at [0:0] of j
-	movi.32		v6,$1
-	insert v6 at [4:0] of j
+	debug: operand-pseudo: sp >>> cached >>> cl
+                        j
+                        <operand> {kind=VAR, scope=STATIC}
+                            <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                                <type-item> {name=(anonymous)}
+                                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                            <operand-var> {uid=10, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
+                            (skipped for possible initialization infloop)
 	debug: operand-pseudo: sp >>>
                         $0
 	debug: operand-pseudo: cl <<<
@@ -471,4 +477,6 @@ A-instructions/40-load.c:20:11: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=11, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:11
 A-instructions/40-load.c:19:1: debug: function: end load_from_reg
+
 A-instructions/40-load.c:19:1: debug: file: end (last symbol)
+

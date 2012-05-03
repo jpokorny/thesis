@@ -1,3 +1,4 @@
+
 A-instructions/08-add.c:3:1: debug: file: begin (first symbol)
 A-instructions/08-add.c:3:1: debug: operand-symbol: sp >>> binop_char
         {kind=node, initializer=N, scope=file}
@@ -12,6 +13,7 @@ A-instructions/08-add.c:3:1: debug: operand-symbol: cl <<< binop_char
                 <type-item> {name=b}
                     <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=binop_char, uid=1, extern=N}: A-instructions/08-add.c:3:1
+
 A-instructions/08-add.c:3:1: debug: function: begin binop_char
 	debug: function: argument 1
 A-instructions/08-add.c:3:13: debug: operand-symbol: sp >>> a
@@ -152,6 +154,7 @@ A-instructions/08-add.c:5:17: debug: instruction: cl <<<
                     <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/08-add.c:5:17
 A-instructions/08-add.c:4:1: debug: function: end binop_char
+
 A-instructions/08-add.c:9:1: debug: operand-symbol: sp >>> binop_int
         {kind=node, initializer=N, scope=file}
 int static [signed] [toplevel] binop_int( ... )
@@ -165,6 +168,7 @@ A-instructions/08-add.c:9:1: debug: operand-symbol: cl <<< binop_int
                 <type-item> {name=b}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=binop_int, uid=2, extern=N}: A-instructions/08-add.c:9:1
+
 A-instructions/08-add.c:9:1: debug: function: begin binop_int
 	debug: function: argument 1
 A-instructions/08-add.c:9:12: debug: operand-symbol: sp >>> a
@@ -236,6 +240,7 @@ A-instructions/08-add.c:11:17: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/08-add.c:11:17
 A-instructions/08-add.c:10:1: debug: function: end binop_int
+
 A-instructions/08-add.c:15:1: debug: operand-symbol: sp >>> binop_unsigned
         {kind=node, initializer=N, scope=file}
 unsigned int static [unsigned] [toplevel] binop_unsigned( ... )
@@ -249,6 +254,7 @@ A-instructions/08-add.c:15:1: debug: operand-symbol: cl <<< binop_unsigned
                 <type-item> {name=b}
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
             <constant-fnc> {name=binop_unsigned, uid=3, extern=N}: A-instructions/08-add.c:15:1
+
 A-instructions/08-add.c:15:1: debug: function: begin binop_unsigned
 	debug: function: argument 1
 A-instructions/08-add.c:15:17: debug: operand-symbol: sp >>> a
@@ -320,6 +326,7 @@ A-instructions/08-add.c:17:17: debug: instruction: cl <<<
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                     <operand-var> {uid=12, name=(none), artificial=Y, initialized=N}: A-instructions/08-add.c:17:17
 A-instructions/08-add.c:16:1: debug: function: end binop_unsigned
+
 A-instructions/08-add.c:21:1: debug: operand-symbol: sp >>> binop_float
         {kind=node, initializer=N, scope=file}
 float static [toplevel] binop_float( ... )
@@ -333,6 +340,7 @@ A-instructions/08-add.c:21:1: debug: operand-symbol: cl <<< binop_float
                 <type-item> {name=b}
                     <type> {kind=REAL, uid=20, name=float, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=binop_float, uid=4, extern=N}: A-instructions/08-add.c:21:1
+
 A-instructions/08-add.c:21:1: debug: function: begin binop_float
 	debug: function: argument 1
 A-instructions/08-add.c:21:14: debug: operand-symbol: sp >>> a
@@ -404,6 +412,7 @@ A-instructions/08-add.c:23:17: debug: instruction: cl <<<
                     <type> {kind=REAL, uid=20, name=float, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=15, name=(none), artificial=Y, initialized=N}: A-instructions/08-add.c:23:17
 A-instructions/08-add.c:22:1: debug: function: end binop_float
+
 A-instructions/08-add.c:27:1: debug: operand-symbol: sp >>> binop_double
         {kind=node, initializer=N, scope=file}
 double static [toplevel] binop_double( ... )
@@ -417,6 +426,7 @@ A-instructions/08-add.c:27:1: debug: operand-symbol: cl <<< binop_double
                 <type-item> {name=b}
                     <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=binop_double, uid=5, extern=N}: A-instructions/08-add.c:27:1
+
 A-instructions/08-add.c:27:1: debug: function: begin binop_double
 	debug: function: argument 1
 A-instructions/08-add.c:27:15: debug: operand-symbol: sp >>> a
@@ -488,6 +498,7 @@ A-instructions/08-add.c:29:17: debug: instruction: cl <<<
                     <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=18, name=(none), artificial=Y, initialized=N}: A-instructions/08-add.c:29:17
 A-instructions/08-add.c:28:1: debug: function: end binop_double
+
 A-instructions/08-add.c:33:1: debug: operand-symbol: sp >>> binop_int_int_uint
         {kind=node, initializer=N, scope=file}
 int static [signed] [toplevel] binop_int_int_uint( ... )
@@ -501,6 +512,7 @@ A-instructions/08-add.c:33:1: debug: operand-symbol: cl <<< binop_int_int_uint
                 <type-item> {name=b}
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
             <constant-fnc> {name=binop_int_int_uint, uid=6, extern=N}: A-instructions/08-add.c:33:1
+
 A-instructions/08-add.c:33:1: debug: function: begin binop_int_int_uint
 	debug: function: argument 1
 A-instructions/08-add.c:33:21: debug: operand-symbol: sp >>> a
@@ -572,6 +584,7 @@ A-instructions/08-add.c:35:17: debug: instruction: cl <<<
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                     <operand-var> {uid=21, name=(none), artificial=Y, initialized=N}: A-instructions/08-add.c:35:17
 A-instructions/08-add.c:34:1: debug: function: end binop_int_int_uint
+
 A-instructions/08-add.c:39:1: debug: operand-symbol: sp >>> binop_double_double_int
         {kind=node, initializer=N, scope=file}
 double static [toplevel] binop_double_double_int( ... )
@@ -585,6 +598,7 @@ A-instructions/08-add.c:39:1: debug: operand-symbol: cl <<< binop_double_double_
                 <type-item> {name=b}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=binop_double_double_int, uid=7, extern=N}: A-instructions/08-add.c:39:1
+
 A-instructions/08-add.c:39:1: debug: function: begin binop_double_double_int
 	debug: function: argument 1
 A-instructions/08-add.c:39:26: debug: operand-symbol: sp >>> a
@@ -679,6 +693,7 @@ A-instructions/08-add.c:41:17: debug: instruction: cl <<<
                     <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=25, name=(none), artificial=Y, initialized=N}: A-instructions/08-add.c:41:17
 A-instructions/08-add.c:40:1: debug: function: end binop_double_double_int
+
 A-instructions/08-add.c:44:13: debug: operand-symbol: sp >>> binop_ptr_ptr_int
         {kind=node, initializer=N, scope=file}
 void *static [toplevel] binop_ptr_ptr_int( ... )
@@ -696,6 +711,7 @@ A-instructions/08-add.c:44:13: debug: operand-symbol: cl <<< binop_ptr_ptr_int
                 <type-item> {name=b}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=binop_ptr_ptr_int, uid=8, extern=N}: A-instructions/08-add.c:44:13
+
 A-instructions/08-add.c:44:13: debug: function: begin binop_ptr_ptr_int
 	debug: function: argument 1
 A-instructions/08-add.c:45:20: debug: operand-symbol: sp >>> a
@@ -804,6 +820,7 @@ A-instructions/08-add.c:47:17: debug: instruction: cl <<<
                             <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=29, name=(none), artificial=Y, initialized=N}: A-instructions/08-add.c:47:17
 A-instructions/08-add.c:46:1: debug: function: end binop_ptr_ptr_int
+
 A-instructions/08-add.c:50:13: debug: operand-symbol: sp >>> binop_ptr_int_ptr
         {kind=node, initializer=N, scope=file}
 void *static [toplevel] binop_ptr_int_ptr( ... )
@@ -821,6 +838,7 @@ A-instructions/08-add.c:50:13: debug: operand-symbol: cl <<< binop_ptr_int_ptr
                         <type-item> {name=(anonymous)}
                             <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=binop_ptr_int_ptr, uid=9, extern=N}: A-instructions/08-add.c:50:13
+
 A-instructions/08-add.c:50:13: debug: function: begin binop_ptr_int_ptr
 	debug: function: argument 1
 A-instructions/08-add.c:51:20: debug: operand-symbol: sp >>> a
@@ -929,6 +947,7 @@ A-instructions/08-add.c:53:11: debug: instruction: cl <<<
                             <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=33, name=(none), artificial=Y, initialized=N}: A-instructions/08-add.c:53:11
 A-instructions/08-add.c:52:1: debug: function: end binop_ptr_int_ptr
+
 A-instructions/08-add.c:57:1: debug: operand-symbol: sp >>> binop_int_zero
         {kind=node, initializer=N, scope=file}
 int static [signed] [toplevel] binop_int_zero( ... )
@@ -940,6 +959,7 @@ A-instructions/08-add.c:57:1: debug: operand-symbol: cl <<< binop_int_zero
                 <type-item> {name=a}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=binop_int_zero, uid=10, extern=N}: A-instructions/08-add.c:57:1
+
 A-instructions/08-add.c:57:1: debug: function: begin binop_int_zero
 	debug: function: argument 1
 A-instructions/08-add.c:57:17: debug: operand-symbol: sp >>> a
@@ -971,6 +991,7 @@ A-instructions/08-add.c:59:17: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=34, name=a, artificial=N, initialized=N}: A-instructions/08-add.c:57:17
 A-instructions/08-add.c:58:1: debug: function: end binop_int_zero
+
 A-instructions/08-add.c:63:1: debug: operand-symbol: sp >>> binop_int_one
         {kind=node, initializer=N, scope=file}
 int static [signed] [toplevel] binop_int_one( ... )
@@ -982,6 +1003,7 @@ A-instructions/08-add.c:63:1: debug: operand-symbol: cl <<< binop_int_one
                 <type-item> {name=a}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=binop_int_one, uid=11, extern=N}: A-instructions/08-add.c:63:1
+
 A-instructions/08-add.c:63:1: debug: function: begin binop_int_one
 	debug: function: argument 1
 A-instructions/08-add.c:63:16: debug: operand-symbol: sp >>> a
@@ -1046,4 +1068,6 @@ A-instructions/08-add.c:65:17: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=36, name=(none), artificial=Y, initialized=N}: A-instructions/08-add.c:65:17
 A-instructions/08-add.c:64:1: debug: function: end binop_int_one
+
 A-instructions/08-add.c:64:1: debug: file: end (last symbol)
+

@@ -1,3 +1,4 @@
+
 A-instructions/02-ret.c:2:12: debug: file: begin (first symbol)
 A-instructions/02-ret.c:4:1: debug: operand-symbol: sp >>> ret_void
         {kind=node, initializer=N, scope=file}
@@ -8,6 +9,7 @@ A-instructions/02-ret.c:4:1: debug: operand-symbol: cl <<< ret_void
                 <type-item> {name=(anonymous)}
                     <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=ret_void, uid=1, extern=N}: A-instructions/02-ret.c:4:1
+
 A-instructions/02-ret.c:4:1: debug: function: begin ret_void
 A-instructions/02-ret.c:4:1: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/02-ret.c:4:1
@@ -24,6 +26,7 @@ A-instructions/02-ret.c:6:10: debug: instruction: cl <<<
             <ret-src>
                 <operand> {kind=VOID, scope=N/A}
 A-instructions/02-ret.c:5:1: debug: function: end ret_void
+
 A-instructions/02-ret.c:10:1: debug: operand-symbol: sp >>> ret_int_constant
         {kind=node, initializer=N, scope=file}
 int static [signed] [toplevel] ret_int_constant( ... )
@@ -33,6 +36,7 @@ A-instructions/02-ret.c:10:1: debug: operand-symbol: cl <<< ret_int_constant
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=ret_int_constant, uid=2, extern=N}: A-instructions/02-ret.c:10:1
+
 A-instructions/02-ret.c:10:1: debug: function: begin ret_int_constant
 A-instructions/02-ret.c:10:1: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/02-ret.c:10:1
@@ -57,6 +61,7 @@ A-instructions/02-ret.c:12:10: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <constant-int> [42]
 A-instructions/02-ret.c:11:1: debug: function: end ret_int_constant
+
 A-instructions/02-ret.c:16:1: debug: operand-symbol: sp >>> ret_double_constant
         {kind=node, initializer=N, scope=file}
 double static [toplevel] ret_double_constant( ... )
@@ -66,6 +71,7 @@ A-instructions/02-ret.c:16:1: debug: operand-symbol: cl <<< ret_double_constant
                 <type-item> {name=(anonymous)}
                     <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=ret_double_constant, uid=3, extern=N}: A-instructions/02-ret.c:16:1
+
 A-instructions/02-ret.c:16:1: debug: function: begin ret_double_constant
 A-instructions/02-ret.c:16:1: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/02-ret.c:16:1
@@ -107,6 +113,7 @@ A-instructions/02-ret.c:18:10: debug: instruction: cl <<<
                     <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/02-ret.c:18:10
 A-instructions/02-ret.c:17:1: debug: function: end ret_double_constant
+
 A-instructions/02-ret.c:22:1: debug: operand-symbol: sp >>> ret_expression
         {kind=node, initializer=N, scope=file}
 int static [signed] [toplevel] ret_expression( ... )
@@ -116,6 +123,7 @@ A-instructions/02-ret.c:22:1: debug: operand-symbol: cl <<< ret_expression
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=ret_expression, uid=4, extern=N}: A-instructions/02-ret.c:22:1
+
 A-instructions/02-ret.c:22:1: debug: function: begin ret_expression
 A-instructions/02-ret.c:22:1: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/02-ret.c:22:1
@@ -196,6 +204,7 @@ A-instructions/02-ret.c:24:14: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=4, name=(none), artificial=Y, initialized=N}: A-instructions/02-ret.c:24:14
 A-instructions/02-ret.c:23:1: debug: function: end ret_expression
+
 A-instructions/02-ret.c:27:19: debug: operand-symbol: sp >>> ret_string
         {kind=node, initializer=N, scope=file}
 char const *static [toplevel] ret_string( ... )
@@ -207,6 +216,7 @@ A-instructions/02-ret.c:27:19: debug: operand-symbol: cl <<< ret_string
                         <type-item> {name=(anonymous)}
                             <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=ret_string, uid=5, extern=N}: A-instructions/02-ret.c:27:19
+
 A-instructions/02-ret.c:27:19: debug: function: begin ret_string
 A-instructions/02-ret.c:27:19: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/02-ret.c:27:19
@@ -286,6 +296,7 @@ A-instructions/02-ret.c:30:10: debug: instruction: cl <<<
                                                 <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                         <constant-string> [foo]
 A-instructions/02-ret.c:29:1: debug: function: end ret_string
+
 A-instructions/02-ret.c:34:1: debug: operand-symbol: sp >>> ret_arg
         {kind=node, initializer=N, scope=file}
 int static [signed] [toplevel] ret_arg( ... )
@@ -297,6 +308,7 @@ A-instructions/02-ret.c:34:1: debug: operand-symbol: cl <<< ret_arg
                 <type-item> {name=a}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=ret_arg, uid=6, extern=N}: A-instructions/02-ret.c:34:1
+
 A-instructions/02-ret.c:34:1: debug: function: begin ret_arg
 	debug: function: argument 1
 A-instructions/02-ret.c:34:10: debug: operand-symbol: sp >>> a
@@ -328,4 +340,6 @@ A-instructions/02-ret.c:36:10: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=6, name=a, artificial=N, initialized=N}: A-instructions/02-ret.c:34:10
 A-instructions/02-ret.c:35:1: debug: function: end ret_arg
+
 A-instructions/02-ret.c:35:1: debug: file: end (last symbol)
+
