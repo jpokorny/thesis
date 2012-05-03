@@ -1,0 +1,32 @@
+From adfe61add1356268d314c64e495b43cd9b588b9f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jan=20Pokorn=C3=BD?= <pokorny_jan@seznam.cz>
+Date: Thu, 3 May 2012 16:46:04 +0200
+Subject: [PATCH] unssa: track use of newly added pseudo
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Currently, it is a completely "isolated island" from backend
+point of view as it also lacks pseudo->def information.
+
+Signed-off-by: Jan Pokorný <pokorny_jan@seznam.cz>
+---
+ unssa.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/unssa.c b/unssa.c
+index 3eea9b2..382095d 100644
+--- a/unssa.c
++++ b/unssa.c
+@@ -55,7 +55,7 @@ static void replace_phi_node(struct instruction *phi)
+ 	track_phi_uses(phi);
+ 
+ 	phi->opcode = OP_COPY;
+-	phi->src = tmp;
++	use_pseudo(phi, tmp, &phi->src);
+ 
+ 	// FIXME: free phi->phi_list;
+ }
+-- 
+1.7.3.4
+
