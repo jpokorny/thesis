@@ -1,0 +1,37 @@
+#define VAR  i
+#ifndef VAR_DECL
+# define VAR_DECL  static int VAR
+#endif
+
+#define ARR  j
+#ifndef ARR_DECL
+# define ARR_DECL  static int ARR[] = { 0, 1};
+#endif
+
+#ifndef SIDEEFFECT
+# define SIDEEFFECT(x) x++
+#endif
+
+VAR_DECL;
+ARR_DECL;
+
+static int load_from_sym(int arg)
+{
+    return VAR;
+}
+
+static int load_from_arg(int *arg)
+{
+    return arg[1];
+}
+
+static int load_from_reg(int arg)
+{
+    return ARR[arg];
+}
+
+
+/*
+    clsp-options:   -d 1848
+    vim: ft=c:
+ */

@@ -182,7 +182,9 @@ static inline struct cl_initializer *
 alloc_cl_initializer_safe(void)
 {
     struct cl_initializer *ret = alloc_cl_initializer();
+#if NONZERO_NULL
     ret->next = NULL;
+#endif
     return ret;
 }
 
@@ -191,7 +193,9 @@ static inline struct cl_accessor *
 alloc_cl_accessor_safe(void)
 {
     struct cl_accessor *ret = alloc_cl_accessor();
+#if NONZERO_NULL
     ret->next = NULL;
+#endif
     return ret;
 }
 #endif
@@ -633,6 +637,7 @@ scope_from_register(const pseudo_t pseudo, const struct basic_block *bb)
         if (pu->insn->bb != bb)
             return CL_SCOPE_FUNCTION;
     END_FOR_EACH_PTR(pu);
+
     return CL_SCOPE_BB;
 }
 
@@ -1230,15 +1235,15 @@ op_append_accessor(struct cl_operand *op, struct cl_accessor *ac)
 static inline struct cl_accessor *
 op_prepend_accessor(struct cl_operand *op, struct cl_accessor *ac)
 {
-    struct cl_accessor *ac_cur = ac;
+    struct cl_accessor *ac_end = ac;
 
-    if (!ac_cur)
-        ac_cur = alloc_cl_accessor();
+    if (!ac)
+        ac = ac_end = alloc_cl_accessor();
     else
-        while (ac_cur->next)
-            ac_cur = ac_cur->next;
+        while (ac_end->next)
+            ac_end = ac_end->next;
 
-    ac_cur->next = op->accessor;
+    ac_end->next = op->accessor;
     op->accessor = ac;
 
     return ac;
@@ -1296,6 +1301,15 @@ op_dig_step(const struct cl_operand **op_composite, unsigned insn_offset)
                     accessor_array_index(ac, indexes.quot);
                 // the remainder serves for next index-based-deref. rounds
                 retval = indexes.rem;
+            } else {
+                /* {deref, ref} = {} */
+                if (CL_ACCESSOR_REF == op->accessor->code) {
+                    struct cl_operand *clone = op_copy(op, copy_shallow_ac_null);
+                    op_prepend_accessor(clone, op->accessor->next);
+                    clone->type = op->accessor->type;
+                    *op_composite = clone;
+                    return retval;
+                }
             }
             break;
         }
@@ -1321,6 +1335,9 @@ op_accessible(const struct cl_operand *op)
 {
     if (op->code == CL_OPERAND_VOID)
         return false;
+
+    if (op->accessor)
+        return true;
 
     switch (op->type->code) {
         /* all these imply CL_VAR */
@@ -1793,24 +1810,78 @@ static struct cl_insn *
 insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
 {
     const struct cl_type *t1, *t2;
-    struct cl_operand *src2;
+    struct cl_operand *src1, *src2, *dst;
     struct cl_instruction *next;
 
-    BINOP(cli)->dst  = op_from_pseudo(*insn, (*insn)->target);
-    BINOP(cli)->src1 = op_from_pseudo(*insn, (*insn)->src1);
+    BINOP(cli)->dst  = dst  = op_from_pseudo(*insn, (*insn)->target);
+    BINOP(cli)->src1 = src1 = op_from_pseudo(*insn, (*insn)->src1);
     BINOP(cli)->src2 = src2 = op_from_pseudo(*insn, (*insn)->src2);
 
-    t1 = BINOP(cli)->src1->type;
-    t2 = BINOP(cli)->src2->type;
+    t1 = src1->type;
+    t2 = src2->type;
 
-    /* for pointer vs. non-pointer, there are some special cases */
-    if (cl_type_ptrlike(t1->code) && !cl_type_ptrlike(t2->code)) {
-        /*
-            but only if second operand is integral which means
-            we are heading towards CL_BINOP_POINTER_PLUS
-            (asymmetrical pointer +- int operation)
-         */
-        if (CL_TYPE_INT == t2->code) {
+    /*
+        for pointer vs. non-pointer, there are some special cases
+     */
+    if (cl_type_ptrlike(t1->code) != cl_type_ptrlike(t2->code)) {
+        if (CL_TYPE_INT == t1->code && CL_TYPE_ARRAY == t2->code) {
+            /*
+                let's start with the most-painful-to-grasp one:
+                "int A + array(T)" denotes late phase of accessing array,
+                where the int A is computed offset from the start of
+                the array;
+                we just rewrite this addition to assign of:
+
+                    type: ptr(T)  (this top-level is implicit)
+                      - accessor: ref on type T
+                        - accessor: deref-array on type array(T) with index(*)
+
+                (*) index operand is available by backtracing the origin
+                    of A as it is defined as A <- B, sizeof(T)
+
+                note that this deep type information is the same as without
+                any intervention when viewed only on the surface, but carries
+                the necessary information for upcoming LOAD instruction to
+                be emitted as correct array access (unlike the akward, yet
+                proper code as without this intervention)
+
+                the downside is that A and B will most probably be dead
+                variables, but (1) not 100% due to contant propagation and
+                (2) CL infrastructure is capable of dealing with it
+             */
+            assert(!src2->accessor);
+            src2 = op_copy(src2, copy_shallow_var_deep);
+
+            /* build the accessor chain from the back */
+
+            struct cl_accessor *ac = op_prepend_accessor(src2, NULL);
+            ac->code = CL_ACCESSOR_DEREF_ARRAY;
+            ac->type = src2->type;
+
+            struct instruction *def_offset = (*insn)->src1->def;
+            assert(OP_MULS == def_offset->opcode && def_offset->src1->priv);
+
+            ac->data.array.index = def_offset->src1->priv;
+
+            ac = op_prepend_accessor(src2, NULL);
+            ac->code = CL_ACCESSOR_REF;
+            ac->type = src2->type->items->type;
+
+            src2->type = dst->type;
+
+            /* set adjusted operand for load to see; do not emitting anything */
+            (*insn)->target->priv = src2;
+
+            *insn = NULL;
+            return NULL;
+
+        } else if (CL_TYPE_INT == t2->code) {
+            /*
+                the only other valid possibility is when second operand is
+                integral which means we are heading towards
+                CL_BINOP_POINTER_PLUS (asymmetrical pointer +- int operation)
+
+             */
             if (CL_BINOP_PLUS == BINOP(cli)->code) {
 
                 BINOP(cli)->code = CL_BINOP_POINTER_PLUS;
@@ -1818,8 +1889,7 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
             } else if (CL_BINOP_MINUS == BINOP(cli)->code
               && CL_OPERAND_CST == src2->code) {
 
-                BINOP(cli)->src2 =
-                    op_make_cst_int(0 - CST_INT(BINOP(cli)->src2)->value);
+                BINOP(cli)->src2 = op_make_cst_int(0 - CST_INT(src2)->value);
                 BINOP(cli)->code = CL_BINOP_POINTER_PLUS;
 
             } else if (CL_BINOP_MINUS == BINOP(cli)->code) {
@@ -1830,7 +1900,7 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
                     -- in fact we make a copy of both instruction and second
                     operand pseudo as we need to "precache" its CL counterpart
                     we evaluated here already and this change has to be local
-                    to this operation only
+                    to this instruction only
                  */
                 cli->code = CL_INSN_UNOP;
                 UNOP(cli)->code = CL_UNOP_MINUS;
@@ -1840,14 +1910,14 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
                 struct instruction *next = __alloc_instruction(0);
                 pseudo_t modified_src2 = __alloc_pseudo(0);
 
-                *next = **insn;              /* instruction shallow copy */
+                *next = **insn;                  /* instruction shallow copy */
                 next->opcode = OP_ADD;
 
-                *modified_src2 = *(*insn)->src2;  /* pseudo shallow copy */
+                *modified_src2 = *(*insn)->src2;  /* int pseudo shallow copy */
                 modified_src2->priv = UNOP(cli)->dst;
 
                 next->src2 = modified_src2;
-                *insn = next;
+                *insn = next; /* proceed the modified copy in next the round */
 
                 return cli;
 
