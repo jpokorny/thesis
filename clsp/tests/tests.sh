@@ -28,6 +28,7 @@ CLSP_RUNNER=../clsp-run
 
 DIFF="diff -q"
 SIMDIFF=../simdiff
+MAKEINV=../makeinv
 INSPECTDIFF=meld
 
 : ${SHOW_OK:=1}
@@ -54,12 +55,12 @@ print_similarity_ok () {
         printf "\033[32m%s\033[0m\n" "$2"
     fi
 }
-#print_bad ()            { printf " \033[31mBAD\033[0m\n"; }
+print_bad ()            { printf " \033[31mBAD\033[0m\n"; }
 print_similarity_bad () { printf "\033[31m%s\033[0m\n" "$2"; }
 
 ok ()      { let CNT_OK+=1;  print_file "$1"; print_ok  "$@"; }
 sim_ok ()  { let CNT_OK+=1;  print_file "$1"; print_similarity_ok "$@"; }
-#bad ()     { let CNT_BAD+=1; print_file "$1"; print_bad "$@"; }
+bad ()     { let CNT_BAD+=1; print_file "$1"; print_bad "$@"; }
 sim_bad () { let CNT_BAD+=1; print_file "$1"; print_similarity_bad "$@"; }
 
 warn () { print_file $1; print_warn "$@"; }
@@ -130,7 +131,8 @@ do_tests () {
         dstfile="${dstdir}/$(basename "${src}")"
         mkdir -p "${dstdir}" 2>/dev/null
         opts="$(grep "clsp-options:" "${src}.c" | sed 's/.*: *\(.\+\)/\1/')"
-        limit="$(grep "simdiff-limit:" "${src}.c" | sed 's/.*: *\([0-9.]\+\)/\1/')"
+        #limit="$(grep "simdiff-limit:" "${src}.c" | sed 's/.*: *\([0-9.]\+\)/\1/')"
+        makeinv="$(grep "makeinv:" "${src}.c" | sed 's/.*: *\(.\+\)/\1/')"
 
         run_clsp "${opts}" "${src}.c" \
             "${dstfile}.outerr" "${dstfile}.debug" "${dstfile}.warn"
@@ -139,12 +141,21 @@ do_tests () {
         [ -s "${dstfile}.outerr" ] && warn "${src}" "nonzero file ${dstfile}.outerr"
         [ -s "${dstfile}.warn" ] && warn "${src}" "nonzero file ${dstfile}.warn"
 
-        if ${DIFF} "${src}.debug.ref" "${dstfile}.debug" >/dev/null; then
+        if [ "${makeinv}" = "yes" ]; then
+            ${MAKEINV} "${src}.debug.ref" "${dstfile}.debug" \
+                "${dstfile}.debug.inv" 2>/dev/null
+            tocheck="${dstfile}.debug.inv"
+        else
+            tocheck="${dstfile}.debug"
+        fi
+
+        if ${DIFF} "${src}.debug.ref" "${tocheck}" >/dev/null; then
             ok "${src}"
         else
-            sim=$(${SIMDIFF} "${src}.debug.ref" "${dstfile}.debug" ${limit}) \
-                && sim_ok  "${src}" "${sim}"                                 \
-                || sim_bad "${src}" "${sim}"
+            bad "${src}"
+            #sim=$(${SIMDIFF} "${src}.debug.ref" "${dstfile}.debug" ${limit}) \
+            #    && sim_ok  "${src}" "${sim}"                                 \
+            #    || sim_bad "${src}" "${sim}"
             [ $INSPECT -ne 0 ] \
                 && $INSPECTDIFF "${src}.debug.ref" "${dstfile}.debug"
         fi

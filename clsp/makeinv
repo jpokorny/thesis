@@ -1,4 +1,21 @@
 #!/usr/bin/env python
+# Copyright 2012 Jan Pokorny <xpokor04@stud.fit.vutbr.cz,
+#                             pokorny_jan@seznam.cz>
+#
+# This file is part of clsp/predator.
+#
+# predator is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# any later version.
+#
+# predator is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with predator.  If not, see <http://www.gnu.org/licenses/>.
 """/
 Program that for two input files (presumably representing a linearized code)
 tries to "adjust" (memory) addresses and optionally register numbers
@@ -19,20 +36,20 @@ Note: currently with sparse, random numbers with "bad pseudo types" are quite
 # for `file=stderr' argument with older Python versions (2.6 probably minimum)
 from __future__ import print_function
 
-__author__ = "Jan Pokorny <pokorny_jan@seznam.cz>"
+__author__ = "Jan Pokorny <xpokor04@stud.fit.vutbr.cz,pokorny_jan@seznam.cz>"
 
-from sys import argv, stdout, stderr, exit
+from sys import argv, stdout, stderr, exit as sysexit
 from os.path import exists, split
 from os import stat, makedirs
 import re
 
 
-VERBOSITY_FILE_TO_PROCESS    = True
+VERBOSITY_FILE_TO_PROCESS    = False
 VERBOSITY_NOTES              = False
 VERBOSITY_MATCHES_DIFFER_MAX = 10
 
 # tolerated corresponding lines displacement between the two files
-OFFSET_LIMIT                 = 6
+OFFSET_LIMIT                 = 0
 # whether to redefine already planned substitution
 DO_SUBST_REDEF               = True
 
@@ -43,7 +60,9 @@ DO_SUBST_REDEF               = True
 
 # address: hexadecimal number (of arbitrary length) prefixed with "0x"
 #          but not with "$0x" (which denotes immediate value)
-RE_ADDR_STR   = r"(:^|[^$]|\B)(?P<addr>0x[0-9a-fA-F]+\b)"
+#RE_ADDR_STR   = r"(?:^|[^$]|\B)(?P<addr>0x[0-9a-fA-F]+\b)"
+# version matching only against BB "labels"
+RE_ADDR_STR   = r"(?:.L)(?P<addr>0x[0-9a-fA-F]+\b)"
 # register number: decimal number (of arbitrary length) prefixed with "%r"
 RE_REGNUM_STR = r"(?P<regnum>%r[1-9][0-9]*\b)"
 
@@ -187,7 +206,7 @@ def addr_reg_adj(adj_text, src_text, pattern, subst_apply_f, dest_file="-"):
             if src_cnt > 0:   # `adj_text' position can be ahead `src_text'
                 src_cnt -= 1  # (or do not change at all?)
             if offset_max < OFFSET_LIMIT:
-               offset_max += 1
+                offset_max += 1
         adj_cnt += 1
 
     fdst.write(subst_apply_f(matches_dict, adj_text))
@@ -211,12 +230,12 @@ if __name__ == "__main__":
             f = open(argv[2], "r"); src_text = f.read(); f.close()
             if len(argv) >= 4:
                 dest_file = argv[3]
-            exit(addr_reg_adj(adj_text, src_text, pattern, subst_apply_f,
+            sysexit(addr_reg_adj(adj_text, src_text, pattern, subst_apply_f,
                               dest_file))
         else:
-            print("error: cannot read input file(s)", file=stderr); exit(1)
+            print("error: cannot read input file(s)", file=stderr); sysexit(1)
     else:
         # "f" for be faster/less accurate proceeding
         # "r" for involve register numbers
         print("Usage: %s [-f] [-r] adj_file src_file [dest_file]"%argv[0])
-        exit(2)
+        sysexit(2)
