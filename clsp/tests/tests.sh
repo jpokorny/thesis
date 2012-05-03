@@ -42,7 +42,7 @@ declare -i CNT_OK=0
 declare -i CNT_BAD=0
 
 print_file () { printf "%-56s" "$1"; }
-print_warn () { echo "warning: $2"; }
+print_warn () { printf "warning\n$2\n"; }
 
 print_ok () {
     if [ $SHOW_OK -ne 0 ]; then
@@ -130,7 +130,7 @@ do_tests () {
         dstfile="${dstdir}/$(basename "${src}")"
         mkdir -p "${dstdir}" 2>/dev/null
         opts="$(grep "clsp-options:" "${src}.c" | sed 's/.*: *\(.\+\)/\1/')"
-        limit="$(grep "simdiff-limit:" "${src}.c" | sed 's/.*: *\(.\+\)/\1/')"
+        limit="$(grep "simdiff-limit:" "${src}.c" | sed 's/.*: *\([0-9.]\+\)/\1/')"
 
         run_clsp "${opts}" "${src}.c" \
             "${dstfile}.outerr" "${dstfile}.debug" "${dstfile}.warn"
@@ -142,8 +142,8 @@ do_tests () {
         if ${DIFF} "${src}.debug.ref" "${dstfile}.debug" >/dev/null; then
             ok "${src}"
         else
-            sim=$(${SIMDIFF} "${src}.debug.ref" "${dstfile}.debug" "${limit}") \
-                && sim_ok  "${src}" "${sim}"                                   \
+            sim=$(${SIMDIFF} "${src}.debug.ref" "${dstfile}.debug" ${limit}) \
+                && sim_ok  "${src}" "${sim}"                                 \
                 || sim_bad "${src}" "${sim}"
             [ $INSPECT -ne 0 ] \
                 && $INSPECTDIFF "${src}.debug.ref" "${dstfile}.debug"
