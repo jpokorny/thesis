@@ -580,43 +580,61 @@ type_from_symbol(struct symbol *raw_symbol, struct ptr_db_item **ptr)
 }
 
 static struct cl_type *
-type_from_instruction(struct instruction *insn, const pseudo_t pseudo)
+type_from_register(const pseudo_t pseudo)
 {
     struct pseudo_user *pu;
     struct symbol *type = NULL;
 
-    assert(insn);  /* pseudo->def == NULL for copy.32 (?) */
-
     /*
         most accurate way of getting the output type (type of target
         pseudo) when not properly exposed by some instructions
-        (OP_CALL, binary comparisons)
+        (OP_CALL, binary comparisons) or instruction is not directly
+        available from pseudo->def
 
         check whether immediate user (instruction) of target pseudo
-        has "authority to decide the type" (casts and OP_RET)
+        has "authority to decide the type" (casts, OP_RET, OP_COPY)
 
         it is desired to have the pseudo type correct from the beginning,
         but also as we cache the whole pseudo, it is a must to do
         this forward analysis (currently of depth 1)
+
+        note: the target of CALL may not be used at all (no users), still
+              it (probably) cannot be removed by sparse optimizations
      */
-    if (insn->target == pseudo && PSEUDO_REG == pseudo->type) {
+    if (!ptr_list_empty(pseudo->users)) {
         pu = SP(first_ptr_list, (struct ptr_list *) pseudo->users);
-        assert(pu->insn);
-        if (OP_CAST == pu->insn->opcode
-          || OP_SCAST == pu->insn->opcode
-          || OP_FPCAST == pu->insn->opcode
-          || OP_PTRCAST == pu->insn->opcode)
-            type = pu->insn->orig_type;
-        else if (OP_RET == pu->insn->opcode)
-            type = pu->insn->type;
-        if (type)
-            return type_from_symbol(type, NULL);
+        switch (pu->insn->opcode) {
+            case OP_CAST:
+            case OP_SCAST:
+            case OP_FPCAST:
+            case OP_PTRCAST:
+                type = pu->insn->orig_type;
+                break;
+            case OP_RET:
+            case OP_COPY:
+                /* OP_COPY needs this patch applied:
+                   http://comments.gmane.org/gmane.comp.parsers.sparse/2802 */
+                type = pu->insn->type;
+                break;
+            default:
+                /* other instructions may have an incorrect type as well (?) */
+                assert(pseudo->def);
+                break;
+        }
     }
 
-    if (insn)  /* XXX see assert above */
-        return type_from_symbol(insn->type, NULL);
+    /* second-level type authority */
+    if (!type && pseudo->def)
+        type = pseudo->def->type;
 
-    /* type fallback */
+    if (type)
+        return type_from_symbol(type, NULL);
+
+    /*
+        sadly, last resort
+        XXX: look at insn->size
+     */
+    CL_TRAP;
     return &int_clt;
 }
 
@@ -1153,7 +1171,7 @@ op_from_register(const struct instruction *insn, const pseudo_t pseudo)
     struct cl_operand *op = op_make_var();
 
     op->scope = scope_from_register(pseudo, insn->bb);
-    op->type  = type_from_instruction(pseudo->def, pseudo);
+    op->type  = type_from_register(pseudo);
 
     VAR(op)->name = sparse_ident(pseudo->ident, NULL);
     VAR(op)->artificial = !VAR(op)->name;
@@ -2203,7 +2221,7 @@ enum conv_type {
 /**
     Consider instruction for emitting
 
-    @returns ret_negative=not emitted, ret_positive=emitted, ret_escape=abort bb
+    @return ret_negative=not emitted, ret_positive=emitted, ret_escape=abort bb
  */
 static enum retval
 consider_instruction(struct instruction *insn)
@@ -2257,11 +2275,11 @@ consider_instruction(struct instruction *insn)
         /* Binary */
         INSN_BIN( ADD             , PLUS/*POINTER_PLUS*/, insn_setops_binop   ),
         INSN_BIN( SUB             , MINUS               , insn_setops_binop   ),
-        INSN_BIN( MULU            , MULT /*XXX: unsig.*/, insn_setops_binop   ),
+        INSN_BIN( MULU            , MULT                , insn_setops_binop   ),
         INSN_BIN( MULS            , MULT                , insn_setops_binop   ),
-        INSN_BIN( DIVU            , TRUNC_DIV /*unsig.*/, insn_setops_binop   ),
+        INSN_BIN( DIVU            , TRUNC_DIV           , insn_setops_binop   ),
         INSN_BIN( DIVS            , TRUNC_DIV           , insn_setops_binop   ),
-        INSN_BIN( MODU            , TRUNC_MOD /*unsig.*/, insn_setops_binop   ),
+        INSN_BIN( MODU            , TRUNC_MOD           , insn_setops_binop   ),
         INSN_BIN( MODS            , TRUNC_MOD           , insn_setops_binop   ),
         INSN_BIN( SHL             , LSHIFT              , insn_setops_binop   ),
         INSN_BIN( LSR /*unsigned*/, RSHIFT              , insn_setops_binop   ),
@@ -2279,10 +2297,10 @@ consider_instruction(struct instruction *insn)
         INSN_BIN( SET_GE          , GE                  , insn_setops_binop   ),
         INSN_BIN( SET_LT          , LT                  , insn_setops_binop   ),
         INSN_BIN( SET_GT          , GT                  , insn_setops_binop   ),
-        INSN_BIN( SET_B           , LT /*XXX: unsigned*/, insn_setops_binop   ),
-        INSN_BIN( SET_A           , GT /*XXX: unsigned*/, insn_setops_binop   ),
-        INSN_BIN( SET_BE          , LE /*XXX: unsigned*/, insn_setops_binop   ),
-        INSN_BIN( SET_AE          , GE /*XXX: unsigned*/, insn_setops_binop   ),
+        INSN_BIN( SET_B           , LT                  , insn_setops_binop   ),
+        INSN_BIN( SET_A           , GT                  , insn_setops_binop   ),
+        INSN_BIN( SET_BE          , LE                  , insn_setops_binop   ),
+        INSN_BIN( SET_AE          , GE                  , insn_setops_binop   ),
         /* Uni */
         INSN_UNI( NOT             , BIT_NOT             , insn_setops_unop    ),
         INSN_UNI( NEG             , MINUS               , insn_setops_unop    ),
