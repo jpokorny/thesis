@@ -77,7 +77,7 @@ init () { make "${1:-files}"; }
 run_clsp () {
     ${CLSP_RUNNER}                                                              \
         --fd-debug=4 --fd-warn=5 --fd-sp=3 --fd-cl=3 --fd-cl-debug=3 $1 -- "$2" \
-        2>&1 1>/dev/null 3>/dev/null 4>"$4" 5>"$5" | tee "$3"
+        2>&1 1>/dev/null 3>/dev/null 4>"$4" 5>"$5" | tee "$3" >/dev/null
 }
 
 # $1 = general options
@@ -94,7 +94,7 @@ run_clsp_i () {
 do_interactive () {
     init "$1" || die "cannot initialize test"
     opts="$(grep "clsp-options:" "$1" | sed 's/.*: *\(.\+\)/\1/')"
-    makeinv="$(grep "makeinv:" "${src}.c" | sed 's/.*: *\(.\+\)/\1/')"
+    makeinv="$(grep "makeinv:" "$1" | sed 's/.*: *\(.\+\)/\1/')"
     if run_clsp_i "${opts}" "$1"; then
         while true; do
             echo "is that interpretation okay?"
