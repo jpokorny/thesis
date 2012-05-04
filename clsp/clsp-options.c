@@ -721,9 +721,9 @@ options_proceed(struct options *opts, int argc, const char *argv[])
     }
 
     /* make modified argv fully standard-compliant again */
-    if (kept <= i-1)
-        argv[++kept] = NULL;
-    assert(!argv[kept]);
+    if (kept < i)
+        argv[kept+1] = NULL;
+    assert(!argv[kept+1]);
 
     return kept;
 }
@@ -777,7 +777,7 @@ options_gather(struct options **opts, int argc, char *argv[])
             break;
         default:
             assert(0 < ret);
-            options_finalize(new_opts, ret, argv);
+            options_finalize(new_opts, ret+1, argv);
             ret = ret_positive;
     }
 
