@@ -16,6 +16,7 @@ unop_unsigned (unsigned a)
 {
   return ~(a);
 }
+
 /*
     clsp-options:   -d 1848
 

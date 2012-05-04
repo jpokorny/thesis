@@ -19,6 +19,7 @@ load_from_reg (int arg)
 {
   return j[arg];
 }
+
 /*
     clsp-options:   -d 1848
     vim: ft=c:

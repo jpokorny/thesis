@@ -46,6 +46,7 @@ binop_bool_ptr_ptr (void *a, void *b)
 {
   return (a) == (b);
 }
+
 /*
     clsp-options:   -d 1848
 

@@ -382,6 +382,8 @@ A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
                             <operand> {kind=CST, scope=GLOBAL}
                                 <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                 <constant-int> [1]
+	debug: instruction: cl <<<
+        (ignored)
 A-instructions/40-load.c:20:11: debug: instruction: sp >>>
         load.32     %r11 <- 0[%r10]
 	debug: operand-pseudo: sp >>>

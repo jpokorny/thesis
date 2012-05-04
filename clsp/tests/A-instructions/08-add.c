@@ -64,6 +64,7 @@ binop_int_one (int a)
 {
   return (a) + (1);
 }
+
 /*
     clsp-options:   -d 1848
 

@@ -33,6 +33,7 @@ INSPECTDIFF=meld
 
 : ${SHOW_OK:=1}
 : ${INSPECT:=0}
+: ${BATCH:=0}
 
 SLINE=
 for i in $(seq 0 63); do SLINE="-${SLINE}"; done
@@ -82,21 +83,37 @@ run_clsp () {
 # $1 = general options
 # $2 = rel. path to input C file
 run_clsp_i () {
-    ${CLSP_RUNNER} $1 -i -- "$2"
+    if [ "${BATCH}" -eq 0 ]; then
+        ${CLSP_RUNNER} $1 -i -- "$2"
+    else
+        yes 'n' | ${CLSP_RUNNER} $1 -i -- "$2"
+    fi
 }
 
 # $1 = file (already checked for existence)
 do_interactive () {
     init "$1" || die "cannot initialize test"
     opts="$(grep "clsp-options:" "$1" | sed 's/.*: *\(.\+\)/\1/')"
+    makeinv="$(grep "makeinv:" "${src}.c" | sed 's/.*: *\(.\+\)/\1/')"
     if run_clsp_i "${opts}" "$1"; then
         while true; do
             echo "is that interpretation okay?"
-            read answer
+            if [ "${BATCH}" -eq 1 ]; then
+                answer=y
+            else
+                read answer
+            fi
             case "$answer" in
                 y|yes)
                     dstfile=$(echo "$1" | sed 's/\.c//')
-                    run_clsp "${opts}" "$1" /dev/null "${dstfile}.debug.ref" /dev/null
+                    run_clsp "${opts}" "$1" /dev/null "${dstfile}.debug.ref.orig" /dev/null
+                    if [ "${makeinv}" = "yes" ]; then
+                        ${MAKEINV} "${dstfile}.debug.ref" "${dstfile}.debug.ref.orig" \
+                            "${dstfile}.debug.ref" 2>/dev/null
+                        rm -f -- "${dstfile}.debug.ref.orig"
+                    else
+                        mv "${dstfile}.debug.ref.orig" "${dstfile}.debug.ref"
+                    fi
                     echo "confirmed"
                     break
                     ;;

@@ -591,14 +591,14 @@ type_from_register(const pseudo_t pseudo)
         most accurate way of getting the output type (type of target
         pseudo) when not properly exposed by some instructions
         (OP_CALL, binary comparisons) or instruction is not directly
-        available from pseudo->def
+        available from pseudo->def (OP_COPY)
 
         check whether immediate user (instruction) of target pseudo
         has "authority to decide the type" (casts, OP_RET, OP_COPY)
 
         it is desired to have the pseudo type correct from the beginning,
-        but also as we cache the whole pseudo, it is an imperative to do
-        this forward analysis (currently of depth 1)
+        but also as we cache the first guess of pseudo conversion, it is
+        an imperative to do this forward analysis (currently of depth 1)
 
         note: the target of CALL may not be used at all (no users), still
               it (probably) cannot be removed by sparse optimizations
@@ -2393,7 +2393,6 @@ consider_instruction(struct instruction *insn)
     DEBUG_INSN_SP(insn);
 
     do {
-
         conversion = &insn_conversions[insn->opcode];
         conv_position(&cli.loc, &insn->pos);
 
@@ -2406,31 +2405,34 @@ consider_instruction(struct instruction *insn)
             conv = conversion->code.conv;
 
         switch (conv) {
-            case conv_ignore:
-                DEBUG_INSN_CL_SPECIAL(_1(s), "(ignored)");
-                return ret_negative;
             case conv_setops:
+                /*
+                    this case may force repeating the loop, depending on
+                    whether the conversion is 1:1 or 1:M
+                    (e.g., x = ptr - i  ::=  i' = -i;  x = ptr POINTER_PLUS i')
+                 */
                 cli.code = conversion->insn_code;
                 if (conversion->prop.setops(&cli, &insn)) {
                     DEBUG_INSN_CL(&cli);
                     API_EMIT(insn, &cli);
+                    break;
                 }
-                /*
-                    this case may loop repeatedly, depending on whether
-                    the conversion is 1:1 or 1:M
-                    (e.g., x = ptr - i  ::=  i' = -i;  x = ptr POINTER_PLUS i')
-                 */
-                break;
+                /* FALLTHROUGH (e.g., int A + array(T) BINOP) */
+
+            case conv_ignore:
+                DEBUG_INSN_CL_SPECIAL(_1(s), "(ignored)");
+                return ret_negative;
+
             case conv_emit:
-                /* (initial) instruction position is set */
+                /* at least, initial instruction position may be used */
                 conversion->prop.emit(&cli, insn);
                 return CL_INSN_ABORT == cli.code ? ret_escape : ret_positive;
+
             case conv_warn:
             default:
                 WARN_UNHANDLED(insn->pos, conversion->prop.string);
                 return ret_negative;
         }
-
     } while (insn);
 
     return ret_positive;

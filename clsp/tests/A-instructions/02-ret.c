@@ -35,6 +35,7 @@ ret_arg (int a)
 {
   return a;
 }
+
 /*
     clsp-options:   -d 1848
     vim: ft=c:

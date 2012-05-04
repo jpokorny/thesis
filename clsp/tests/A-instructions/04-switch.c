@@ -84,6 +84,7 @@ switch_2 (void)
 	}
     }
 }
+
 /*
     clsp-options:   -d 1848
     makeinv:        yes

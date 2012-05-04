@@ -22,6 +22,8 @@ TEST_RUNNER = ./tests.sh
 FILES_IN  := $(shell find -name '*.c.raw' | sort)
 FILES_REF := $(FILES_IN:%.c.raw=%.debug.ref)
 
+INDENT_DIRECTIVES = -bad -bbb -sob
+
 all : check
 
 files :: ${FILES_REF}
@@ -29,7 +31,7 @@ files :: ${FILES_REF}
 # first preserve comments as they carry control tags
 %.c :: %.c.raw | ${CLSP}
 	sed -n '/\/\*/bbgn;d;:bgn;p;n;/\*\//bend;bbgn;:end;p' $< > $@.tail
-	${CLSP} -E $< | indent | cat - $@.tail > $@
+	${CLSP} -E $< | cat - $@.tail | indent ${INDENT_DIRECTIVES} > $@
 	rm -f -- $@.tail
 
 # these needs preprocessed source files from raw ones

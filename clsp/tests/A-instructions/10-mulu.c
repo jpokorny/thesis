@@ -10,6 +10,7 @@ binop_int_int_uint (int a, unsigned b)
 {
   return (a) * (b);
 }
+
 /*
     clsp-options:   -d 1848
 

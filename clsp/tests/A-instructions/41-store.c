@@ -103,6 +103,7 @@ val_to_val (int *arg)
 {
   *((int *) 0) = 42;
 }
+
 /*
     clsp-options:   -d 1848
 
@@ -119,7 +120,6 @@ val_to_val (int *arg)
     }
 
     but currently does not work (pretends the addition is not here)
-
 
     vim: ft=c:
  */

@@ -61,6 +61,7 @@ set_ne_2 (void)
 {
   return i ? 1 : 0;
 }
+
 /*
     clsp-options:   -d 1848
 

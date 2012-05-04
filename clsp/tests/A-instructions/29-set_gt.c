@@ -28,6 +28,7 @@ binop_bool_double_double (double a, double b)
 {
   return (a) > (b);
 }
+
 /*
     clsp-options:   -d 1848
 
