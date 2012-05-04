@@ -23,8 +23,8 @@
     Centralization of various default values
 
     For "hard" defaults, see clsp-options.c: @c options_initialize
-    and 
-*/
+    and clsp.c: @c globals_initialize (and others)
+ */
 
 #include <unistd.h>       /* STD*_FILENO */
 #include "clsp-macros.h"  /* APPLY */
