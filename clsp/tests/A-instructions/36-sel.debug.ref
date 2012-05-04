@@ -24,7 +24,7 @@ A-instructions/36-sel.c:6:15: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>>
         %r1
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
 A-instructions/36-sel.c:2:12: debug: operand-symbol: sp >>> i
@@ -37,7 +37,7 @@ A-instructions/36-sel.c:2:12: debug: operand-symbol: cl <<< i
 A-instructions/36-sel.c:6:15: debug: instruction: cl <<<
         <instruction> [ASSIGN (UNOP)]: A-instructions/36-sel.c:6:15
             <unop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
             <unop-src>
@@ -48,18 +48,18 @@ A-instructions/36-sel.c:6:7: debug: instruction: sp >>>
         select.32   %r3 <- %r1, $0, %r1
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r1
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r1
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
 A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
         <instruction> [COND]: A-instructions/36-sel.c:6:7
             <cond-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
             <cond-then-label> [2]
@@ -68,7 +68,7 @@ A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
 	debug: operand-pseudo: sp >>>
         %r3
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:7
 	debug: operand-pseudo: sp >>>
@@ -80,7 +80,7 @@ A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
 A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
         <instruction> [ASSIGN (UNOP)]: A-instructions/36-sel.c:6:7
             <unop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:7
             <unop-src>
@@ -93,22 +93,22 @@ A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
 	debug: basic-block: open [3]
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r3
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:7
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r1
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
 A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
         <instruction> [ASSIGN (UNOP)]: A-instructions/36-sel.c:6:7
             <unop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:7
             <unop-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=1, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:15
 A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
@@ -124,7 +124,7 @@ A-instructions/36-sel.c:6:7: debug: instruction: sp >>>
             <operand-var> {uid=2, name=i, artificial=N, initialized=N}: A-instructions/36-sel.c:2:12
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r3
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:7
 A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
@@ -134,7 +134,7 @@ A-instructions/36-sel.c:6:7: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=2, name=i, artificial=N, initialized=N}: A-instructions/36-sel.c:2:12
             <unop-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/36-sel.c:6:7
 A-instructions/36-sel.c:6:7: debug: instruction: sp >>>

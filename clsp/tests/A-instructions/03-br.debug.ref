@@ -45,7 +45,7 @@ A-instructions/03-br.c:6:7: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=2, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
 A-instructions/03-br.c:6:7: debug: instruction: sp >>>
-        br          %r1(i), .L0x7f38b5ff7150, .L0x7f38b5ff70b0
+        br          %r1(i), .L0x7fcb08ccc150, .L0x7fcb08ccc0b0
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r1(i)
         <operand> {kind=VAR, scope=FUNCTION}
@@ -65,7 +65,7 @@ A-instructions/03-br.c:8:4: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>>
         %r3
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:8:4
 	debug: operand-pseudo: sp >>> cached >>> cl
@@ -82,7 +82,7 @@ A-instructions/03-br.c:8:4: debug: instruction: sp >>>
 A-instructions/03-br.c:8:4: debug: instruction: cl <<<
         <instruction> [PLUS (BINOP)]: A-instructions/03-br.c:8:4
             <binop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:8:4
             <binop-src1>
@@ -102,7 +102,7 @@ A-instructions/03-br.c:8:4: debug: instruction: sp >>>
             <operand-var> {uid=2, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r3
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:8:4
 A-instructions/03-br.c:8:4: debug: instruction: cl <<<
@@ -112,11 +112,11 @@ A-instructions/03-br.c:8:4: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=2, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
             <unop-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:8:4
 A-instructions/03-br.c:9:1: debug: instruction: sp >>>
-        br          .L0x7f38b5ff7150
+        br          .L0x7fcb08ccc150
 A-instructions/03-br.c:9:1: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/03-br.c:9:1
             <jmp-label> [3]
@@ -149,7 +149,7 @@ A-instructions/03-br.c:14:1: debug: instruction: sp >>>
 	debug: instruction: cl <<<
         (ignored)
 A-instructions/03-br.c:16:3: debug: instruction: sp >>>
-        br          .L0x7f38b5ff72e0
+        br          .L0x7fcb08ccc2e0
 A-instructions/03-br.c:16:3: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/03-br.c:16:3
             <jmp-label> [2]
@@ -184,7 +184,7 @@ A-instructions/03-br.c:16:15: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>>
         %r5
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:16:15
 	debug: operand-pseudo: sp >>>
@@ -201,7 +201,7 @@ A-instructions/03-br.c:16:15: debug: instruction: sp >>>
 A-instructions/03-br.c:16:15: debug: instruction: cl <<<
         <instruction> [GT (BINOP)]: A-instructions/03-br.c:16:15
             <binop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:16:15
             <binop-src1>
@@ -213,16 +213,16 @@ A-instructions/03-br.c:16:15: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=4, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:16:15
 A-instructions/03-br.c:16:15: debug: instruction: sp >>>
-        br          %r5, .L0x7f38b5ff71f0, .L0x7f38b5ff7330
+        br          %r5, .L0x7fcb08ccc1f0, .L0x7fcb08ccc330
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r5
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:16:15
 A-instructions/03-br.c:16:15: debug: instruction: cl <<<
         <instruction> [COND]: A-instructions/03-br.c:16:15
             <cond-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:16:15
             <cond-then-label> [3]
@@ -233,7 +233,7 @@ A-instructions/03-br.c:17:6: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>>
         %r7
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:17:6
 	debug: operand-pseudo: sp >>> cached >>> cl
@@ -249,7 +249,7 @@ A-instructions/03-br.c:17:6: debug: instruction: sp >>>
 A-instructions/03-br.c:17:6: debug: instruction: cl <<<
         <instruction> [PLUS (BINOP)]: A-instructions/03-br.c:17:6
             <binop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:17:6
             <binop-src1>
@@ -269,7 +269,7 @@ A-instructions/03-br.c:17:6: debug: instruction: sp >>>
             <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r7
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:17:6
 A-instructions/03-br.c:17:6: debug: instruction: cl <<<
@@ -279,11 +279,11 @@ A-instructions/03-br.c:17:6: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/03-br.c:2:12
             <unop-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/03-br.c:17:6
 A-instructions/03-br.c:17:6: debug: instruction: sp >>>
-        br          .L0x7f38b5ff72e0
+        br          .L0x7fcb08ccc2e0
 A-instructions/03-br.c:17:6: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/03-br.c:17:6
             <jmp-label> [2]

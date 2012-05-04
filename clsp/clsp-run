@@ -26,7 +26,7 @@ HERE=$(dirname "${BASH_SOURCE[0]}")
 : ${EXEC:="${HERE}/clsp"}
 : ${PREDATOR_DIR:="${HERE}/dep-predator"}
 # currently available: cl_smoke_test, fwnull, sl, fa or <empty>
-: ${ANALYZER:=sl}
+: ${ANALYZER:=cl_smoke_test}
 
 INT_ARGS=
 

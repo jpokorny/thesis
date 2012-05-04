@@ -78,7 +78,7 @@ A-instructions/04-switch.c:14:10: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <constant-int> [1]
 A-instructions/04-switch.c:6:11: debug: instruction: sp >>>
-        switch      %r1(i), 0 -> .L0x7f1dbea30060, 1 -> .L0x7f1dbea30100, 2 -> .L0x7f1dbea30060, 3 -> .L0x7f1dbea30060, 5 ... 6 -> .L0x7f1dbea30060, 8 ... 10 -> .L0x7f1dbea301f0, default -> .L0x7f1dbea30290
+        switch      %r1(i), 0 -> .L0x7f791b854060, 1 -> .L0x7f791b854100, 2 -> .L0x7f791b854060, 3 -> .L0x7f791b854060, 5 ... 6 -> .L0x7f791b854060, 8 ... 10 -> .L0x7f791b8541f0, default -> .L0x7f791b854290
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r1(i)
         <operand> {kind=VAR, scope=FUNCTION}
@@ -124,7 +124,7 @@ A-instructions/04-switch.c:14:10: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:14:10
 A-instructions/04-switch.c:15:9: debug: instruction: sp >>>
-        br          .L0x7f1dbea30060
+        br          .L0x7f791b854060
 A-instructions/04-switch.c:15:9: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/04-switch.c:15:9
             <jmp-label> [5]
@@ -152,7 +152,7 @@ A-instructions/04-switch.c:26:10: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:14:10
 A-instructions/04-switch.c:27:9: debug: instruction: sp >>>
-        br          .L0x7f1dbea30060
+        br          .L0x7f791b854060
 A-instructions/04-switch.c:27:9: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/04-switch.c:27:9
             <jmp-label> [5]
@@ -180,7 +180,7 @@ A-instructions/04-switch.c:35:10: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:14:10
 A-instructions/04-switch.c:36:9: debug: instruction: sp >>>
-        br          .L0x7f1dbea30060
+        br          .L0x7f791b854060
 A-instructions/04-switch.c:36:9: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/04-switch.c:36:9
             <jmp-label> [5]
@@ -238,7 +238,7 @@ A-instructions/04-switch.c:44:11: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:2:12
 A-instructions/04-switch.c:44:11: debug: instruction: sp >>>
-        switch      %r8(i), 12 -> .L0x7f1dbea30380, default -> .L0x7f1dbea303d0
+        switch      %r8(i), 12 -> .L0x7f791b854380, default -> .L0x7f791b8543d0
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r8(i)
         <operand> {kind=VAR, scope=FUNCTION}
@@ -256,7 +256,7 @@ A-instructions/04-switch.c:48:10: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>>
         %r10
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:48:10
 	debug: operand-pseudo: sp >>> cached >>> cl
@@ -272,7 +272,7 @@ A-instructions/04-switch.c:48:10: debug: instruction: sp >>>
 A-instructions/04-switch.c:48:10: debug: instruction: cl <<<
         <instruction> [PLUS (BINOP)]: A-instructions/04-switch.c:48:10
             <binop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:48:10
             <binop-src1>
@@ -292,7 +292,7 @@ A-instructions/04-switch.c:48:10: debug: instruction: sp >>>
             <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:2:12
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r10
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:48:10
 A-instructions/04-switch.c:48:10: debug: instruction: cl <<<
@@ -302,17 +302,17 @@ A-instructions/04-switch.c:48:10: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:2:12
             <unop-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:48:10
 A-instructions/04-switch.c:49:9: debug: instruction: sp >>>
-        br          .L0x7f1dbea30330
+        br          .L0x7f791b854330
 A-instructions/04-switch.c:49:9: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/04-switch.c:49:9
             <jmp-label> [7]
 	debug: basic-block: open [3]
 A-instructions/04-switch.c:52:15: debug: instruction: sp >>>
-        switch      %r8(i), 0 -> .L0x7f1dbea30330, 1 -> .L0x7f1dbea304c0, 2 -> .L0x7f1dbea30330, 3 -> .L0x7f1dbea30330, 5 ... 6 -> .L0x7f1dbea30330, 8 ... 10 -> .L0x7f1dbea305b0, default -> .L0x7f1dbea30650
+        switch      %r8(i), 0 -> .L0x7f791b854330, 1 -> .L0x7f791b8544c0, 2 -> .L0x7f791b854330, 3 -> .L0x7f791b854330, 5 ... 6 -> .L0x7f791b854330, 8 ... 10 -> .L0x7f791b8545b0, default -> .L0x7f791b854650
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r8(i)
         <operand> {kind=VAR, scope=FUNCTION}
@@ -340,7 +340,7 @@ A-instructions/04-switch.c:60:14: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>>
         %r13
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:60:14
 	debug: operand-pseudo: sp >>> cached >>> cl
@@ -356,7 +356,7 @@ A-instructions/04-switch.c:60:14: debug: instruction: sp >>>
 A-instructions/04-switch.c:60:14: debug: instruction: cl <<<
         <instruction> [PLUS (BINOP)]: A-instructions/04-switch.c:60:14
             <binop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:60:14
             <binop-src1>
@@ -376,7 +376,7 @@ A-instructions/04-switch.c:60:14: debug: instruction: sp >>>
             <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:2:12
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r13
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:60:14
 A-instructions/04-switch.c:60:14: debug: instruction: cl <<<
@@ -386,11 +386,11 @@ A-instructions/04-switch.c:60:14: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:2:12
             <unop-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:60:14
 A-instructions/04-switch.c:61:13: debug: instruction: sp >>>
-        br          .L0x7f1dbea30330
+        br          .L0x7f791b854330
 A-instructions/04-switch.c:61:13: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/04-switch.c:61:13
             <jmp-label> [7]
@@ -400,7 +400,7 @@ A-instructions/04-switch.c:72:14: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>>
         %r15
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=8, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:72:14
 	debug: operand-pseudo: sp >>> cached >>> cl
@@ -416,7 +416,7 @@ A-instructions/04-switch.c:72:14: debug: instruction: sp >>>
 A-instructions/04-switch.c:72:14: debug: instruction: cl <<<
         <instruction> [PLUS (BINOP)]: A-instructions/04-switch.c:72:14
             <binop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=8, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:72:14
             <binop-src1>
@@ -436,7 +436,7 @@ A-instructions/04-switch.c:72:14: debug: instruction: sp >>>
             <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:2:12
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r15
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=8, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:72:14
 A-instructions/04-switch.c:72:14: debug: instruction: cl <<<
@@ -446,11 +446,11 @@ A-instructions/04-switch.c:72:14: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:2:12
             <unop-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=8, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:72:14
 A-instructions/04-switch.c:73:13: debug: instruction: sp >>>
-        br          .L0x7f1dbea30330
+        br          .L0x7f791b854330
 A-instructions/04-switch.c:73:13: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/04-switch.c:73:13
             <jmp-label> [7]
@@ -460,7 +460,7 @@ A-instructions/04-switch.c:81:14: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>>
         %r17
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:81:14
 	debug: operand-pseudo: sp >>> cached >>> cl
@@ -476,7 +476,7 @@ A-instructions/04-switch.c:81:14: debug: instruction: sp >>>
 A-instructions/04-switch.c:81:14: debug: instruction: cl <<<
         <instruction> [PLUS (BINOP)]: A-instructions/04-switch.c:81:14
             <binop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:81:14
             <binop-src1>
@@ -496,7 +496,7 @@ A-instructions/04-switch.c:81:14: debug: instruction: sp >>>
             <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:2:12
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r17
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:81:14
 A-instructions/04-switch.c:81:14: debug: instruction: cl <<<
@@ -506,11 +506,11 @@ A-instructions/04-switch.c:81:14: debug: instruction: cl <<<
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=5, name=i, artificial=N, initialized=N}: A-instructions/04-switch.c:2:12
             <unop-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/04-switch.c:81:14
 A-instructions/04-switch.c:82:13: debug: instruction: sp >>>
-        br          .L0x7f1dbea30330
+        br          .L0x7f791b854330
 A-instructions/04-switch.c:82:13: debug: instruction: cl <<<
         <instruction> [JMP]: A-instructions/04-switch.c:82:13
             <jmp-label> [7]

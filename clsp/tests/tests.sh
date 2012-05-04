@@ -71,13 +71,13 @@ init () { make "${1:-files}"; }
 
 # $1 = general options
 # $2 = rel. path to input C file
-# $3 = combined output/error stream file
+# $3 = error stream file (also displayed)
 # $4 = debug stream file
 # $5 = warn stream file
 run_clsp () {
     ${CLSP_RUNNER}                                                              \
         --fd-debug=4 --fd-warn=5 --fd-sp=3 --fd-cl=3 --fd-cl-debug=3 $1 -- "$2" \
-        2>&1 3>/dev/null 4>"$4" 5>"$5" | tee "$3"
+        2>&1 1>/dev/null 3>/dev/null 4>"$4" 5>"$5" | tee "$3"
 }
 
 # $1 = general options

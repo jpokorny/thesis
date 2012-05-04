@@ -41,10 +41,14 @@ ${FILES_REF} :: %.debug.ref : %.c
 check :: ${FILES_REF} ${CLSP}
 	${TEST_RUNNER}
 
+force-update: ${FILES_REF}
+	touch -m -- ${FILES_IN:%.c.raw=%.c}
+	BATCH=1 ${TEST_RUNNER}
+
 ${CLSP}:
 	make -C $(dir $@) $(notdir $@)
 
 clean:
 	${TEST_RUNNER} clean
 
-.PHONY: all files check clean
+.PHONY: all files check clean force-update

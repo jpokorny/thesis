@@ -44,7 +44,7 @@ A-instructions/19-and.c:5:17: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>>
         %r3
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/19-and.c:5:17
 	debug: operand-pseudo: sp >>> cached >>> cl
@@ -60,7 +60,7 @@ A-instructions/19-and.c:5:17: debug: instruction: sp >>>
 A-instructions/19-and.c:5:17: debug: instruction: cl <<<
         <instruction> [BIT_AND (BINOP)]: A-instructions/19-and.c:5:17
             <binop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/19-and.c:5:17
             <binop-src1>
@@ -75,13 +75,13 @@ A-instructions/19-and.c:5:17: debug: instruction: sp >>>
         ret.32      %r3
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r3
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/19-and.c:5:17
 A-instructions/19-and.c:5:17: debug: instruction: cl <<<
         <instruction> [RET]: A-instructions/19-and.c:5:17
             <ret-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=3, name=(none), artificial=Y, initialized=N}: A-instructions/19-and.c:5:17
 A-instructions/19-and.c:4:1: debug: function: end binop_int
@@ -130,7 +130,7 @@ A-instructions/19-and.c:11:17: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>>
         %r7
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
             <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/19-and.c:11:17
 	debug: operand-pseudo: sp >>> cached >>> cl
@@ -146,7 +146,7 @@ A-instructions/19-and.c:11:17: debug: instruction: sp >>>
 A-instructions/19-and.c:11:17: debug: instruction: cl <<<
         <instruction> [BIT_AND (BINOP)]: A-instructions/19-and.c:11:17
             <binop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                     <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/19-and.c:11:17
             <binop-src1>
@@ -161,13 +161,13 @@ A-instructions/19-and.c:11:17: debug: instruction: sp >>>
         ret.32      %r7
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r7
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
             <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/19-and.c:11:17
 A-instructions/19-and.c:11:17: debug: instruction: cl <<<
         <instruction> [RET]: A-instructions/19-and.c:11:17
             <ret-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                     <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/19-and.c:11:17
 A-instructions/19-and.c:10:1: debug: function: end binop_unsigned
@@ -251,7 +251,7 @@ A-instructions/19-and.c:23:17: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>>
         %r13
 	debug: operand-pseudo: cl <<<
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/19-and.c:23:17
 	debug: operand-pseudo: sp >>> cached >>> cl
@@ -268,7 +268,7 @@ A-instructions/19-and.c:23:17: debug: instruction: sp >>>
 A-instructions/19-and.c:23:17: debug: instruction: cl <<<
         <instruction> [BIT_AND (BINOP)]: A-instructions/19-and.c:23:17
             <binop-dst>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/19-and.c:23:17
             <binop-src1>
@@ -283,13 +283,13 @@ A-instructions/19-and.c:23:17: debug: instruction: sp >>>
         ret.32      %r13
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r13
-        <operand> {kind=VAR, scope=BB}
+        <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/19-and.c:23:17
 A-instructions/19-and.c:23:17: debug: instruction: cl <<<
         <instruction> [RET]: A-instructions/19-and.c:23:17
             <ret-src>
-                <operand> {kind=VAR, scope=BB}
+                <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/19-and.c:23:17
 A-instructions/19-and.c:22:1: debug: function: end binop_int_one
