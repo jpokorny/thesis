@@ -52,7 +52,7 @@ STRUCT_VAR_DECL;
 #define TO_SYM 1
 #define TO_REG 1
 #define TO_ARG 1
-#define TO_VAL 1
+#define TO_VAL 0
 
 
 #if TO_SYM
@@ -86,6 +86,8 @@ FROM_VAL_TO(val, *((int *) 0))
 
 /*
     clsp-options:   -d 1848
+
+    sl does not accept TO_VAL, disabled by default
 
     to be added to FROM_SYM_TO:
 

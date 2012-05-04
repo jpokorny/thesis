@@ -80,32 +80,10 @@ val_to_arg (int *arg)
   *arg = 42;
 }
 
-static void
-sym_to_val (int **arg)
-{
-  *((int **) 0) = &aux;
-}
-
-static void
-arg_to_val (int *arg, int arg_aux)
-{
-  *((int *) 0) = arg_aux;
-}
-
-static void
-reg_to_val (int *arg)
-{
-  *((int *) 0) = aux + 1;
-}
-
-static void
-val_to_val (int *arg)
-{
-  *((int *) 0) = 42;
-}
-
 /*
     clsp-options:   -d 1848
+
+    sl does not accept TO_VAL, disabled by default
 
     to be added to FROM_SYM_TO:
 
