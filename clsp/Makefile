@@ -150,6 +150,8 @@ completion :: ${COMPLETION}
 ${COMPLETION} :: ${PROGRAM}
 	./${PROGRAM} --bash > $@
 
+analyzers: ${ANALYZERS}
+
 check :: $(PROGRAM)
 	make -C ${TEST_RUNNER_DIR}
 
@@ -167,5 +169,5 @@ clean-check:
 
 mrproper: clean clean-sparse clean-analyzer
 
-.PHONY: all completion check clean ${PHONIES} \
+.PHONY: all completion analyzers check clean ${PHONIES} \
         clean-sparse clean-analyzer clean-check-prev clean-check mrproper
