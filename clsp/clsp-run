@@ -26,7 +26,7 @@ HERE=$(dirname "${BASH_SOURCE[0]}")
 : ${EXEC:="${HERE}/clsp"}
 : ${PREDATOR_DIR:="${HERE}/dep-predator"}
 # currently available: cl_smoke_test, fwnull, sl, fa or <empty>
-: ${ANALYZER:=cl_smoke_test}
+: ${ANALYZER:=sl}
 
 INT_ARGS=
 
@@ -60,8 +60,7 @@ verbosely () {
 
 # or parse ${EXEC} --version
 if LANG=C ldd ${EXEC} | grep -q "not found"; then
-    export LD_PRELOAD="${LIB}"
-    verbosely "${WRAPPER}" "${EXEC}" ${INT_ARGS} "${@}"
+    verbosely "${WRAPPER}" env LD_PRELOAD="${LIB}" "${EXEC}" ${INT_ARGS} "${@}"
 else
     verbosely "${WRAPPER}" "${EXEC}" -cl-plugin="${LIB}" ${INT_ARGS} "${@}"
 fi
