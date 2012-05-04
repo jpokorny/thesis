@@ -20,17 +20,18 @@ CC         = c99
 CFLAGS    += -Wall -Wextra -Wwrite-strings -pedantic #-errors
 #CFLAGS    += -Werror
 CFLAGS    += -pipe
+CFLAGS    += -rdynamic  # required for symbol resolving "back against us"
 LDFLAGS   += -Wl,--as-needed
 LDFLAGS   += -ldl  # dlopen, ...
 DBGCFLAGS  = -O0 -gdwarf-4 -g3 -fno-inline
 
 RELEASE    = 0
-USE_LTO    = 1
+USE_LTO    = 0
 VERBOSE    = 0  # should be propagated also to CL build system
 
 ANALYZERS  = cl_smoke_test fwnull sl fa
 # one from above or <empty>
-ANALYZER   =
+ANALYZER   = sl
 CL_OPTS   :=
 
 ifeq (1,${RELEASE})
@@ -42,15 +43,13 @@ else
   CFLAGS  += -Wno-format
   CFLAGS  += -Wswitch-enum
   SP_OPTS  = "CFLAGS += ${DBGCFLAGS}"
-  CL_OPTS += CL_DEBUG=1
+  CL_OPTS += CL_DEBUG=ON
 endif
 ifeq (1,${VERBOSE})
   SP_OPTS  = "V = 1"
 endif
 ifneq (,${ANALYZER})
   CFLAGS  += -DHAS_CL
-else
-  CFLAGS  += -rdynamic  # required for symbol resolving "back against us"
 endif
 ifeq (1,${USE_LTO})
     LTOFLAGS = -flto
