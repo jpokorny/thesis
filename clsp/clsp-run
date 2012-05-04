@@ -24,7 +24,7 @@ shopt -s extglob
 HERE=$(dirname "${BASH_SOURCE[0]}")
 
 : ${EXEC:="${HERE}/clsp"}
-: ${PREDATOR_DIR:="${HERE}/../predator"}
+: ${PREDATOR_DIR:="${HERE}/dep-predator"}
 # currently available: cl_smoke_test, fwnull, sl, fa or <empty>
 : ${ANALYZER:=cl_smoke_test}
 

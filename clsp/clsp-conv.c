@@ -31,7 +31,7 @@ conv_scope(const struct symbol *src)
 
     if (!scope)
         /* defaults to the smallest possible scope */
-        return CL_SCOPE_BB;
+        return CL_SCOPE_FUNCTION;
 
     /* the order of comparisons is important */
     if (SP(global_scope) == scope) {
@@ -53,7 +53,7 @@ conv_scope(const struct symbol *src)
 
     } else if (SP(block_scope) == scope) {
 
-        return CL_SCOPE_BB;
+        return CL_SCOPE_FUNCTION;
 
     } else if (SP(is_outer_scope, scope)) {
 

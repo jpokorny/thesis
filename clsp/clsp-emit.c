@@ -47,7 +47,7 @@
 #define FIX_SPARSE_EXTRA_ARG_TO_MEM  0
 
 /* assertions */
-#define ASSERT_SYMBOL_BELONGS_TO_CURRENT_FILE   1
+#define ASSERT_SYMBOL_BELONGS_TO_CURRENT_FILE   0
 #define ASSERT_CST_HAVE_VALID_CODE              1
 
 
@@ -656,12 +656,7 @@ scope_from_register(const pseudo_t pseudo, const struct basic_block *bb)
 
     struct pseudo_user *pu;
 
-    FOR_EACH_PTR(pseudo->users, pu)
-        if (pu->insn->bb != bb)
-            return CL_SCOPE_FUNCTION;
-    END_FOR_EACH_PTR(pu);
-
-    return CL_SCOPE_BB;
+    return CL_SCOPE_FUNCTION;
 }
 
 
