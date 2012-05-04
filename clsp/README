@@ -30,7 +30,7 @@ Tested environment:
 
 How to use:
 
-1. adjust ANALYZER field in the Makefile (see comment here) or
+1. adjust ANALYZER field in the Makefile (see local comment) or
    pass your decision directly:  ANALYZER=... make
 
    NOTE: if you will leave the setting empty, no analyzer will be
