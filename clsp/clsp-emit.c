@@ -707,8 +707,8 @@ op_copy(const struct cl_operand *op_src, enum copy_depth copy_depth)
         *ret->data.var = *op_src->data.var;
     }
 
-    if (copy_shallow_var_deep == copy_depth
-      || copy_shallow_var_deep_uid == copy_depth
+    if ((copy_shallow_var_deep == copy_depth
+      || copy_shallow_var_deep_uid == copy_depth)
       && CL_OPERAND_VAR == op_src->code) {
         ret->data.var = alloc_cl_var();
         *ret->data.var = *op_src->data.var;
@@ -1184,7 +1184,15 @@ right_position:
     assert(!pos && sym);  /* internal corruption otherwise */
 
     op = op_from_symbol(sym);
+    assert(CL_OPERAND_VAR == op->code);
     assert(CL_SCOPE_FUNCTION == op->scope);
+
+    /*
+        XXX re: marking "initialized"
+        they cannot be uninitialized in principle, but as these are
+        known to CL as function arguments, this may be implicit
+     */
+
     return op;
 }
 

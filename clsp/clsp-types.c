@@ -351,7 +351,8 @@ type_ptr_db_destroy(struct type_ptr_db* db)
 {
     /* todo: check double free, etc. */
 
-    typen_destroy(db->type_db);
+    if (db->type_db)
+        typen_destroy(db->type_db);
 
     // destroy pointer hierarchy
     struct ptr_db_arr *ptr_db = &db->ptr_db;
