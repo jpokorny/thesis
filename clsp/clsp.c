@@ -84,10 +84,7 @@ static void clmsg_die(const char *msg)       {DIE( ECODE(CL, "cl: %s", msg) );}
 static void
 atexit_worker_early(void)
 {
-#if 0
-    // TODO
-    type_ptr_db_destroy();
-#endif
+    type_ptr_db_destroy(TYPEPTRDB);
 
     /* restore error stream which may yet be useful */
     FILE **cur = &(STREAMSTRUCT(err).stream);
@@ -333,9 +330,9 @@ clsp_chain_init(const struct options *opts)
         if (!clsp_append_via_config_args(chain, "typedot",
                                          OPTS_CL(gentype.file), NULL))
             return NULL;
-    /*if (OPTS(use_peer)
-        && !clsp_append_via_config_args(chain, "easy", OPTS(peer_args)))
-          return NULL;*/
+    if (/*OPTS(use_peer)*/ true
+        && !clsp_append_via_config_args(chain, "easy", ""/*OPTS(peer_args)*/,NULL))
+          return NULL;
 
     /* TODO: DLOPEN */
 
@@ -443,7 +440,6 @@ emitter(struct options *opts)
         /* with temporary DB, emit what you can as per emit_props */
         type_ptr_db_init(TYPEPTRDB);
         ret = emit(filelist, symlist, emit_props);
-        type_ptr_db_destroy(TYPEPTRDB);
     }
 
     release_sparse();
