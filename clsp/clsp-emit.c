@@ -582,6 +582,8 @@ type_from_symbol(struct symbol *raw_symbol, struct ptr_db_item **ptr)
 static struct cl_type *
 type_from_register(const pseudo_t pseudo)
 {
+    assert(PSEUDO_REG == pseudo->type);
+
     struct pseudo_user *pu;
     struct symbol *type = NULL;
 
@@ -946,8 +948,8 @@ insn_setops_store(struct cl_insn *cli, const struct instruction **insn);
     in @c op_from_symbol, looking at sym->pseudo we set here.
 
 
-    @param[in,out] initial  Address where to start initializators chain
-    @param[in]     sym      Initializator of this symbol is examined
+    @param[in,out] op    Operand to initialize
+    @param[in]     sym   Initializator of this symbol to be examined
     @return  Value to be set to VAR(op)->initialized
  */
 static bool
@@ -1059,11 +1061,9 @@ op_initialize_var_maybe(struct cl_operand *op, struct symbol *sym)
     switch (expr->type) {
         case EXPR_STRING:
             /*
-                proceeding through EXPR_INITIALIZER case is possible, but
-                unnecessarily complicated as the initializer looks like this:
-
-                    set.80      %r31 <- "var_block"
-                    store.80    %r31 -> 0["var_block"]
+                EXPR_INITIALIZER case cannot handle this correctly as it
+                initializes char array by char array not ever boiling down
+                to real string literal
              */
             VAR(op)->initial = alloc_cl_initializer_safe();
             VAR(op)->initial->insn.code = CL_INSN_UNOP;
@@ -1101,8 +1101,6 @@ op_initialize_var_maybe(struct cl_operand *op, struct symbol *sym)
             break;
 
         case EXPR_INITIALIZER:
-            expr = alloc_expression(sym->initializer->pos, EXPR_SYMBOL);
-            expr->symbol = sym;
             /* no need to "debug" the same over again */
             return op_initialize_var_from_initializer(op, sym);
 
