@@ -71,7 +71,7 @@ GETLDFLAGS = -L$(dir $(1)) -l$(basename $(patsubst lib%,%,$(notdir $(1))))
 
 # sparse (using static library, shared is also possible)
 
-SPARSE_DIR       = ../sparse-llvm
+SPARSE_DIR       = dep-sparse
 INCLUDE_DIRS    += ${SPARSE_DIR}
 SPARSE_LIB_NAME  = sparse
 SPARSE_LIB      := ${SPARSE_DIR}/lib${SPARSE_LIB_NAME}.a
@@ -79,7 +79,7 @@ LDFLAGS         += $(call GETLDFLAGS,${SPARSE_LIB})
 
 # Code Listener + analyzers
 
-PREDATOR_DIR     = ../predator
+PREDATOR_DIR     = dep-predator
 INCLUDE_DIRS    += ${PREDATOR_DIR}/include/cl ${PREDATOR_DIR}/cl
 CL_OPTS         += GCC_HOST='$(shell PATH=/usr/bin:$PATH which gcc)'
 CL_OPTS         := $(foreach cl_opt,${CL_OPTS},-D ${cl_opt})
