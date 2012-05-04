@@ -1,0 +1,67 @@
+Sparse-based Code Listener frontend
+
+Requirements:
+
+* upstream development version of sparse
+* recent/development version of predator (incl. Code Listener infrastructure)
+* tools mentioned in Tested environment
+
+(both present in this tree, dep-predator and dep-sparse directories
+respectively -- if not present, update/initialize git submodules)
+
+
+Tested environment:
+
+* 64bit architecture
+* core tools:
+    GCC 4.6.2
+    GNU ld (GNU Binutils) 2.22
+    GNU Make 3.82
+* for predator:
+    cmake 2.8.6
+* for tests:
+    Python 2.7.2
+    (GNU indent 2.2.11 for formatting new ones)
+* system-wide:
+    GNU bash, version 4.2.20
+    GNU coreutils 8.14
+    ...
+
+
+How to use:
+
+1. adjust ANALYZER field in the Makefile (see comment here) or
+   pass your decision directly:  ANALYZER=... make
+
+   NOTE: if you will leave the setting empty, no analyzer will be
+         built-in (but all available from predator project will be
+         built in their place, ready for future use), so clsp-run
+         script will try to load analyzer of your choice (see below)
+         as a plugin
+
+   NOTE: build was successfully tested in paralel mode
+         (-j3 or as per your configuration)
+
+   NOTE: if you use non-POSIX C library without support for "%n$"
+         and "*n$" printf specifier, compile with C99STRICT macro
+         defined
+
+2. adjust the same field in clsp-run respectively (in case of
+   built-in plugin, otherwise choose any one), or pass your
+   decision directly:  ANALYZER=... clsp-run [options ...]
+
+3. usage and available options:  clsp-run -h
+
+...
+
+
+Minor tasks:
+
+* rebuild (e.g., when modifying ANALYZER in the Makefile):
+      make clean && make
+  and, in case of troubles, there is also in-depth clean:
+      make mrproper && make
+
+* run internal conversion testsuite (considering tested
+  correct configuration of ANALYZER items as per above):
+      make check
