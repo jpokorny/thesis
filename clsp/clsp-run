@@ -26,7 +26,7 @@ HERE=$(dirname "${BASH_SOURCE[0]}")
 : ${EXEC:="${HERE}/clsp"}
 : ${PREDATOR_DIR:="${HERE}/dep-predator"}
 # currently available: cl_smoke_test, fwnull, sl, fa or <empty>
-: ${ANALYZER:=cl_smoke_test}
+: ${ANALYZER:=sl}
 
 INT_ARGS=
 
@@ -39,6 +39,7 @@ if echo ${ANALYZER} | grep -q "test"; then
 else
     LIB="${PREDATOR_DIR}/${ANALYZER}_build/lib${ANALYZER}.so"
 fi
+LIBDIR="$(dirname "${LIB}")"
 
 if [ ${GCC_INCLUDES:=0} -ne 0 ]; then
     INT_ARGS+=" -isystem $(echo|cpp -Wp,-v - 2>&1 >/dev/null|grep -E "^[ ]*/"|head -n1|sed 's/^ *//')"
@@ -60,7 +61,7 @@ verbosely () {
 
 # or parse ${EXEC} --version
 if LANG=C ldd ${EXEC} | grep -q "not found"; then
-    verbosely "${WRAPPER}" env LD_PRELOAD="${LIB}" "${EXEC}" ${INT_ARGS} "${@}"
+    verbosely "${WRAPPER}" env LD_LIBRARY_PATH="${LIBDIR}" "${EXEC}" ${INT_ARGS} "${@}"
 else
     verbosely "${WRAPPER}" "${EXEC}" -cl-plugin="${LIB}" ${INT_ARGS} "${@}"
 fi
