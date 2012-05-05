@@ -68,7 +68,7 @@ extern const struct cl_operand no_operand;
 #define CST_FNC(op)  (&CST(op)->data.cst_fnc)
 #define CST_REAL(op) (&CST(op)->data.cst_real)
 
-#define VAR(op)      (op->data.var)
+#define VAR(op)      ((op)->data.var)
 
 #define UNOP(insn)   (&(insn)->data.insn_unop)
 #define BINOP(insn)  (&(insn)->data.insn_binop)
