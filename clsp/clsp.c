@@ -442,11 +442,17 @@ emitter(struct options *opts)
         ret = emit(filelist, symlist, emit_props);
     }
 
-    release_sparse();
 
     if (ret_negative != ret && !(emit_props & emit_dry_run))
         /* hand over the processing business */
         API_EMIT(acknowledge);
+
+    /*
+        why here (should be changed in future), i.e., what is
+        not acquired:
+        - loc.file
+     */
+    release_sparse();
 
     return (ret_negative == ret) ? ec_sparse_code : ec_ok;
 }
