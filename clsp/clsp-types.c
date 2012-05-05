@@ -66,7 +66,8 @@ struct cl_type
     // lllong_clt, slllong_clt, ulllong_clt
     char_clt, schar_clt, uchar_clt,
     bool_clt,
-    float_clt, double_clt, ldouble_clt;
+    float_clt, double_clt, ldouble_clt,
+    string_clt;
 
 
 static const struct {
@@ -85,8 +86,8 @@ static const struct {
  * Note:
  * `lllong' represents non-standard "extra long" at specific platforms [?]
  */
-    #define TYPE(sym, clt) \
-        { &sym##_clt, &sym##_ctype, CL_TYPE_##clt, #sym }
+#define TYPE(sym, clt) \
+    { &sym##_clt, &sym##_ctype, CL_TYPE_##clt, #sym }
     /* CL_TYPE_VOID */
     TYPE(void, VOID),
 
@@ -111,7 +112,11 @@ static const struct {
     TYPE(float,   REAL),
     TYPE(double,  REAL),
     TYPE(ldouble, REAL),
-    #undef TYPE
+
+    /* CL_TYPE_STRING */
+    TYPE(string,  STRING),
+
+#undef TYPE
 };
 
 

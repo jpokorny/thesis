@@ -55,4 +55,16 @@ extern struct type_ptr_db {
 } type_ptr_db;
 
 
+extern struct cl_type
+    void_clt,
+    incomplete_clt,
+    bad_clt,
+    int_clt,  sint_clt,  uint_clt,     short_clt, sshort_clt, ushort_clt,
+    long_clt, slong_clt, ulong_clt,    llong_clt, sllong_clt, ullong_clt,
+    // lllong_clt, slllong_clt, ulllong_clt
+    char_clt, schar_clt, uchar_clt,
+    bool_clt,
+    float_clt, double_clt, ldouble_clt,
+    string_clt;
+
 #endif
