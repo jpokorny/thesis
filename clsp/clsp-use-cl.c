@@ -298,6 +298,12 @@ debug_cl_accessor(const struct cl_accessor *accessor, int indent)
                       "}",
                       accessor->data.item.id);
                 break;
+            case CL_ACCESSOR_OFFSET:
+                PUTHI(debug, cl_debug, indent, "{"
+                          "off=" _1(d)
+                      "}",
+                      accessor->data.offset.off);
+                break;
             /* otherwise, error already indicated as kind */
         }
         accessor = accessor->next;

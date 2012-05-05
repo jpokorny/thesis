@@ -106,8 +106,7 @@ extern const struct cl_operand no_operand;
 #define CL_SCOPE_CODELIST(x) \
     APPLY(x, GLOBAL)         \
     APPLY(x, STATIC)         \
-    APPLY(x, FUNCTION)       \
-    APPLY(x, BB)
+    APPLY(x, FUNCTION)
 #define CL_SCOPE_RESERVED  8
 
 extern const char *const cl_scope_codelist_str[CL_SCOPE_RESERVED];
@@ -170,7 +169,8 @@ debug_cl_type_code(enum cl_operand_e code)
     APPLY(x, REF        )       \
     APPLY(x, DEREF      )       \
     APPLY(x, DEREF_ARRAY)       \
-    APPLY(x, ITEM       )
+    APPLY(x, ITEM       )       \
+    APPLY(x, OFFSET     )
 #define CL_ACCESSOR_RESERVED  8
 
 extern const char *const cl_accessor_codelist_str[CL_ACCESSOR_RESERVED];
