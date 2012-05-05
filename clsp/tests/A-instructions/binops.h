@@ -47,18 +47,12 @@ DO_BINOP(double_double_int, double, double, int)
 DO_BINOP(ptr_ptr_int, void *, void *, int)
 #endif
 
-#ifdef USE_PTR_INT_PTR
-DO_BINOP(ptr_int_ptr, void *, int, void *)
+#ifdef USE_PTRINT_PTRINT_INT
+DO_BINOP(ptrint_ptrint_int, int *, int *, int)
 #endif
 
-/*
-    with 08-add.c.raw:
-        warning: incorrect type in return expression (different base types)
-            expected void *
-            got long
-*/
-#ifdef USE_PTR_PTR_PTR
-DO_BINOP(ptr_ptr_ptr, void *, void *, void *)
+#ifdef USE_LONGLONG_PTR_PTR
+DO_BINOP(longlong_ptr_ptr, long long, void *, void *)
 #endif
 
 #ifdef USE_INT_ZERO
@@ -68,6 +62,15 @@ DO_BINOP_IMPLICIT(int_zero, int, 0)
 #ifdef USE_INT_ONE
 DO_BINOP_IMPLICIT(int_one, int, 1)
 #endif
+
+#ifdef USE_PTR_ONE
+DO_BINOP_IMPLICIT(ptr_one, int *, 1)
+#endif
+
+#ifdef USE_INTPTR_ONE
+DO_BINOP_IMPLICIT(intptr_one, int *, 1)
+#endif
+
 
 /* comparisons */
 
