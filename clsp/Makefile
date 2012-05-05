@@ -31,7 +31,7 @@ VERBOSE    = 0  # should be propagated also to CL build system
 
 ANALYZERS  = cl_smoke_test fwnull sl fa
 # one from above or <empty>
-ANALYZER   = sl
+ANALYZER   = 
 CL_OPTS   :=
 
 ifeq (1,${RELEASE})
