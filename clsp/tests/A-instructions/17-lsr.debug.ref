@@ -5,7 +5,7 @@ A-instructions/17-lsr.c:3:1: debug: operand-symbol: sp >>> binop_unsigned
 unsigned int static [unsigned] [toplevel] binop_unsigned( ... )
 A-instructions/17-lsr.c:3:1: debug: operand-symbol: cl <<< binop_unsigned
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=23, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/17-lsr.c:3:16
+            <type> {kind=FNC, uid=24, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/17-lsr.c:3:16
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                 <type-item> {name=a}

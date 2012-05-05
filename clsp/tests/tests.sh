@@ -24,8 +24,7 @@ HERE=$(dirname "${BASH_SOURCE[0]}")
 
 TMP_ROOT=/tmp
 
-CLSP_RUNNER=../clsp-run
-
+CLSP_RUNNER="${HERE}/../clsp-run"
 DIFF="diff -q"
 SIMDIFF=../simdiff
 MAKEINV=../makeinv
@@ -34,6 +33,9 @@ INSPECTDIFF=meld
 : ${SHOW_OK:=1}
 : ${INSPECT:=0}
 : ${BATCH:=0}
+: ${ANALYZER:=cl_smoke_test}
+
+export ANALYZER=${ANALYZER}
 
 SLINE=
 for i in $(seq 0 63); do SLINE="-${SLINE}"; done

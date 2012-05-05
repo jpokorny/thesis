@@ -9,9 +9,12 @@
 #define USE_INT_INT_UINT
 #define USE_DOUBLE_DOUBLE_INT
 #define USE_PTR_PTR_INT
+#define USE_LONGLONG_PTR_PTR
 
 #define USE_INT_ZERO
 #define USE_INT_ONE
+#define USE_PTR_ONE
+#define USE_INTPTR_ONE
 
 #include "binops.h"
 

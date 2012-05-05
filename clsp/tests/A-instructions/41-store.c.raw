@@ -52,7 +52,7 @@ STRUCT_VAR_DECL;
 #define TO_SYM 1
 #define TO_REG 1
 #define TO_ARG 1
-#define TO_VAL 0
+#define TO_VAL 1
 
 
 #if TO_SYM

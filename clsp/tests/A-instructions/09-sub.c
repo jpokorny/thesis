@@ -47,6 +47,12 @@ binop_ptr_ptr_int (void *a, int b)
   return (a) - (b);
 }
 
+static long long
+binop_longlong_ptr_ptr (void *a, void *b)
+{
+  return (a) - (b);
+}
+
 static int
 binop_int_zero (int a)
 {
@@ -55,6 +61,18 @@ binop_int_zero (int a)
 
 static int
 binop_int_one (int a)
+{
+  return (a) - (1);
+}
+
+static int *
+binop_ptr_one (int *a)
+{
+  return (a) - (1);
+}
+
+static int *
+binop_intptr_one (int *a)
 {
   return (a) - (1);
 }

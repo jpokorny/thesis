@@ -5,7 +5,7 @@ A-instructions/16-shl.c:3:1: debug: operand-symbol: sp >>> binop_char
 char static [signed] [toplevel] binop_char( ... )
 A-instructions/16-shl.c:3:1: debug: operand-symbol: cl <<< binop_char
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=23, name=(none), sizeof=1, item_cnt=3, is_unsigned=N}: A-instructions/16-shl.c:3:12
+            <type> {kind=FNC, uid=24, name=(none), sizeof=1, item_cnt=3, is_unsigned=N}: A-instructions/16-shl.c:3:12
                 <type-item> {name=(anonymous)}
                     <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=a}
@@ -160,7 +160,7 @@ A-instructions/16-shl.c:9:1: debug: operand-symbol: sp >>> binop_int
 int static [signed] [toplevel] binop_int( ... )
 A-instructions/16-shl.c:9:1: debug: operand-symbol: cl <<< binop_int
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=24, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/16-shl.c:9:11
+            <type> {kind=FNC, uid=25, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/16-shl.c:9:11
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=a}
@@ -246,7 +246,7 @@ A-instructions/16-shl.c:15:1: debug: operand-symbol: sp >>> binop_unsigned
 unsigned int static [unsigned] [toplevel] binop_unsigned( ... )
 A-instructions/16-shl.c:15:1: debug: operand-symbol: cl <<< binop_unsigned
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=25, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/16-shl.c:15:16
+            <type> {kind=FNC, uid=26, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/16-shl.c:15:16
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                 <type-item> {name=a}
@@ -332,7 +332,7 @@ A-instructions/16-shl.c:21:1: debug: operand-symbol: sp >>> binop_int_zero
 int static [signed] [toplevel] binop_int_zero( ... )
 A-instructions/16-shl.c:21:1: debug: operand-symbol: cl <<< binop_int_zero
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=26, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/16-shl.c:21:16
+            <type> {kind=FNC, uid=27, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/16-shl.c:21:16
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=a}
@@ -376,7 +376,7 @@ A-instructions/16-shl.c:27:1: debug: operand-symbol: sp >>> binop_int_one
 int static [signed] [toplevel] binop_int_one( ... )
 A-instructions/16-shl.c:27:1: debug: operand-symbol: cl <<< binop_int_one
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=27, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/16-shl.c:27:15
+            <type> {kind=FNC, uid=28, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/16-shl.c:27:15
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=a}

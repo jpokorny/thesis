@@ -5,7 +5,7 @@ A-instructions/35-neg.c:3:1: debug: operand-symbol: sp >>> unop_char
 char static [signed] [toplevel] unop_char( ... )
 A-instructions/35-neg.c:3:1: debug: operand-symbol: cl <<< unop_char
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=23, name=(none), sizeof=1, item_cnt=2, is_unsigned=N}: A-instructions/35-neg.c:3:11
+            <type> {kind=FNC, uid=24, name=(none), sizeof=1, item_cnt=2, is_unsigned=N}: A-instructions/35-neg.c:3:11
                 <type-item> {name=(anonymous)}
                     <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=a}
@@ -118,7 +118,7 @@ A-instructions/35-neg.c:9:1: debug: operand-symbol: sp >>> unop_int
 int static [signed] [toplevel] unop_int( ... )
 A-instructions/35-neg.c:9:1: debug: operand-symbol: cl <<< unop_int
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=24, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/35-neg.c:9:10
+            <type> {kind=FNC, uid=25, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/35-neg.c:9:10
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=a}

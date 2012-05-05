@@ -5,7 +5,7 @@ A-instructions/31-set_a.c:3:1: debug: operand-symbol: sp >>> binop_bool_uint_uin
 bool static [unsigned] [toplevel] binop_bool_uint_uint( ... )
 A-instructions/31-set_a.c:3:1: debug: operand-symbol: cl <<< binop_bool_uint_uint
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=23, name=(none), sizeof=1, item_cnt=3, is_unsigned=N}: A-instructions/31-set_a.c:3:22
+            <type> {kind=FNC, uid=24, name=(none), sizeof=1, item_cnt=3, is_unsigned=N}: A-instructions/31-set_a.c:3:22
                 <type-item> {name=(anonymous)}
                     <type> {kind=BOOL, uid=19, name=bool, sizeof=1, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                 <type-item> {name=a}

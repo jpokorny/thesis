@@ -1077,6 +1077,7 @@ op_initialize_var_maybe(struct cl_operand *op, struct symbol *sym)
                 initializes char array by char array not ever boiling down
                 to real string literal
              */
+            CL_TRAP;  /* not expected now */
             VAR(op)->initial = alloc_cl_initializer_safe();
             VAR(op)->initial->insn.code = CL_INSN_UNOP;
             conv_position(&VAR(op)->initial->insn.loc, &expr->pos);
@@ -1093,7 +1094,6 @@ op_initialize_var_maybe(struct cl_operand *op, struct symbol *sym)
                 initialization;  hopefully no recursion drama ahead
              */
             from = op_from_symbol(expr->symbol);
-            /* XXX CL_TYPE_STRING easier way? */
 
             assert(!from->accessor);
             struct cl_operand *clone = op_copy(from, copy_shallow);
@@ -1216,12 +1216,6 @@ right_position:
     assert(CL_OPERAND_VAR == op->code);
     assert(CL_SCOPE_FUNCTION == op->scope);
 
-    /*
-        XXX re: marking "initialized"
-        they cannot be uninitialized in principle, but as these are
-        known to CL as function arguments, this may be implicit
-     */
-
     return op;
 }
 
@@ -1319,8 +1313,8 @@ op_from_pseudo(const struct instruction *insn, const pseudo_t pseudo)
 static inline void
 accessor_array_index(struct cl_accessor *ac, int index)
 {
-    ac->code                  = CL_ACCESSOR_DEREF_ARRAY;
-    ac->data.array.index      = op_make_cst_int(index);
+    ac->code             = CL_ACCESSOR_DEREF_ARRAY;
+    ac->data.array.index = op_make_cst_int(index);
 }
 
 static inline struct cl_accessor *
@@ -1342,7 +1336,6 @@ op_append_accessor(struct cl_operand *op, struct cl_accessor *ac)
     else
         *retval = alloc_cl_accessor();
 
-    // guaranteed not to return NULL
     return *retval;
 }
 
@@ -1399,7 +1392,6 @@ op_dig_step(const struct cl_operand **op_composite, unsigned insn_offset)
         MAP_ACCESSOR(ac, TYPE_ARRAY, ACCESSOR_DEREF_ARRAY) {
             div_t indexes;
             indexes = div(insn_offset, op->type->size/op->type->array_size);
-            // !!TODO API change
             accessor_array_index(ac, indexes.quot);
             // the remainder serves for next index-based-dereferencing rounds
             retval = indexes.rem;
@@ -1411,16 +1403,19 @@ op_dig_step(const struct cl_operand **op_composite, unsigned insn_offset)
                 // but only if resulting index would be 1+
                 div_t indexes = div(insn_offset, op->type->items->type->size);
                 if (indexes.quot)
-                    // !!TODO API change
                     accessor_array_index(ac, indexes.quot);
                 // the remainder serves for next index-based-deref. rounds
                 retval = indexes.rem;
             } else {
                 /* {deref, ref} = {} */
-                if (op->accessor && CL_ACCESSOR_REF == op->accessor->code) {
-                    struct cl_operand *clone = op_copy(op, copy_shallow_ac_null);
-                    op_append_accessor(clone, op->accessor->next);
-                    clone->type = op->accessor->type;
+                struct cl_operand *clone = op_copy(op, copy_shallow_ac_deep);
+                struct cl_accessor **seek = &clone->accessor;
+                if (*seek)
+                    while ((*seek)->next)
+                        seek = &(*seek)->next;
+                if (*seek && CL_ACCESSOR_REF == (*seek)->code) {
+                    clone->type = (*seek)->type;
+                    *seek = NULL;
                     *op_composite = clone;
                     return retval;
                 }
@@ -1722,9 +1717,12 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction **insn,
 
     if (ops_handling & TYPE_LHS_STORE) {
         struct cl_type *type = type_from_symbol(assign->type, NULL);
-        /* only when "storing" into symbol-like pseudo, we are done when
-           the type matches, othewise we have to either do a simple
-           dereference or dig into into composite type to find the match */
+        /*
+            only when "storing" into symbol-like pseudo, we are done when
+            the type matches, othewise we have to either do a simple
+            dereference or, together with non-matching symbol-like pseudo,
+            dig into into composite type to find the match
+         */
         if (!type_match((*op_lhs)->type, type) || PSEUDO_SYM != lhs->type) {
             if (!op_accessible(*op_lhs) || PSEUDO_SYM != lhs->type) {
                 *op_lhs = op_copy(*op_lhs, copy_shallow);

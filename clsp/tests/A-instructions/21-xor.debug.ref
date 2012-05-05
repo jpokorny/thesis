@@ -5,7 +5,7 @@ A-instructions/21-xor.c:3:1: debug: operand-symbol: sp >>> binop_int
 int static [signed] [toplevel] binop_int( ... )
 A-instructions/21-xor.c:3:1: debug: operand-symbol: cl <<< binop_int
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=23, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/21-xor.c:3:11
+            <type> {kind=FNC, uid=24, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/21-xor.c:3:11
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=a}
@@ -91,7 +91,7 @@ A-instructions/21-xor.c:9:1: debug: operand-symbol: sp >>> binop_unsigned
 unsigned int static [unsigned] [toplevel] binop_unsigned( ... )
 A-instructions/21-xor.c:9:1: debug: operand-symbol: cl <<< binop_unsigned
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=24, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/21-xor.c:9:16
+            <type> {kind=FNC, uid=25, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/21-xor.c:9:16
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                 <type-item> {name=a}
@@ -177,7 +177,7 @@ A-instructions/21-xor.c:15:1: debug: operand-symbol: sp >>> binop_int_zero
 int static [signed] [toplevel] binop_int_zero( ... )
 A-instructions/21-xor.c:15:1: debug: operand-symbol: cl <<< binop_int_zero
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=25, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/21-xor.c:15:16
+            <type> {kind=FNC, uid=26, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/21-xor.c:15:16
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=a}
@@ -221,7 +221,7 @@ A-instructions/21-xor.c:21:1: debug: operand-symbol: sp >>> binop_int_one
 int static [signed] [toplevel] binop_int_one( ... )
 A-instructions/21-xor.c:21:1: debug: operand-symbol: cl <<< binop_int_one
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=26, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/21-xor.c:21:15
+            <type> {kind=FNC, uid=27, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/21-xor.c:21:15
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=a}

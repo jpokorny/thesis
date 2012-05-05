@@ -5,7 +5,7 @@ A-instructions/40-load.c:6:1: debug: operand-symbol: sp >>> load_from_sym
 int static [signed] [toplevel] load_from_sym( ... )
 A-instructions/40-load.c:6:1: debug: operand-symbol: cl <<< load_from_sym
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=23, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/40-load.c:6:15
+            <type> {kind=FNC, uid=24, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/40-load.c:6:15
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=arg}
@@ -74,11 +74,11 @@ A-instructions/40-load.c:12:1: debug: operand-symbol: sp >>> load_from_arg
 int static [signed] [toplevel] load_from_arg( ... )
 A-instructions/40-load.c:12:1: debug: operand-symbol: cl <<< load_from_arg
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=24, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/40-load.c:12:15
+            <type> {kind=FNC, uid=25, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/40-load.c:12:15
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=arg}
-                    <type> {kind=PTR, uid=25, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
+                    <type> {kind=PTR, uid=26, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
                         <type-item> {name=(anonymous)}
                             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=load_from_arg, uid=2, extern=N}: A-instructions/40-load.c:12:1
@@ -90,7 +90,7 @@ A-instructions/40-load.c:12:16: debug: operand-symbol: sp >>> arg
 int *arg
 A-instructions/40-load.c:12:16: debug: operand-symbol: cl <<< arg
         <operand> {kind=VAR, scope=FUNCTION}
-            <type> {kind=PTR, uid=25, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
+            <type> {kind=PTR, uid=26, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=4, name=arg, artificial=N, initialized=N}: A-instructions/40-load.c:12:16
@@ -113,7 +113,7 @@ A-instructions/40-load.c:14:10: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>> cached >>> cl
         %arg1
         <operand> {kind=VAR, scope=FUNCTION}
-            <type> {kind=PTR, uid=25, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
+            <type> {kind=PTR, uid=26, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=4, name=arg, artificial=N, initialized=N}: A-instructions/40-load.c:12:16
@@ -127,7 +127,7 @@ A-instructions/40-load.c:14:10: debug: instruction: cl <<<
                 <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <accessor> {kind=DEREF_ARRAY}
-                        <type> {kind=PTR, uid=25, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
+                        <type> {kind=PTR, uid=26, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
                             <type-item> {name=(anonymous)}
                                 <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                         <array-index>
@@ -155,7 +155,7 @@ A-instructions/40-load.c:18:1: debug: operand-symbol: sp >>> load_from_reg
 int static [signed] [toplevel] load_from_reg( ... )
 A-instructions/40-load.c:18:1: debug: operand-symbol: cl <<< load_from_reg
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=26, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/40-load.c:18:15
+            <type> {kind=FNC, uid=27, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/40-load.c:18:15
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=arg}
@@ -241,7 +241,7 @@ A-instructions/40-load.c:20:11: debug: instruction: sp >>>
         %r10
 	debug: operand-pseudo: cl <<<
         <operand> {kind=VAR, scope=FUNCTION}
-            <type> {kind=PTR, uid=25, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
+            <type> {kind=PTR, uid=26, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:11
@@ -269,7 +269,7 @@ int static [toplevel] j[0]
 	debug: operand-pseudo: sp >>> cached >>> cl
                         j
                         <operand> {kind=VAR, scope=STATIC}
-                            <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                            <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                                 <type-item> {name=(anonymous)}
                                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                             <operand-var> {uid=10, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
@@ -286,7 +286,7 @@ int static [toplevel] j[0]
                         <operand> {kind=VAR, scope=STATIC}
                             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                             <accessor> {kind=DEREF_ARRAY}
-                                <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                                <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                                     <type-item> {name=(anonymous)}
                                         <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                 <array-index>
@@ -304,7 +304,7 @@ int static [toplevel] j[0]
 	debug: operand-pseudo: sp >>> cached >>> cl
                         j
                         <operand> {kind=VAR, scope=STATIC}
-                            <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                            <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                                 <type-item> {name=(anonymous)}
                                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                             <operand-var> {uid=10, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
@@ -321,7 +321,7 @@ int static [toplevel] j[0]
                         <operand> {kind=VAR, scope=STATIC}
                             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                             <accessor> {kind=DEREF_ARRAY}
-                                <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                                <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                                     <type-item> {name=(anonymous)}
                                         <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                 <array-index>
@@ -341,7 +341,7 @@ int static [toplevel] j[0]
 	debug: initializer-expression: stop
 A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
         <operand> {kind=VAR, scope=STATIC}
-            <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+            <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=10, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
@@ -351,7 +351,7 @@ A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
                             <operand> {kind=VAR, scope=STATIC}
                                 <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                 <accessor> {kind=DEREF_ARRAY}
-                                    <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                                    <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                                         <type-item> {name=(anonymous)}
                                             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                     <array-index>
@@ -369,7 +369,7 @@ A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
                             <operand> {kind=VAR, scope=STATIC}
                                 <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                 <accessor> {kind=DEREF_ARRAY}
-                                    <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                                    <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                                         <type-item> {name=(anonymous)}
                                             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                     <array-index>
@@ -395,19 +395,19 @@ A-instructions/40-load.c:20:11: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r10
         <operand> {kind=VAR, scope=STATIC}
-            <type> {kind=PTR, uid=25, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
+            <type> {kind=PTR, uid=26, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-            <accessor> {kind=REF}
-                <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                <accessor> {kind=DEREF_ARRAY}
-                    <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
-                        <type-item> {name=(anonymous)}
-                            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                    <array-index>
-                        <operand> {kind=VAR, scope=FUNCTION}
-                            <type> {kind=INT, uid=10, name=long, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                            <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:12
+            <accessor> {kind=DEREF_ARRAY}
+                <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                    <type-item> {name=(anonymous)}
+                        <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <array-index>
+                    <operand> {kind=VAR, scope=FUNCTION}
+                        <type> {kind=INT, uid=10, name=long, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                        <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/40-load.c:20:12
+                <accessor> {kind=REF}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=10, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
             (skipped for possible initialization infloop)
 A-instructions/40-load.c:20:11: debug: instruction: cl <<<
@@ -420,7 +420,7 @@ A-instructions/40-load.c:20:11: debug: instruction: cl <<<
                 <operand> {kind=VAR, scope=STATIC}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <accessor> {kind=DEREF_ARRAY}
-                        <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                        <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                             <type-item> {name=(anonymous)}
                                 <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                         <array-index>
@@ -434,7 +434,7 @@ A-instructions/40-load.c:20:11: debug: instruction: cl <<<
                                     <operand> {kind=VAR, scope=STATIC}
                                         <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                         <accessor> {kind=DEREF_ARRAY}
-                                            <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                                            <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                                                 <type-item> {name=(anonymous)}
                                                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                             <array-index>
@@ -452,7 +452,7 @@ A-instructions/40-load.c:20:11: debug: instruction: cl <<<
                                     <operand> {kind=VAR, scope=STATIC}
                                         <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                         <accessor> {kind=DEREF_ARRAY}
-                                            <type> {kind=ARRAY, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                                            <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
                                                 <type-item> {name=(anonymous)}
                                                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                                             <array-index>

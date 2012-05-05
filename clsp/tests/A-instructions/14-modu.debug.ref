@@ -5,7 +5,7 @@ A-instructions/14-modu.c:3:1: debug: operand-symbol: sp >>> binop_unsigned
 unsigned int static [unsigned] [toplevel] binop_unsigned( ... )
 A-instructions/14-modu.c:3:1: debug: operand-symbol: cl <<< binop_unsigned
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=23, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/14-modu.c:3:16
+            <type> {kind=FNC, uid=24, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/14-modu.c:3:16
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                 <type-item> {name=a}
@@ -91,7 +91,7 @@ A-instructions/14-modu.c:9:1: debug: operand-symbol: sp >>> binop_int_int_uint
 int static [signed] [toplevel] binop_int_int_uint( ... )
 A-instructions/14-modu.c:9:1: debug: operand-symbol: cl <<< binop_int_int_uint
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=24, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/14-modu.c:9:20
+            <type> {kind=FNC, uid=25, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/14-modu.c:9:20
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=a}
@@ -131,7 +131,7 @@ A-instructions/14-modu.c:11:17: debug: instruction: sp >>>
         %r8
 	debug: operand-pseudo: cl <<<
         <operand> {kind=VAR, scope=FUNCTION}
-            <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/14-modu.c:11:17
 	debug: operand-pseudo: sp >>> cached >>> cl
         %arg1
@@ -147,7 +147,7 @@ A-instructions/14-modu.c:11:17: debug: instruction: cl <<<
         <instruction> [TRUNC_MOD (BINOP)]: A-instructions/14-modu.c:11:17
             <binop-dst>
                 <operand> {kind=VAR, scope=FUNCTION}
-                    <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/14-modu.c:11:17
             <binop-src1>
                 <operand> {kind=VAR, scope=FUNCTION}
@@ -162,13 +162,13 @@ A-instructions/14-modu.c:11:17: debug: instruction: sp >>>
 	debug: operand-pseudo: sp >>> cached >>> cl
         %r8
         <operand> {kind=VAR, scope=FUNCTION}
-            <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/14-modu.c:11:17
 A-instructions/14-modu.c:11:17: debug: instruction: cl <<<
         <instruction> [RET]: A-instructions/14-modu.c:11:17
             <ret-src>
                 <operand> {kind=VAR, scope=FUNCTION}
-                    <type> {kind=INT, uid=6, name=uint, sizeof=4, item_cnt=0, is_unsigned=Y}: (null):-1:-1
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <operand-var> {uid=6, name=(none), artificial=Y, initialized=N}: A-instructions/14-modu.c:11:17
 A-instructions/14-modu.c:10:1: debug: function: end binop_int_int_uint
 
