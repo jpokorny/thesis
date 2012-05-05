@@ -43,7 +43,7 @@ else
   CFLAGS  += -Wno-format
   CFLAGS  += -Wswitch-enum
   SP_OPTS  = "CFLAGS += ${DBGCFLAGS}"
-  CL_OPTS += CL_DEBUG=ON
+  CL_OPTS += CL_DEBUG=ON SL_DEBUG=ON
 endif
 ifeq (1,${VERBOSE})
   SP_OPTS  = "V = 1"
@@ -163,6 +163,7 @@ clean-sparse:
 
 clean-analyzer:
 	for a in $(ANALYZER_CLEAN); do $(MAKE) -C $$a clean; done
+	rm -rf -- ${PREDATOR_DIR}/cl_build
 
 clean-check:
 	make -C ${TEST_RUNNER_DIR} clean
