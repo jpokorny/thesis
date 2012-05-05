@@ -616,16 +616,24 @@ type_from_register(const pseudo_t pseudo)
             case OP_FPCAST:
             case OP_PTRCAST:
                 type = pu->insn->orig_type;
-                goto found;
+                goto done;
             case OP_RET:
                 type = pu->insn->type;
-                goto found;
+                goto done;
             case OP_COPY:
                 /* OP_COPY needs upstream patch:
                    http://git.kernel.org/?p=devel/sparse/chrisl/
                    sparse.git;a=commitdiff;h=db72a46 */
-                /* evaluate transitively as per target */
-                return type_from_register(pu->insn->target);
+                /*
+                    evaluate transitively as per target, but not if the user
+                    is another OP_COPY (was causing recursion)
+                 */
+                if (OP_COPY != pu->insn->opcode)
+                    return type_from_register(pu->insn->target);
+
+                type = pu->insn->type;
+                /* see if there is something better (?) */
+                break;
             default:
                 /* other instructions may have an incorrect type as well (?) */
                 break;
@@ -633,7 +641,7 @@ type_from_register(const pseudo_t pseudo)
 
     } END_FOR_EACH_PTR(pu);
 
-found:
+done:
 
     /* second-level type authority */
     if (!type && pseudo->def)
@@ -969,6 +977,8 @@ op_initialize_var_from_initializer(struct cl_operand *op,
                                    struct symbol *sym)
 {
     assert(sym->initializer);
+
+    /* test-0028, test-0029, 0074, 0078, 0079, 0080, 0081, 0084 */
     assert(sym->ctype.modifiers & (MOD_STATIC | MOD_TOPLEVEL));
 
     struct expression *expr;
@@ -1007,7 +1017,7 @@ op_initialize_var_from_initializer(struct cl_operand *op,
         here to avoid recursive infloop/duplicated variables (which is bad)
         when converting initializer operands as it contains self-references
      */
-    assert(sym->pseudo && !sym->pseudo->priv);
+    assert(sym->pseudo && !sym->pseudo->priv && PSEUDO_VAL != sym->pseudo->type);
     sym->pseudo->priv = (void *) op;
 
     DEBUG_INITIALIZER_EXPR_START();
@@ -1071,20 +1081,21 @@ op_initialize_var_maybe(struct cl_operand *op, struct symbol *sym)
     DEBUG_INITIALIZER_SP(expr);
 
     switch (expr->type) {
+        case EXPR_VALUE:
         case EXPR_STRING:
             /*
                 EXPR_INITIALIZER case cannot handle this correctly as it
                 initializes char array by char array not ever boiling down
                 to real string literal
              */
-            CL_TRAP;  /* not expected now */
             VAR(op)->initial = alloc_cl_initializer_safe();
             VAR(op)->initial->insn.code = CL_INSN_UNOP;
             conv_position(&VAR(op)->initial->insn.loc, &expr->pos);
 
             UNOP(&VAR(op)->initial->insn)->code = CL_UNOP_ASSIGN;
-            UNOP(&VAR(op)->initial->insn)->dst  = op;
-            UNOP(&VAR(op)->initial->insn)->src  = op_make_cst_string(expr);
+            UNOP(&VAR(op)->initial->insn)->dst = op;
+            UNOP(&VAR(op)->initial->insn)->src =
+                op_from_primitive_literal(expr);
             break;
 
         case EXPR_SYMBOL:
@@ -1116,7 +1127,18 @@ op_initialize_var_maybe(struct cl_operand *op, struct symbol *sym)
             /* no need to "debug" the same over again */
             return op_initialize_var_from_initializer(op, sym);
 
+        case EXPR_IMPLIED_CAST:
+            /* test-0006, test-0020, test-0022, 0045,: why not linearized?
+                movi.64         v1,$8
+                push.64         v1
+                call            malloc
+                add.64          vSP,vSP,$8
+                mov.64          v2,retval  */
+        case EXPR_CALL:
+            /* test-0010, test-0013, test-0015, test-0017, 0051, test-0052,
+               test-0053, 0057, 0058, 0059 */
         default:
+            CL_TRAP;
             WARN("unhandled initializer expression type");
             return false;
     }
@@ -1291,10 +1313,36 @@ op_from_pseudo_maybe(const struct instruction *insn, const pseudo_t pseudo)
     DEBUG_OP_FROM_PSEUDO_SP(pseudo);
     DEBUG_OP_FROM_PSEUDO_CL(op);
 
-    if (NO_OPERAND_USE != op)
+    if (NO_OPERAND_USE != op && PSEUDO_VAL != pseudo->type)
         pseudo->priv = op;  /* cache it */
 
     return op;
+}
+
+
+/**
+    Wrapper for @c op_from_pseudo_maybe when rewriting VOID to new VAR
+ */
+static inline struct cl_operand *
+op_from_pseudo_allow_uninit(const struct instruction *insn,
+                            const pseudo_t pseudo)
+{
+
+    struct cl_operand *ret = op_from_pseudo_maybe(insn, pseudo);
+    if (NO_OPERAND_USE == ret) {
+        PUT(err, SPPOSFMT_1 ": warning: use of uninitialized variable",
+                 SPPOS(insn->pos));
+        ret = op_make_var();
+        ret->scope = CL_SCOPE_FUNCTION;
+        /* first-shot, bad for, e.g., function arguments */
+        if (insn->type && OP_CALL != insn->opcode)
+            ret->type = type_from_symbol(insn->type, NULL);
+        else
+            ret->type = &int_clt;
+        VAR(ret)->artificial = true;
+        conv_position(&VAR(ret)->loc, &insn->pos);
+    }
+    return ret;
 }
 
 
@@ -1398,7 +1446,7 @@ op_dig_step(const struct cl_operand **op_composite, unsigned insn_offset)
             break;
         }
         MAP_ACCESSOR(ac, TYPE_PTR, ACCESSOR_DEREF) {
-            if (insn_offset /* && op->type->items->type->size*/) {
+            if (insn_offset && op->type->items->type->size) {
                 // convert into another accessor then predestined (ptr->arr),
                 // but only if resulting index would be 1+
                 div_t indexes = div(insn_offset, op->type->items->type->size);
@@ -1713,7 +1761,7 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction **insn,
 
     /* prepare LHS */
 
-    *op_lhs = op_from_pseudo(assign, lhs);
+    *op_lhs = op_from_pseudo_allow_uninit(assign, lhs);
 
     if (ops_handling & TYPE_LHS_STORE) {
         struct cl_type *type = type_from_symbol(assign->type, NULL);
@@ -1744,7 +1792,11 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction **insn,
 
     /* prepare RHS (quite complicated compared to LHS) */
 
-    *op_rhs = op_from_pseudo(assign, rhs);
+    if (OP_LOAD == assign->opcode)
+        *op_rhs = op_from_pseudo_allow_uninit(assign, rhs);
+    else
+        *op_rhs = op_from_pseudo(assign, rhs);
+
     insn_assignment_mod_rhs(op_rhs, rhs, assign, ops_handling);
 
     /*
@@ -1943,8 +1995,8 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
     struct cl_instruction *next;
 
     BINOP(cli)->dst  = dst  = op_from_pseudo(*insn, (*insn)->target);
-    BINOP(cli)->src1 = src1 = op_from_pseudo(*insn, (*insn)->src1);
-    BINOP(cli)->src2 = src2 = op_from_pseudo(*insn, (*insn)->src2);
+    BINOP(cli)->src1 = src1 = op_from_pseudo_allow_uninit(*insn, (*insn)->src1);
+    BINOP(cli)->src2 = src2 = op_from_pseudo_allow_uninit(*insn, (*insn)->src2);
 
     t1 = src1->type;
     t2 = src2->type;
@@ -2189,7 +2241,8 @@ insn_emit_call(struct cl_insn *cli, const struct instruction *insn)
 
     WITH_CALL_TO_EMIT(&cli->loc, target, fnc)
         FOR_EACH_PTR(insn->arguments, arg)
-            API_EMIT(insn_call_arg, ++cnt, op_from_pseudo(insn, arg));
+            API_EMIT(insn_call_arg, ++cnt,
+                     op_from_pseudo_allow_uninit(insn, arg));
         END_FOR_EACH_PTR(arg);
 
 
@@ -2500,6 +2553,7 @@ consider_instruction(struct instruction *insn)
 
             case conv_emit:
                 /* at least, initial instruction position may be used */
+                cli.code = CL_INSN_NOP;
                 conversion->prop.emit(&cli, insn);
                 return CL_INSN_ABORT == cli.code ? ret_escape : ret_positive;
 
