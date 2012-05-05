@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with predator.  If not, see <http://www.gnu.org/licenses/>.
 
-CLSP = ../clsp
+CLSP = ../clsp-run
 TEST_RUNNER = ./tests.sh
 
 FILES_IN  := $(shell find -name '*.c.raw' | sort)
