@@ -20,7 +20,7 @@ CC         = c99
 CFLAGS    += -Wall -Wextra -Wwrite-strings -pedantic #-errors
 #CFLAGS    += -Werror
 CFLAGS    += -pipe
-CFLAGS    += -rdynamic  # required for symbol resolving "back against us"
+LDFLAGS   += -rdynamic  # required for symbol resolving "back against us"
 LDFLAGS   += -Wl,--as-needed
 LDFLAGS   += -ldl  # dlopen, ...
 DBGCFLAGS  = -O0 -gdwarf-4 -g3 -fno-inline
@@ -43,7 +43,8 @@ else
   CFLAGS  += -Wno-format
   CFLAGS  += -Wswitch-enum
   SP_OPTS  = "CFLAGS += ${DBGCFLAGS}"
-  CL_OPTS += CL_DEBUG=ON SL_DEBUG=ON
+  CL_OPTS += CL_DEBUG=ON
+  CL_OPTS += SL_DEBUG=ON
 endif
 ifeq (1,${VERBOSE})
   SP_OPTS  = "V = 1"
@@ -126,7 +127,9 @@ define ANALYZER_template =
   $(1) :: $${$(1)_path}
   $${$(1)_path}:
 	$$(MAKE) -C $${$(1)_dir} CMAKE="cmake $${CL_OPTS}"
-  PHONIES        += $(1)
+  $(1)-clean:
+	$$(MAKE) -C $${$(1)_dir} clean
+  PHONIES        += $(1) $(1)-clean
   ANALYZER_CLEAN += $${$(1)_dir}
   ifeq (${ANALYZER},$(1))
     LDFLAGS        += $$(call GETLDFLAGS,$${$(1)_path})
@@ -161,14 +164,14 @@ clean : clean-check
 clean-sparse:
 	$(MAKE) -C $(SPARSE_DIR) clean
 
-clean-analyzer:
+clean-analyzers:
 	for a in $(ANALYZER_CLEAN); do $(MAKE) -C $$a clean; done
-	rm -rf -- ${PREDATOR_DIR}/cl_build
+	#rm -rf -- ${PREDATOR_DIR}/cl_build
 
 clean-check:
 	make -C ${TEST_RUNNER_DIR} clean
 
-mrproper: clean clean-sparse clean-analyzer
+mrproper: clean clean-check clean-sparse clean-analyzers
 
 .PHONY: all completion analyzers check clean ${PHONIES} \
-        clean-sparse clean-analyzer clean-check-prev clean-check mrproper
+        clean-sparse clean-analyzers clean-check-prev clean-check mrproper
