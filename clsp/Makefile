@@ -27,7 +27,7 @@ DBGCFLAGS  = -O0 -gdwarf-4 -g3 -fno-inline
 
 RELEASE    = 0
 USE_LTO    = 0
-VERBOSE    = 0  # should be propagated also to CL build system
+VERBOSE    = 0  # show build commands, also propagated also to predator et al.
 
 ANALYZERS  = cl_smoke_test fwnull sl fa
 # one from above or <empty>
@@ -111,9 +111,11 @@ TEST_PROGRAMS   += test_swapfd
 TEST_RUNNER_DIR  = tests
 COMPLETION       = completion/${PROGRAM}
 
+ifeq (,${ANALYZER})
+  req = ${ANALYZERS}
+endif
 
-all :: ${PROGRAM}
-
+all : ${PROGRAM} ${req}
 
 ${SPARSE_LIB}:
 	$(if {$SP_OPTS},$(shell echo "${SP_OPTS}" > ${SPARSE_DIR}/local.mk))
