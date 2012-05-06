@@ -1,6 +1,6 @@
-[submodule "clsp/dep-sparse"]
-	path = clsp/dep-sparse
-	url = https://git.kernel.org/pub/scm/devel/sparse/chrisl/sparse.git
 [submodule "clsp/dep-predator"]
 	path = clsp/dep-predator
 	url = https://github.com/kdudka/predator.git
+[submodule "clsp/dep-sparse"]
+	path = clsp/dep-sparse
+	url = https://jpokorny@github.com/jpokorny/sparse.git
