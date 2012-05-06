@@ -266,10 +266,9 @@ FILE *stream_output_deferred(outstreams outstreams, enum outstreams which);
             : (2==i_                                              \
                ? (fputs(clr_codes[STREAMSTRUCT(s2).palette.norm], \
                         STREAM(s1)), 1)                           \
-               : (fprintf(STREAM(s1), "%s\n",                     \
-                          clr_codes[STREAMSTRUCT(s2).palette.norm \
-                                    ? clr_terminate               \
-                                    : clr_none]), 0)              \
+               : (fputs(clr_codes[STREAMSTRUCT(s2).palette.norm   \
+                                  ? clr_terminate                 \
+                                  : clr_none], STREAM(s1)), 0)    \
               )                                                   \
            )                                                      \
          ; i_++)
@@ -284,17 +283,16 @@ FILE *stream_output_deferred(outstreams outstreams, enum outstreams which);
     s2: provides highlight color
  */
 #define WITH_STREAM_HIGH_AS(s1, s2)                               \
-    for (int i_=2 * !!(STREAMSTRUCT(s1).isatty); 0==i_            \
+    for (int i_=2 * (STREAMSTRUCT(s1).isatty); 0==i_              \
          ? 1                                                      \
          : (1==i_                                                 \
             ? 0                                                   \
             : (2==i_                                              \
                ? (fputs(clr_codes[STREAMSTRUCT(s2).palette.high], \
                         STREAM(s1)), 1)                           \
-               : (fprintf(STREAM(s1), "%s\n",                     \
-                          clr_codes[STREAMSTRUCT(s2).palette.high \
-                                    ? clr_terminate               \
-                                    : clr_none]), 0)              \
+               : (fputs(clr_codes[STREAMSTRUCT(s2).palette.high   \
+                                  ? clr_terminate                 \
+                                  : clr_none], STREAM(s1)), 0)    \
               )                                                   \
            )                                                      \
          ; i_++)
@@ -312,12 +310,12 @@ FILE *stream_output_deferred(outstreams outstreams, enum outstreams which);
 /* with normal color as per s2 */
 #define PUTNI(which, s2, level, fmt, ...)                               \
     WITH_STREAM_NORM_AS(which, s2)                                      \
-        PUT__(which, 0, INDENTFMT fmt, INDENT(level), __VA_ARGS__)
+        PUT__(which, 0, INDENTFMT fmt "\n", INDENT(level), __VA_ARGS__)
 
 /* with highlight color as per s2 */
 #define PUTHI(which, s2, level, fmt, ...)                               \
     WITH_STREAM_HIGH_AS(which, s2)                                      \
-        PUT__(which, 0, INDENTFMT fmt, INDENT(level), __VA_ARGS__)
+        PUT__(which, 0, INDENTFMT fmt "\n", INDENT(level), __VA_ARGS__)
 
 /* similarly, but no indentation */
 #define PUTN(which, s2, fmt, ...)  PUTNI(which, s2, 0, fmt, __VA_ARGS__)
