@@ -639,9 +639,10 @@ type_from_register(const pseudo_t pseudo)
                    sparse.git;a=commitdiff;h=db72a46 */
                 /*
                     evaluate transitively as per target, but not if the user
-                    is another OP_COPY (was causing recursion)
+                    is another OP_COPY (was causing infloop recursion)
                  */
-                if (OP_COPY != pu->insn->opcode)
+                if (!pu->insn->target->def
+                  || OP_COPY != pu->insn->target->def->opcode)
                     return type_from_register(pu->insn->target);
 
                 type = pu->insn->type;
