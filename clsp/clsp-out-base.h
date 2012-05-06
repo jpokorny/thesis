@@ -268,7 +268,8 @@ FILE *stream_output_deferred(outstreams outstreams, enum outstreams which);
                         STREAM(s1)), 1)                           \
                : (fputs(clr_codes[STREAMSTRUCT(s2).palette.norm   \
                                   ? clr_terminate                 \
-                                  : clr_none], STREAM(s1)), 0)    \
+                                  : clr_none], STREAM(s1)),       \
+                  fflush(STREAM(s1)), 0)                          \
               )                                                   \
            )                                                      \
          ; i_++)
@@ -292,7 +293,8 @@ FILE *stream_output_deferred(outstreams outstreams, enum outstreams which);
                         STREAM(s1)), 1)                           \
                : (fputs(clr_codes[STREAMSTRUCT(s2).palette.high   \
                                   ? clr_terminate                 \
-                                  : clr_none], STREAM(s1)), 0)    \
+                                  : clr_none], STREAM(s1)),       \
+                  fflush(STREAM(s1)), 0)                          \
               )                                                   \
            )                                                      \
          ; i_++)
