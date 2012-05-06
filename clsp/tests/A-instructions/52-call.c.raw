@@ -1,0 +1,36 @@
+#define APPLY(f, ...)   f(__VA_ARGS__)
+
+#define STRUCT           s
+#define STRUCT_TYPENAME  struct_t
+#ifndef STRUCT_TYPE
+# define STRUCT_TYPE struct { char c; int i; }
+#endif
+#ifndef STRUCT_DECL
+# define STRUCT_DECL typedef STRUCT_TYPE STRUCT_TYPENAME; static STRUCT_TYPENAME s
+#endif
+
+#define RET(x)                                                       \
+    APPLY(x, int,    int,             42                           ) \
+    APPLY(x, double, double,          4.2                          ) \
+    APPLY(x, string, const char *,    "foo"                        ) \
+    APPLY(x, struct, STRUCT_TYPENAME, ((STRUCT_TYPENAME) {'c', 1}) )
+
+STRUCT_DECL;
+
+#define X(name, type, arg) \
+    static type call_##name(type a) { return a; }
+RET(X)
+#undef X
+
+int main(int argc, char *argv[])
+{
+#define X(name, type, arg) \
+    type ret_##name = call_##name(arg);
+RET(X)
+#undef X
+}
+
+/*
+    clsp-options:   -d 1848
+    vim: ft=c:
+ */

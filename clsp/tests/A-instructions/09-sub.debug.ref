@@ -1220,8 +1220,9 @@ A-instructions/09-sub.c:77:14: debug: instruction: sp >>>
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=39, name=a, artificial=N, initialized=N}: A-instructions/09-sub.c:75:19
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $-4
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [-4]

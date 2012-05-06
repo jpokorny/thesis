@@ -1,0 +1,517 @@
+
+A-instructions/52-call.c:7:17: debug: file: begin (first symbol)
+A-instructions/52-call.c:9:1: debug: operand-symbol: sp >>> call_int
+        {kind=node, initializer=N, scope=file}
+int static [signed] [toplevel] call_int( ... )
+A-instructions/52-call.c:9:1: debug: operand-symbol: cl <<< call_int
+        <operand> {kind=CST, scope=STATIC}
+            <type> {kind=FNC, uid=24, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:9:10
+                <type-item> {name=(anonymous)}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=a}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-fnc> {name=call_int, uid=1, extern=N}: A-instructions/52-call.c:9:1
+
+A-instructions/52-call.c:9:1: debug: function: begin call_int
+	debug: function: argument 1
+A-instructions/52-call.c:9:11: debug: operand-symbol: sp >>> a
+        {kind=node, initializer=N, scope=unknown-toplevel:outer}
+int [signed] a
+A-instructions/52-call.c:9:11: debug: operand-symbol: cl <<< a
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=a, artificial=N, initialized=N}: A-instructions/52-call.c:9:11
+A-instructions/52-call.c:9:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/52-call.c:9:1
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/52-call.c:9:1: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/52-call.c:11:10: debug: instruction: sp >>>
+        ret.32      %arg1
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %arg1
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=1, name=a, artificial=N, initialized=N}: A-instructions/52-call.c:9:11
+A-instructions/52-call.c:11:10: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/52-call.c:11:10
+            <ret-src>
+                <operand> {kind=VAR, scope=FUNCTION}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=1, name=a, artificial=N, initialized=N}: A-instructions/52-call.c:9:11
+A-instructions/52-call.c:10:1: debug: function: end call_int
+
+A-instructions/52-call.c:15:1: debug: operand-symbol: sp >>> call_double
+        {kind=node, initializer=N, scope=file}
+double static [toplevel] call_double( ... )
+A-instructions/52-call.c:15:1: debug: operand-symbol: cl <<< call_double
+        <operand> {kind=CST, scope=STATIC}
+            <type> {kind=FNC, uid=25, name=(none), sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:15:13
+                <type-item> {name=(anonymous)}
+                    <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=a}
+                    <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-fnc> {name=call_double, uid=2, extern=N}: A-instructions/52-call.c:15:1
+
+A-instructions/52-call.c:15:1: debug: function: begin call_double
+	debug: function: argument 1
+A-instructions/52-call.c:15:14: debug: operand-symbol: sp >>> a
+        {kind=node, initializer=N, scope=unknown-toplevel:outer}
+double a
+A-instructions/52-call.c:15:14: debug: operand-symbol: cl <<< a
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=2, name=a, artificial=N, initialized=N}: A-instructions/52-call.c:15:14
+A-instructions/52-call.c:15:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/52-call.c:15:1
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/52-call.c:15:1: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/52-call.c:17:10: debug: instruction: sp >>>
+        ret.64      %arg1
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %arg1
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=2, name=a, artificial=N, initialized=N}: A-instructions/52-call.c:15:14
+A-instructions/52-call.c:17:10: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/52-call.c:17:10
+            <ret-src>
+                <operand> {kind=VAR, scope=FUNCTION}
+                    <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=2, name=a, artificial=N, initialized=N}: A-instructions/52-call.c:15:14
+A-instructions/52-call.c:16:1: debug: function: end call_double
+
+A-instructions/52-call.c:20:19: debug: operand-symbol: sp >>> call_string
+        {kind=node, initializer=N, scope=file}
+char const *static [toplevel] call_string( ... )
+A-instructions/52-call.c:20:19: debug: operand-symbol: cl <<< call_string
+        <operand> {kind=CST, scope=STATIC}
+            <type> {kind=FNC, uid=26, name=(none), sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:21:13
+                <type-item> {name=(anonymous)}
+                    <type> {kind=PTR, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/52-call.c:20:19
+                        <type-item> {name=(anonymous)}
+                            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=a}
+                    <type> {kind=PTR, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/52-call.c:20:19
+                        <type-item> {name=(anonymous)}
+                            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-fnc> {name=call_string, uid=3, extern=N}: A-instructions/52-call.c:20:19
+
+A-instructions/52-call.c:20:19: debug: function: begin call_string
+	debug: function: argument 1
+A-instructions/52-call.c:21:14: debug: operand-symbol: sp >>> a
+        {kind=node, initializer=N, scope=unknown-toplevel:outer}
+char const *a
+A-instructions/52-call.c:21:14: debug: operand-symbol: cl <<< a
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=PTR, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/52-call.c:20:19
+                <type-item> {name=(anonymous)}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=a, artificial=N, initialized=N}: A-instructions/52-call.c:21:14
+A-instructions/52-call.c:20:19: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/52-call.c:20:19
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/52-call.c:20:19: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/52-call.c:23:10: debug: instruction: sp >>>
+        ret.64      %arg1
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %arg1
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=PTR, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/52-call.c:20:19
+                <type-item> {name=(anonymous)}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=3, name=a, artificial=N, initialized=N}: A-instructions/52-call.c:21:14
+A-instructions/52-call.c:23:10: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/52-call.c:23:10
+            <ret-src>
+                <operand> {kind=VAR, scope=FUNCTION}
+                    <type> {kind=PTR, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/52-call.c:20:19
+                        <type-item> {name=(anonymous)}
+                            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=3, name=a, artificial=N, initialized=N}: A-instructions/52-call.c:21:14
+A-instructions/52-call.c:22:1: debug: function: end call_string
+
+A-instructions/52-call.c:27:1: debug: operand-symbol: sp >>> call_struct
+        {kind=node, initializer=N, scope=file}
+struct struct_t static [toplevel] call_struct( ... )
+A-instructions/52-call.c:27:1: debug: operand-symbol: cl <<< call_struct
+        <operand> {kind=CST, scope=STATIC}
+            <type> {kind=FNC, uid=28, name=(none), sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:27:13
+                <type-item> {name=struct_t}
+                    <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                        <type-item> {name=c, offset=0}
+                            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                        <type-item> {name=i, offset=4}
+                            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=a}
+                    <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                        <type-item> {name=c, offset=0}
+                            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                        <type-item> {name=i, offset=4}
+                            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-fnc> {name=call_struct, uid=4, extern=N}: A-instructions/52-call.c:27:1
+
+A-instructions/52-call.c:27:1: debug: function: begin call_struct
+	debug: function: argument 1
+A-instructions/52-call.c:27:14: debug: operand-symbol: sp >>> a
+        {kind=node, initializer=N, scope=unknown-toplevel:outer}
+struct struct_t [usertype] a {
+	c:8:1 at offset 0.0
+	i:32:4 at offset 4.0
+}
+A-instructions/52-call.c:27:14: debug: operand-symbol: cl <<< a
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                <type-item> {name=c, offset=0}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=i, offset=4}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=a, artificial=N, initialized=N}: A-instructions/52-call.c:27:14
+A-instructions/52-call.c:27:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/52-call.c:27:1
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/52-call.c:27:1: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/52-call.c:29:10: debug: instruction: sp >>>
+        ret.64      %arg1
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %arg1
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                <type-item> {name=c, offset=0}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=i, offset=4}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=4, name=a, artificial=N, initialized=N}: A-instructions/52-call.c:27:14
+A-instructions/52-call.c:29:10: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/52-call.c:29:10
+            <ret-src>
+                <operand> {kind=VAR, scope=FUNCTION}
+                    <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                        <type-item> {name=c, offset=0}
+                            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                        <type-item> {name=i, offset=4}
+                            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=4, name=a, artificial=N, initialized=N}: A-instructions/52-call.c:27:14
+A-instructions/52-call.c:28:1: debug: function: end call_struct
+
+A-instructions/52-call.c:33:1: debug: operand-symbol: sp >>> main
+        {kind=node, initializer=N, scope=global}
+int extern [signed] [addressable] [toplevel] main( ... )
+A-instructions/52-call.c:33:1: debug: operand-symbol: cl <<< main
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=FNC, uid=30, name=(none), sizeof=4, item_cnt=3, is_unsigned=N}: A-instructions/52-call.c:33:6
+                <type-item> {name=(anonymous)}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=argc}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=argv}
+                    <type> {kind=PTR, uid=31, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/52-call.c:33:17
+                        <type-item> {name=(anonymous)}
+                            <type> {kind=PTR, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/52-call.c:20:19
+                                <type-item> {name=(anonymous)}
+                                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-fnc> {name=main, uid=5, extern=N}: A-instructions/52-call.c:33:1
+
+A-instructions/52-call.c:33:1: debug: function: begin main
+	debug: function: argument 1
+A-instructions/52-call.c:33:7: debug: operand-symbol: sp >>> argc
+        {kind=node, initializer=N, scope=unknown-toplevel:outer}
+int [signed] argc
+A-instructions/52-call.c:33:7: debug: operand-symbol: cl <<< argc
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=5, name=argc, artificial=N, initialized=N}: A-instructions/52-call.c:33:7
+	debug: function: argument 2
+A-instructions/52-call.c:33:17: debug: operand-symbol: sp >>> argv
+        {kind=node, initializer=N, scope=unknown-toplevel:outer}
+char **argv
+A-instructions/52-call.c:33:17: debug: operand-symbol: cl <<< argv
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=PTR, uid=31, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/52-call.c:33:17
+                <type-item> {name=(anonymous)}
+                    <type> {kind=PTR, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/52-call.c:20:19
+                        <type-item> {name=(anonymous)}
+                            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=6, name=argv, artificial=N, initialized=N}: A-instructions/52-call.c:33:17
+A-instructions/52-call.c:33:1: debug: instruction: cl <<<
+        <instruction> [JMP]: A-instructions/52-call.c:33:1
+            <jmp-label> [1]
+	debug: basic-block: open [1]
+A-instructions/52-call.c:33:1: debug: instruction: sp >>>
+        <entry-point>
+	debug: instruction: cl <<<
+        (ignored)
+A-instructions/52-call.c:35:26: debug: instruction: sp >>>
+        call.32     %r9 <- .L0x7fc071620010, $42
+A-instructions/52-call.c:9:1: debug: operand-symbol: sp >>> call_int
+        {kind=node, initializer=N, scope=file}
+int static [signed] [toplevel] call_int( ... )
+	debug: operand-pseudo: sp >>>
+        %r9
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=7, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:35:26
+	debug: instruction: cl <<<
+        (call to call_int)
+A-instructions/52-call.c:35:26: debug: instruction: cl <<< call begin
+	debug: instruction: function call argument 1
+	debug: operand-pseudo: sp >>>
+        $42
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-int> [42]
+A-instructions/52-call.c:35:26: debug: instruction: cl <<< call end
+A-instructions/52-call.c:36:36: debug: instruction: sp >>>
+        set.64      %r10 <- 4.200000
+	debug: operand-pseudo: sp >>>
+        %r10
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=8, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:36:36
+A-instructions/52-call.c:36:36: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/52-call.c:36:36
+            <unop-dst>
+                <operand> {kind=VAR, scope=FUNCTION}
+                    <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=8, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:36:36
+            <unop-src>
+                <operand> {kind=CST, scope=GLOBAL}
+                    <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <constant-real> [4.200000]
+A-instructions/52-call.c:36:35: debug: instruction: sp >>>
+        call.64     %r11 <- .L0x7fc0716200b0, %r10
+A-instructions/52-call.c:15:1: debug: operand-symbol: sp >>> call_double
+        {kind=node, initializer=N, scope=file}
+double static [toplevel] call_double( ... )
+	debug: operand-pseudo: sp >>>
+        %r11
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=9, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:36:35
+	debug: instruction: cl <<<
+        (call to call_double)
+A-instructions/52-call.c:36:35: debug: instruction: cl <<< call begin
+	debug: instruction: function call argument 1
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r10
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=8, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:36:36
+A-instructions/52-call.c:36:35: debug: instruction: cl <<< call end
+A-instructions/52-call.c:37:40: debug: instruction: sp >>>
+        call.64     %r13 <- .L0x7fc071620150, "foo"
+A-instructions/52-call.c:20:19: debug: operand-symbol: sp >>> call_string
+        {kind=node, initializer=N, scope=file}
+char const *static [toplevel] call_string( ... )
+	debug: operand-pseudo: sp >>>
+        %r13
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=PTR, uid=27, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/52-call.c:20:19
+                <type-item> {name=(anonymous)}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=10, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:37:40
+	debug: instruction: cl <<<
+        (call to call_string)
+A-instructions/52-call.c:37:40: debug: instruction: cl <<< call begin
+	debug: instruction: function call argument 1
+A-instructions/52-call.c:37:41: debug: operand-symbol: sp >>> (anon-sym)
+        {kind=node, initializer=Y, scope=NULL:outer}
+char static <noident>[4]
+ = 
+	movi.64		v1,&"foo"
+A-instructions/52-call.c:37:41: debug: operand-symbol: cl <<< (anon-sym)
+        <operand> {kind=CST, scope=FUNCTION}
+            <type> {kind=STRING, uid=23, name=string, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-string> [foo]
+A-instructions/52-call.c:37:40: debug: instruction: cl <<< call end
+A-instructions/52-call.c:38:52: debug: instruction: sp >>>
+        store.8     $99 -> 0[<anon symbol:0x7fc07166c570>]
+A-instructions/52-call.c:38:40: debug: operand-symbol: sp >>> (anon-sym)
+        {kind=node, initializer=Y, scope=NULL:outer}
+struct struct_t [usertype] <noident> {
+	c:8:1 at offset 0.0
+	i:32:4 at offset 4.0
+}
+ = 
+	movi.32		v2,$99
+	insert v2 at [0:0] of <noident>
+	movi.32		v3,$1
+	insert v3 at [4:0] of <noident>
+	debug: initializer: sp >>>
+	movi.32		v4,$99
+	insert v4 at [0:0] of <noident>
+	movi.32		v5,$1
+	insert v5 at [4:0] of <noident>
+	debug: initializer-expression: start
+	debug: initializer-expression: sp >>>
+                symaddr.64  %r17 <- <anon symbol:0x7fc07166c570>
+	debug: initializer-expression: cl <<<
+                (ignored)
+	debug: initializer-expression: stop
+A-instructions/52-call.c:38:40: debug: operand-symbol: cl <<< (anon-sym)
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                <type-item> {name=c, offset=0}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=i, offset=4}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=11, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:38:40
+	debug: operand-pseudo: sp >>>
+        $99
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-int> [99]
+A-instructions/52-call.c:38:52: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/52-call.c:38:52
+            <unop-dst>
+                <operand> {kind=VAR, scope=FUNCTION}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <accessor> {kind=ITEM}
+                        <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                            <type-item> {name=c, offset=0}
+                                <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                            <type-item> {name=i, offset=4}
+                                <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                        {id=0}
+                    <operand-var> {uid=11, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:38:40
+            <unop-src>
+                <operand> {kind=CST, scope=GLOBAL}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <constant-int> [99]
+A-instructions/52-call.c:38:57: debug: instruction: sp >>>
+        store.32    $1 -> 4[<anon symbol:0x7fc07166c570>]
+	debug: operand-pseudo: sp >>> cached >>> cl
+        <anon symbol:0x7fc07166c570>
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                <type-item> {name=c, offset=0}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=i, offset=4}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=11, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:38:40
+	debug: operand-pseudo: sp >>>
+        $1
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=CST, scope=GLOBAL}
+            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <constant-int> [1]
+A-instructions/52-call.c:38:57: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/52-call.c:38:57
+            <unop-dst>
+                <operand> {kind=VAR, scope=FUNCTION}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <accessor> {kind=ITEM}
+                        <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                            <type-item> {name=c, offset=0}
+                                <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                            <type-item> {name=i, offset=4}
+                                <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                        {id=1}
+                    <operand-var> {uid=11, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:38:40
+            <unop-src>
+                <operand> {kind=CST, scope=GLOBAL}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <constant-int> [1]
+A-instructions/52-call.c:38:57: debug: instruction: sp >>>
+        load.64     %r15 <- 0[<anon symbol:0x7fc07166c570>]
+	debug: operand-pseudo: sp >>>
+        %r15
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                <type-item> {name=c, offset=0}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=i, offset=4}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=12, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:38:57
+	debug: operand-pseudo: sp >>> cached >>> cl
+        <anon symbol:0x7fc07166c570>
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                <type-item> {name=c, offset=0}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=i, offset=4}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=11, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:38:40
+A-instructions/52-call.c:38:57: debug: instruction: cl <<<
+        <instruction> [ASSIGN (UNOP)]: A-instructions/52-call.c:38:57
+            <unop-dst>
+                <operand> {kind=VAR, scope=FUNCTION}
+                    <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                        <type-item> {name=c, offset=0}
+                            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                        <type-item> {name=i, offset=4}
+                            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=12, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:38:57
+            <unop-src>
+                <operand> {kind=VAR, scope=FUNCTION}
+                    <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                        <type-item> {name=c, offset=0}
+                            <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                        <type-item> {name=i, offset=4}
+                            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <operand-var> {uid=11, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:38:40
+A-instructions/52-call.c:38:37: debug: instruction: sp >>>
+        call.64     %r16 <- .L0x7fc0716201f0, %r15
+A-instructions/52-call.c:27:1: debug: operand-symbol: sp >>> call_struct
+        {kind=node, initializer=N, scope=file}
+struct struct_t static [toplevel] call_struct( ... )
+	debug: operand-pseudo: sp >>>
+        %r16
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                <type-item> {name=c, offset=0}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=i, offset=4}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=13, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:38:37
+	debug: instruction: cl <<<
+        (call to call_struct)
+A-instructions/52-call.c:38:37: debug: instruction: cl <<< call begin
+	debug: instruction: function call argument 1
+	debug: operand-pseudo: sp >>> cached >>> cl
+        %r15
+        <operand> {kind=VAR, scope=FUNCTION}
+            <type> {kind=STRUCT, uid=29, name=struct_t, sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/52-call.c:3:1
+                <type-item> {name=c, offset=0}
+                    <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=i, offset=4}
+                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <operand-var> {uid=12, name=(none), artificial=Y, initialized=N}: A-instructions/52-call.c:38:57
+A-instructions/52-call.c:38:37: debug: instruction: cl <<< call end
+A-instructions/52-call.c:38:57: debug: instruction: sp >>>
+        ret.32
+	debug: operand-pseudo: sp >>>
+        VOID
+	debug: operand-pseudo: cl <<<
+        <operand> {kind=VOID, scope=N/A}
+A-instructions/52-call.c:38:57: debug: instruction: cl <<<
+        <instruction> [RET]: A-instructions/52-call.c:38:57
+            <ret-src>
+                <operand> {kind=VOID, scope=N/A}
+A-instructions/52-call.c:34:1: debug: function: end main
+
+A-instructions/52-call.c:34:1: debug: file: end (last symbol)
+

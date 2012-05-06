@@ -75,6 +75,12 @@ static const char *const initial_file = "<initial-metafile>";
          "\tdebug: " HIGHLIGHT("function") ": argument "HIGHLIGHT(_1(d)), \
          arg_id)                                                          \
 
+#define DEBUG_CALL_ARG_HEADER(arg_id)                                     \
+    DLOG(d_func,                                                          \
+         "\tdebug: " HIGHLIGHT("instruction") ": function call argument " \
+         HIGHLIGHT(_1(d)),                                                \
+         arg_id)
+
 #define DEBUG_SWITCH_CASE_HEADER(loc, val_lo, val_hi, label)     \
     WITH_DEBUG_LEVEL(d_insn) {                                   \
         PUT(debug,                                               \
@@ -108,10 +114,14 @@ static const char *const initial_file = "<initial-metafile>";
 #define WITH_CALL_TO_EMIT(loc, dst, fnc)                                       \
     for (int i_=0; 0==i_                                                       \
          ? (                                                                   \
+           DLOG(d_insn, CLPOSFMT_1 ": debug: " HIGHLIGHT("instruction")        \
+                ": cl <<< call begin", CLPOS(*loc)),                           \
            API_EMIT(insn_call_open, loc, dst, fnc),                            \
            1                                                                   \
          ) : (                                                                 \
            API_EMIT(insn_call_close),                                          \
+           DLOG(d_insn, CLPOSFMT_1 ": debug: " HIGHLIGHT("instruction")        \
+                ": cl <<< call end", CLPOS(*loc)),                             \
            0                                                                   \
          ) ; i_++)
 
@@ -582,6 +592,9 @@ type_from_symbol(struct symbol *raw_symbol, struct ptr_db_item **ptr)
     return clt;
 }
 
+/**
+    Get type from register, return NULL if cannot be (reliably) found
+ */
 static struct cl_type *
 type_from_register(const pseudo_t pseudo)
 {
@@ -644,41 +657,65 @@ type_from_register(const pseudo_t pseudo)
 done:
 
     /* second-level type authority */
-    if (!type && pseudo->def)
-        type = pseudo->def->type;
+    if (!type) {
+        if (pseudo->def)
+            type = pseudo->def->type;
+
+        if (!type && OP_SYMADDR == pseudo->def->opcode) {
+            struct cl_type *clt;
+            clt = type_from_symbol(pseudo->def->symbol->sym, NULL);
+            return build_referenced_type(clt);
+        }
+    }
 
     if (type)
         return type_from_symbol(type, NULL);
 
-    /*
-        sadly, last resort
-        XXX: look at insn->size
-     */
     CL_TRAP;
-    return &int_clt;
-}
-
-/**
-    Get scope from register (either CL_SCOPE_FUNCTION or CL_SCOPE_BB)
-
-    CL_SCOPE_BB is considered a special case of CL_SCOPE_FUNCTION
-    where all the register users are present in the same BB.
-    Otherwise, the register is used accross more BBs (within the same
-    function) and thus its scope has to be CL_SCOPE_FUNCTION
- */
-static enum cl_scope_e
-scope_from_register(const pseudo_t pseudo, const struct basic_block *bb)
-{
-    assert(PSEUDO_REG == pseudo->type);
-
-    struct pseudo_user *pu;
-
-    return CL_SCOPE_FUNCTION;
+    return NULL;
 }
 
 
 /** operands handling *****************************************************/
 
+
+static inline bool
+op_accessible(const struct cl_operand *op)
+{
+    if (op->code == CL_OPERAND_VOID)
+        return false;
+
+    if (op->accessor)
+        return true;
+
+    switch (op->type->code) {
+        /* all these imply CL_VAR */
+        case CL_TYPE_STRUCT:
+        case CL_TYPE_UNION:
+        case CL_TYPE_ARRAY:
+        case CL_TYPE_PTR:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static inline bool
+op_composite(const struct cl_operand *op)
+{
+    if (op->code == CL_OPERAND_VOID)
+        return false;
+
+    switch (op->type->code) {
+        /* all these imply CL_VAR */
+        case CL_TYPE_STRUCT:
+        case CL_TYPE_UNION:
+        case CL_TYPE_ARRAY:
+            return true;
+        default:
+            return false;
+    }
+}
 
 enum copy_depth {
     copy_shallow,
@@ -954,11 +991,14 @@ insn_setops_store(struct cl_insn *cli, const struct instruction **insn);
 /**
     Initialize var operand from sparse symbol initializer
 
-    This is only for static/extern globals which apparently could not
-    be linearized in per-entrypoint pass because they are not local
-    to particular entry point.  We make a fake entry point and force
-    sparse to linearize this initializator and proceed resulting
-    instruction to build real CL initializator.
+    This is primarily for static/extern globals which apparently could
+    not be linearized in per-entrypoint pass because they are not local
+    to particular entry point, or for structures that (for some reason)
+    were not linearized despite being direct part of the function.
+
+    We make a fake entry point and force sparse to linearize this
+    initializator and proceed resulting instruction to build real
+    CL initializator.
 
     [ Per function initialized variables have the initializator
     spread directly in instruction stream (STORE instructions) and thus
@@ -978,8 +1018,8 @@ op_initialize_var_from_initializer(struct cl_operand *op,
 {
     assert(sym->initializer);
 
-    /* test-0028, test-0029, 0074, 0078, 0079, 0080, 0081, 0084 */
-    assert(sym->ctype.modifiers & (MOD_STATIC | MOD_TOPLEVEL));
+    assert(sym->ctype.modifiers & (MOD_STATIC | MOD_TOPLEVEL)
+           || SYM_STRUCT == sym->ctype.base_type->type);
 
     struct expression *expr;
     struct instruction *insn;
@@ -1136,7 +1176,7 @@ op_initialize_var_maybe(struct cl_operand *op, struct symbol *sym)
                 mov.64          v2,retval  */
         case EXPR_CALL:
             /* test-0010, test-0013, test-0015, test-0017, 0051, test-0052,
-               test-0053, 0057, 0058, 0059 */
+               test-0053, 0057, 0058, 0059, 0090 */
         default:
             CL_TRAP;
             WARN("unhandled initializer expression type");
@@ -1252,7 +1292,7 @@ op_from_register(const struct instruction *insn, const pseudo_t pseudo)
 {
     struct cl_operand *op = op_make_var();
 
-    op->scope = scope_from_register(pseudo, insn->bb);
+    op->scope = CL_SCOPE_FUNCTION;
     op->type  = type_from_register(pseudo);
 
     VAR(op)->name = sparse_ident(pseudo->ident, NULL);
@@ -1266,9 +1306,18 @@ op_from_register(const struct instruction *insn, const pseudo_t pseudo)
     Operand from integral value
  */
 static inline struct cl_operand *
-op_from_intval(int value)
+op_from_intval(const struct instruction *insn, int value)
 {
-    return op_make_cst_int(value);
+    struct cl_operand *op = op_make_cst_int(value);
+
+    if (insn && insn->type) {
+        /* better type guess from instruction context */
+        struct cl_type *type = type_from_symbol(insn->type, NULL);
+        if (CL_TYPE_INT == type->code)
+            op->type = type;
+    }
+
+    return op;
 }
 
 /**
@@ -1297,11 +1346,12 @@ op_from_pseudo_maybe(const struct instruction *insn, const pseudo_t pseudo)
 
         switch (pseudo->type) {
             case PSEUDO_VOID: op = NO_OPERAND_USE; break;
-            /* symbol (argument boils down to it too) is "debugged" in-place */
-            case PSEUDO_SYM: return pseudo->priv = op_from_symbol(pseudo->sym);
-            case PSEUDO_ARG: return pseudo->priv = op_from_fnc_argument(pseudo);
-            case PSEUDO_REG: op = op_from_register(insn, pseudo); break;
-            case PSEUDO_VAL: op = op_from_intval((int) pseudo->value); break;
+            case PSEUDO_SYM: op = op_from_symbol(pseudo->sym);     break;
+            case PSEUDO_ARG: op = op_from_fnc_argument(pseudo);    break;
+            case PSEUDO_REG: op = op_from_register(insn, pseudo);  break;
+            case PSEUDO_VAL:
+                op = op_from_intval(insn, (int) pseudo->value);
+                break;
             case PSEUDO_PHI:
             default:
                 WARN("unhandled pseudo: from instruction " HIGHLIGHT(_1(s)),
@@ -1310,41 +1360,18 @@ op_from_pseudo_maybe(const struct instruction *insn, const pseudo_t pseudo)
         }
     }
 
+    if (NO_OPERAND_USE != op) {
+        if (PSEUDO_VAL != pseudo->type)
+            pseudo->priv = op;  /* cache it */
+        if (PSEUDO_SYM == pseudo->type || PSEUDO_ARG == pseudo->type)
+            return op;  /* skip debug printout, already done */
+    }
+
     DEBUG_OP_FROM_PSEUDO_SP(pseudo);
     DEBUG_OP_FROM_PSEUDO_CL(op);
 
-    if (NO_OPERAND_USE != op && PSEUDO_VAL != pseudo->type)
-        pseudo->priv = op;  /* cache it */
-
     return op;
 }
-
-
-/**
-    Wrapper for @c op_from_pseudo_maybe when rewriting VOID to new VAR
- */
-static inline struct cl_operand *
-op_from_pseudo_allow_uninit(const struct instruction *insn,
-                            const pseudo_t pseudo)
-{
-
-    struct cl_operand *ret = op_from_pseudo_maybe(insn, pseudo);
-    if (NO_OPERAND_USE == ret) {
-        PUT(err, SPPOSFMT_1 ": warning: use of uninitialized variable",
-                 SPPOS(insn->pos));
-        ret = op_make_var();
-        ret->scope = CL_SCOPE_FUNCTION;
-        /* first-shot, bad for, e.g., function arguments */
-        if (insn->type && OP_CALL != insn->opcode)
-            ret->type = type_from_symbol(insn->type, NULL);
-        else
-            ret->type = &int_clt;
-        VAR(ret)->artificial = true;
-        conv_position(&VAR(ret)->loc, &insn->pos);
-    }
-    return ret;
-}
-
 
 /**
     Wrapper for @c op_from_pseudo_maybe when void is not expected
@@ -1357,6 +1384,46 @@ op_from_pseudo(const struct instruction *insn, const pseudo_t pseudo)
     assert(NO_OPERAND_USE != ret);
     return ret;
 }
+
+
+/**
+    Wrapper for @c op_from_pseudo when we want operand directly (copy, casts)
+ */
+static inline struct cl_operand *
+op_from_pseudo_ref(const struct instruction *insn, const pseudo_t pseudo)
+{
+    struct cl_operand *op, *ret = op_from_pseudo(insn, pseudo);
+
+    if (op_composite(ret) && PSEUDO_SYM == pseudo->type) {
+        op = op_copy(ret, copy_shallow);
+        assert(!op->accessor);
+        struct cl_accessor *ac = op_append_accessor(op, NULL);
+        ac->code = CL_ACCESSOR_REF;
+        ac->type = op->type;
+        op->type = build_referenced_type(op->type);
+        ret = op;
+    }
+
+    return ret;
+}
+
+/**
+    Cancel the effect of @c op_from_pseudo_ref
+ */
+static inline struct cl_operand *
+op_unref(struct cl_operand *op)
+{
+    struct cl_operand *ret = op;
+
+    if (op->accessor && CL_ACCESSOR_REF == op->accessor->code) {
+        assert(!op->accessor->next);
+        op = op_copy(ret, copy_shallow_ac_null);
+        op->type = ret->accessor->type;
+    }
+
+    return op;
+}
+
 
 static inline void
 accessor_array_index(struct cl_accessor *ac, int index)
@@ -1446,6 +1513,9 @@ op_dig_step(const struct cl_operand **op_composite, unsigned insn_offset)
             break;
         }
         MAP_ACCESSOR(ac, TYPE_PTR, ACCESSOR_DEREF) {
+
+            //CL_TRAP;
+
             if (insn_offset && op->type->items->type->size) {
                 // convert into another accessor then predestined (ptr->arr),
                 // but only if resulting index would be 1+
@@ -1454,20 +1524,21 @@ op_dig_step(const struct cl_operand **op_composite, unsigned insn_offset)
                     accessor_array_index(ac, indexes.quot);
                 // the remainder serves for next index-based-deref. rounds
                 retval = indexes.rem;
-            } else {
-                /* {deref, ref} = {} */
-                struct cl_operand *clone = op_copy(op, copy_shallow_ac_deep);
-                struct cl_accessor **seek = &clone->accessor;
-                if (*seek)
-                    while ((*seek)->next)
-                        seek = &(*seek)->next;
-                if (*seek && CL_ACCESSOR_REF == (*seek)->code) {
-                    clone->type = (*seek)->type;
-                    *seek = NULL;
-                    *op_composite = clone;
-                    return retval;
-                }
             }
+
+            /* {ref, deref} = {} */
+            struct cl_operand *clone = op_copy(op, copy_shallow_ac_deep);
+            struct cl_accessor **seek = &clone->accessor;
+            if (*seek)
+                while ((*seek)->next)
+                    seek = &(*seek)->next;
+            if (*seek && CL_ACCESSOR_REF == (*seek)->code) {
+                clone->type = (*seek)->type;
+                *seek = NULL;
+                *op_composite = clone;
+                return retval;
+            }
+
             break;
         }
         default:
@@ -1484,28 +1555,6 @@ op_dig_step(const struct cl_operand **op_composite, unsigned insn_offset)
     *op_composite = clone;
 
     return retval;
-}
-
-// XXX: removal candidate
-static inline bool
-op_accessible(const struct cl_operand *op)
-{
-    if (op->code == CL_OPERAND_VOID)
-        return false;
-
-    if (op->accessor)
-        return true;
-
-    switch (op->type->code) {
-        /* all these imply CL_VAR */
-        case CL_TYPE_STRUCT:
-        case CL_TYPE_UNION:
-        case CL_TYPE_ARRAY:
-        case CL_TYPE_PTR:
-            return true;
-        default:
-            return false;
-    }
 }
 
 static unsigned
@@ -1700,7 +1749,7 @@ insn_assignment_mod_rhs(struct cl_operand **op_rhs, pseudo_t rhs,
                                             expected_type_dug->items->type;
                     }
                 } else
-                    CL_TRAP;  // should not happen
+                    CL_TRAP;  // should not happen, test-0028
             }
 
         } else if (ops_handling & TYPE_RHS_REFERENCE) {
@@ -1729,7 +1778,6 @@ insn_assignment_mod_rhs(struct cl_operand **op_rhs, pseudo_t rhs,
 #endif
     }
 }
-
 
 /**
     Set operands for assigment as per provided hints for operands treating
@@ -1761,7 +1809,7 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction **insn,
 
     /* prepare LHS */
 
-    *op_lhs = op_from_pseudo_allow_uninit(assign, lhs);
+    *op_lhs = op_from_pseudo(assign, lhs);
 
     if (ops_handling & TYPE_LHS_STORE) {
         struct cl_type *type = type_from_symbol(assign->type, NULL);
@@ -1792,10 +1840,7 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction **insn,
 
     /* prepare RHS (quite complicated compared to LHS) */
 
-    if (OP_LOAD == assign->opcode)
-        *op_rhs = op_from_pseudo_allow_uninit(assign, rhs);
-    else
-        *op_rhs = op_from_pseudo(assign, rhs);
+    *op_rhs = op_from_pseudo(assign, rhs);
 
     insn_assignment_mod_rhs(op_rhs, rhs, assign, ops_handling);
 
@@ -1871,7 +1916,7 @@ insn_setops_copy(struct cl_insn *cli, const struct instruction **insn)
     assert(PSEUDO_REG == (*insn)->target->type);
 
     UNOP(cli)->dst = op_from_pseudo(*insn, (*insn)->target);
-    UNOP(cli)->src = op_from_pseudo(*insn, (*insn)->src1);
+    UNOP(cli)->src = op_from_pseudo(*insn, (*insn)->src);
 
     /* constant int -> specific constant pointer (0 only?) */
     if (CL_OPERAND_CST == UNOP(cli)->src->code
@@ -1915,7 +1960,7 @@ insn_setops_cast(struct cl_insn *cli, const struct instruction **insn)
         BINOP(cli)->code = CL_BINOP_BIT_AND;
         BINOP(cli)->dst  = op_from_pseudo(*insn, (*insn)->target);
         BINOP(cli)->src1 = op_from_pseudo(*insn, (*insn)->src);
-        BINOP(cli)->src2 = op_from_intval(mask);
+        BINOP(cli)->src2 = op_make_cst_int(mask);
 
         *insn = NULL;
         return cli;
@@ -1991,21 +2036,27 @@ static struct cl_insn *
 insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
 {
     const struct cl_type *t1, *t2;
-    struct cl_operand *src1, *src2, *dst;
+    struct cl_operand *src1, *src2, *dst, *src1_u, *src2_u;
     struct cl_instruction *next;
 
     BINOP(cli)->dst  = dst  = op_from_pseudo(*insn, (*insn)->target);
-    BINOP(cli)->src1 = src1 = op_from_pseudo_allow_uninit(*insn, (*insn)->src1);
-    BINOP(cli)->src2 = src2 = op_from_pseudo_allow_uninit(*insn, (*insn)->src2);
+    BINOP(cli)->src1 = src1 = op_from_pseudo_ref(*insn, (*insn)->src1);
+    BINOP(cli)->src2 = src2 = op_from_pseudo_ref(*insn, (*insn)->src2);
+
+    src1_u = op_unref(src1);
+    src2_u = op_unref(src2);
 
     t1 = src1->type;
     t2 = src2->type;
 
     /*
         for pointer vs. non-pointer, there are some special cases
+        (first comparison using "referenced" operands as the "ptrlike"
+        membership is kept)
      */
     if (cl_type_ptrlike(t1->code) != cl_type_ptrlike(t2->code)) {
-        if (CL_TYPE_INT == t1->code && CL_TYPE_ARRAY == t2->code) {
+        if (CL_TYPE_INT == src1_u->type->code
+          && CL_TYPE_ARRAY == src2_u->type->code) {
             /*
                 let's start with the most-painful-to-grasp one:
                 "int A + array(T)" denotes late phase of accessing array,
@@ -2031,17 +2082,17 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
                 variables, but (1) not 100% due to contant propagation and
                 (2) CL infrastructure is capable of dealing with it
              */
-            assert(!src2->accessor);
+            assert(!src2_u->accessor);
 
             t1 = dst->type;  /* preserve for future use */
 
-            dst = op_copy(src2, copy_shallow_var_deep);
+            dst = op_copy(src2_u, copy_shallow_var_deep);
 
             /* build the accessor chain from the back */
 
             struct cl_accessor *ac = op_append_accessor(dst, NULL);
             ac->code = CL_ACCESSOR_DEREF_ARRAY;
-            ac->type = t2;
+            ac->type = src2_u->type;
 
             struct instruction *def_offset = (*insn)->src1->def;
             assert(OP_MULS == def_offset->opcode && def_offset->src1->priv);
@@ -2105,6 +2156,12 @@ insn_setops_binop(struct cl_insn *cli, const struct instruction **insn)
                 *insn = next; /* proceed the modified copy in next the round */
 
                 return cli;
+
+            } else if (CL_OPERAND_CST == BINOP(cli)->src2->code) {
+
+                /* compare against NULL, etc. */
+                ((struct cl_operand *) BINOP(cli)->src2)->type
+                    = BINOP(cli)->src1->type;
 
             } else {
 
@@ -2187,7 +2244,7 @@ insn_emit_cond(struct cl_insn *cli, struct cl_operand *op_cond,
     bool_cond->type = &bool_clt;
     BINOP(cli)->dst = bool_cond;
     BINOP(cli)->src1 = op_cond;
-    zero_comparee = op_from_intval(0);
+    zero_comparee = op_make_cst_int(0);
     zero_comparee->type = op_cond->type;
     BINOP(cli)->src2 = zero_comparee;
 
@@ -2240,10 +2297,11 @@ insn_emit_call(struct cl_insn *cli, const struct instruction *insn)
     DEBUG_INSN_CL_SPECIAL("(call to "_1(s)")", CST_FNC(fnc)->name);
 
     WITH_CALL_TO_EMIT(&cli->loc, target, fnc)
-        FOR_EACH_PTR(insn->arguments, arg)
-            API_EMIT(insn_call_arg, ++cnt,
-                     op_from_pseudo_allow_uninit(insn, arg));
-        END_FOR_EACH_PTR(arg);
+        FOR_EACH_PTR(insn->arguments, arg) {
+            ++cnt;
+            DEBUG_CALL_ARG_HEADER(cnt);
+            API_EMIT(insn_call_arg, cnt, op_from_pseudo_ref(insn, arg));
+        } END_FOR_EACH_PTR(arg);
 
 
     /*
@@ -2322,13 +2380,13 @@ insn_emit_switch(struct cl_insn *cli, const struct instruction *insn)
             if (jmp->begin <= jmp->end) {
 
                 /* non-default */
-                val_lo = op_from_intval(jmp->begin);
+                val_lo = op_make_cst_int(jmp->begin);
                 val_lo->type = op->type;
                 val_hi = val_lo;
 
                 if (jmp->begin != jmp->end) {
                     /* actually a range */
-                    val_hi = op_from_intval(jmp->end);
+                    val_hi = op_make_cst_int(jmp->end);
                     val_hi->type = op->type;
                 }
 

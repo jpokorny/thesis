@@ -982,8 +982,9 @@ A-instructions/41-store.c:50:16: debug: instruction: sp >>>
         <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=27, name=(none), artificial=Y, initialized=N}: A-instructions/41-store.c:50:10
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $1
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [1]
@@ -1275,8 +1276,9 @@ A-instructions/41-store.c:56:4: debug: instruction: sp >>>
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=34, name=(none), artificial=Y, initialized=N}: A-instructions/41-store.c:56:4
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $42
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [42]
@@ -1549,8 +1551,9 @@ A-instructions/41-store.c:74:16: debug: instruction: sp >>>
         <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=42, name=(none), artificial=Y, initialized=N}: A-instructions/41-store.c:74:10
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $1
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [1]
@@ -1650,8 +1653,9 @@ A-instructions/41-store.c:80:4: debug: instruction: sp >>>
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=45, name=arg, artificial=N, initialized=N}: A-instructions/41-store.c:78:13
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $42
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [42]
@@ -1812,8 +1816,9 @@ A-instructions/41-store.c:90:1: debug: instruction: sp >>>
         (ignored)
 A-instructions/41-store.c:92:6: debug: instruction: sp >>>
         store.32    %arg2 -> 0[$0]
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $0
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [0]
@@ -1919,8 +1924,9 @@ A-instructions/41-store.c:98:24: debug: instruction: sp >>>
         <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=51, name=(none), artificial=Y, initialized=N}: A-instructions/41-store.c:98:18
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $1
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [1]
@@ -1940,8 +1946,9 @@ A-instructions/41-store.c:98:24: debug: instruction: cl <<<
                     <constant-int> [1]
 A-instructions/41-store.c:98:6: debug: instruction: sp >>>
         store.32    %r24 -> 0[$0]
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $0
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [0]
@@ -2011,13 +2018,15 @@ A-instructions/41-store.c:102:1: debug: instruction: sp >>>
         (ignored)
 A-instructions/41-store.c:104:6: debug: instruction: sp >>>
         store.32    $42 -> 0[$0]
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $0
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [0]
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $42
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [42]

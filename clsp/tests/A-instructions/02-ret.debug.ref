@@ -175,8 +175,9 @@ A-instructions/02-ret.c:24:14: debug: instruction: sp >>>
         <operand> {kind=VAR, scope=FUNCTION}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=2, name=(none), artificial=Y, initialized=N}: A-instructions/02-ret.c:24:10
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $42
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [42]

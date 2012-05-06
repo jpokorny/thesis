@@ -906,7 +906,7 @@ A-instructions/08-add.c:53:14: debug: instruction: sp >>>
         $4
 	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
-            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <type> {kind=INT, uid=10, name=long, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [4]
 A-instructions/08-add.c:53:14: debug: instruction: cl <<<
         <instruction> [MULT (BINOP)]: A-instructions/08-add.c:53:14
@@ -920,7 +920,7 @@ A-instructions/08-add.c:53:14: debug: instruction: cl <<<
                     <operand-var> {uid=32, name=(none), artificial=Y, initialized=N}: A-instructions/08-add.c:53:17
             <binop-src2>
                 <operand> {kind=CST, scope=GLOBAL}
-                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <type> {kind=INT, uid=10, name=long, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
                     <constant-int> [4]
 A-instructions/08-add.c:53:14: debug: instruction: sp >>>
         add.64      %r44 <- %arg1, %r43
@@ -1154,8 +1154,9 @@ A-instructions/08-add.c:71:14: debug: instruction: sp >>>
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=38, name=a, artificial=N, initialized=N}: A-instructions/08-add.c:69:16
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $4
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [4]
@@ -1248,8 +1249,9 @@ A-instructions/08-add.c:77:14: debug: instruction: sp >>>
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <operand-var> {uid=40, name=a, artificial=N, initialized=N}: A-instructions/08-add.c:75:19
-	debug: operand-pseudo: sp >>> cached >>> cl
+	debug: operand-pseudo: sp >>>
         $4
+	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
             <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-int> [4]
