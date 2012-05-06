@@ -63,6 +63,7 @@ stream_setup(outstreams outstreams, enum outstreams which,
                 *f = fdopen(props.fd, "a");
             } else {
                 /* deferred */
+                PUT(out, "deferred, " _1(s) _2(d),outstream_str[which], -props.fd);
                 *f = tmpfile();
                 props.fd = outstream->deferred_dest = -props.fd;
             }
@@ -138,7 +139,7 @@ stream_output_deferred(outstreams outstreams, enum outstreams which)
 
     fclose(file);
 
-    file = stream_setup(outstream, which,
+    file = stream_setup(outstreams, which,
                         OUTSTREAM_PROPS(fd_deferred_restore, PALETTE_NONE));
 
     clearerr(file);
