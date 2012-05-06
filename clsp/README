@@ -4,7 +4,7 @@ Requirements:
 
 * upstream development version of sparse
 * recent/development version of predator (incl. Code Listener infrastructure)
-* tools mentioned in Tested environment
+* SW environment mentioned in Tested environment here + see dep-predator/README
 
 (both present in this tree, dep-predator and dep-sparse directories
 respectively -- if not present, update/initialize git submodules)
@@ -50,7 +50,7 @@ How to use:
    built-in plugin, otherwise choose any one), or pass your
    decision directly:  ANALYZER=... clsp-run [options ...]
 
-3. usage and available options:  clsp-run -h
+3. usage and available options:  ./clsp-run -h
 
 ...
 
