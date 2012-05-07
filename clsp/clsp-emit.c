@@ -463,6 +463,11 @@ read_type(struct cl_type *clt, const struct symbol *raw_symbol,
     #undef TYPE_STD
     };
 
+#if 0
+    if (type->ctype.modifiers & MOD_USERTYPE)
+        CL_TRAP;
+#endif
+
     const struct type_conversion *conversion;
 
     //assert(ORDERED( SYM_UNINITIALIZED , symbol->type , SYM_BAD ));
@@ -644,9 +649,10 @@ type_from_register(const pseudo_t pseudo)
                 if (!pu->insn->target->def
                   || OP_COPY != pu->insn->target->def->opcode)
                     return type_from_register(pu->insn->target);
-
-                type = pu->insn->type;
+                /*FALLTHROUGH*/
+            case OP_STORE:
                 /* see if there is something better (?) */
+                type = pu->insn->type;
                 break;
             default:
                 /* other instructions may have an incorrect type as well (?) */
@@ -1115,8 +1121,12 @@ op_initialize_var_maybe(struct cl_operand *op, struct symbol *sym)
     struct cl_initializer **initial;
     struct cl_operand *from;
 
-    if (!expr)
-        /* initialization of static/extern globals implied by the scope */
+    if (!expr || sym->initialized)
+        /*
+            initialization of static/extern globals implied by the scope
+            anyway, for local ones, they are initialized along the
+            instruction stream
+         */
         return false;
 
     DEBUG_INITIALIZER_SP(expr);
@@ -1750,7 +1760,8 @@ insn_assignment_mod_rhs(struct cl_operand **op_rhs, pseudo_t rhs,
                                             expected_type_dug->items->type;
                     }
                 } else
-                    CL_TRAP;  // should not happen, test-0028
+                    CL_TRAP;  // should not happen, test-0028, test-0033, test-131
+                    // 154
             }
 
         } else if (ops_handling & TYPE_RHS_REFERENCE) {
@@ -1808,6 +1819,12 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction **insn,
 
     *insn = NULL;
 
+    /* prepare RHS (quite complicated compared to LHS) */
+
+    *op_rhs = op_from_pseudo(assign, rhs);
+
+    insn_assignment_mod_rhs(op_rhs, rhs, assign, ops_handling);
+
     /* prepare LHS */
 
     *op_lhs = op_from_pseudo(assign, lhs);
@@ -1839,11 +1856,11 @@ insn_assignment_base(struct cl_insn *cli, const struct instruction **insn,
         }
     }
 
-    /* prepare RHS (quite complicated compared to LHS) */
-
-    *op_rhs = op_from_pseudo(assign, rhs);
-
-    insn_assignment_mod_rhs(op_rhs, rhs, assign, ops_handling);
+    /* little cheating, use RHS type for LHS if it is currently VOID */
+    if (CL_TYPE_VOID == (*op_lhs)->type->code) {
+        *op_lhs = op_copy(*op_lhs, copy_shallow);
+        (*op_lhs)->type = (*op_rhs)->type;
+    }
 
     /*
         FIXME (SPARSE?):  sparse generates (due to execution model?) extra
