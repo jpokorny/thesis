@@ -106,6 +106,7 @@ val_to_val (int *arg)
 
 /*
     clsp-options:   -d 1848
+    makeinv:        yes
 
     sl does not accept TO_VAL, disabled by default
 

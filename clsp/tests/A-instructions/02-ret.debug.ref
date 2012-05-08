@@ -5,7 +5,9 @@ A-instructions/02-ret.c:4:1: debug: operand-symbol: sp >>> ret_void
 void static [toplevel] ret_void( ... )
 A-instructions/02-ret.c:4:1: debug: operand-symbol: cl <<< ret_void
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=24, name=(none), sizeof=0, item_cnt=1, is_unsigned=N}: A-instructions/02-ret.c:4:10
+            <type> {kind=FNC, uid=24, name=(none), sizeof=0, item_cnt=2, is_unsigned=N}: A-instructions/02-ret.c:4:10
+                <type-item> {name=(anonymous)}
+                    <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
                 <type-item> {name=(anonymous)}
                     <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=ret_void, uid=1, extern=N}: A-instructions/02-ret.c:4:1
@@ -36,9 +38,11 @@ A-instructions/02-ret.c:10:1: debug: operand-symbol: sp >>> ret_int_constant
 int static [signed] [toplevel] ret_int_constant( ... )
 A-instructions/02-ret.c:10:1: debug: operand-symbol: cl <<< ret_int_constant
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=25, name=(none), sizeof=4, item_cnt=1, is_unsigned=N}: A-instructions/02-ret.c:10:18
+            <type> {kind=FNC, uid=25, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/02-ret.c:10:18
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=(anonymous)}
+                    <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=ret_int_constant, uid=2, extern=N}: A-instructions/02-ret.c:10:1
 
 A-instructions/02-ret.c:10:1: debug: function: begin ret_int_constant
@@ -71,9 +75,11 @@ A-instructions/02-ret.c:16:1: debug: operand-symbol: sp >>> ret_double_constant
 double static [toplevel] ret_double_constant( ... )
 A-instructions/02-ret.c:16:1: debug: operand-symbol: cl <<< ret_double_constant
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=26, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/02-ret.c:16:21
+            <type> {kind=FNC, uid=26, name=(none), sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/02-ret.c:16:21
                 <type-item> {name=(anonymous)}
                     <type> {kind=REAL, uid=21, name=double, sizeof=8, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=(anonymous)}
+                    <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=ret_double_constant, uid=3, extern=N}: A-instructions/02-ret.c:16:1
 
 A-instructions/02-ret.c:16:1: debug: function: begin ret_double_constant
@@ -123,9 +129,11 @@ A-instructions/02-ret.c:22:1: debug: operand-symbol: sp >>> ret_expression
 int static [signed] [toplevel] ret_expression( ... )
 A-instructions/02-ret.c:22:1: debug: operand-symbol: cl <<< ret_expression
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=27, name=(none), sizeof=4, item_cnt=1, is_unsigned=N}: A-instructions/02-ret.c:22:16
+            <type> {kind=FNC, uid=27, name=(none), sizeof=4, item_cnt=2, is_unsigned=N}: A-instructions/02-ret.c:22:16
                 <type-item> {name=(anonymous)}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=(anonymous)}
+                    <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=ret_expression, uid=4, extern=N}: A-instructions/02-ret.c:22:1
 
 A-instructions/02-ret.c:22:1: debug: function: begin ret_expression
@@ -215,11 +223,13 @@ A-instructions/02-ret.c:27:19: debug: operand-symbol: sp >>> ret_string
 char const *static [toplevel] ret_string( ... )
 A-instructions/02-ret.c:27:19: debug: operand-symbol: cl <<< ret_string
         <operand> {kind=CST, scope=STATIC}
-            <type> {kind=FNC, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/02-ret.c:28:12
+            <type> {kind=FNC, uid=28, name=(none), sizeof=8, item_cnt=2, is_unsigned=N}: A-instructions/02-ret.c:28:12
                 <type-item> {name=(anonymous)}
                     <type> {kind=PTR, uid=29, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/02-ret.c:27:19
                         <type-item> {name=(anonymous)}
                             <type> {kind=CHAR, uid=16, name=char, sizeof=1, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                <type-item> {name=(anonymous)}
+                    <type> {kind=VOID, uid=1, name=void, sizeof=0, item_cnt=0, is_unsigned=N}: (null):-1:-1
             <constant-fnc> {name=ret_string, uid=5, extern=N}: A-instructions/02-ret.c:27:19
 
 A-instructions/02-ret.c:27:19: debug: function: begin ret_string

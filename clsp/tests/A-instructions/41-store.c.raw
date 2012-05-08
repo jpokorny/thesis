@@ -86,6 +86,7 @@ FROM_VAL_TO(val, *((int *) 0))
 
 /*
     clsp-options:   -d 1848
+    makeinv:        yes
 
     sl does not accept TO_VAL, disabled by default
 

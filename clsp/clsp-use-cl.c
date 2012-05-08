@@ -377,7 +377,8 @@ debug_cl_insn(const struct cl_insn *insn, int indent, bool safely)
             PUTHI(debug, cl_debug, indent, ENT(unop-dst) _1(s), "");
             debug_cl_operand(insn->data.insn_unop.dst, indent+1, safely);
             PUTHI(debug, cl_debug, indent, ENT(unop-src) _1(s), "");
-            debug_cl_operand(insn->data.insn_unop.src, indent+1, false);
+            /* can be initialized by itself (e.g., address of item) */
+            debug_cl_operand(insn->data.insn_unop.src, indent+1, safely);
             break;
         case CL_INSN_BINOP:
             PUTHI(debug, cl_debug, indent, ENT(binop-dst) _1(s), "");

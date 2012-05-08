@@ -336,8 +336,59 @@ int static [toplevel] j[0]
                             <constant-int> [1]
 	debug: initializer-expression: sp >>>
                 symaddr.64  %r13 <- j
+A-instructions/40-load.c:3:12: debug: operand-symbol: sp >>> j
+                        {kind=node, initializer=Y, scope=file}
+int static [toplevel] j[0]
+ = 
+	movi.32		v5,$0
+	insert v5 at [0:0] of j
+	movi.32		v6,$1
+	insert v6 at [4:0] of j
+A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
+                        <operand> {kind=VAR, scope=STATIC}
+                            <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                                <type-item> {name=(anonymous)}
+                                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                            <operand-var> {uid=10, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
+                                <initializer>
+                                    <instruction> [ASSIGN (UNOP)]: A-instructions/40-load.c:3:20
+                                        <unop-dst>
+                                            <operand> {kind=VAR, scope=STATIC}
+                                                <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                                                <accessor> {kind=DEREF_ARRAY}
+                                                    <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                                                        <type-item> {name=(anonymous)}
+                                                            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                                                    <array-index>
+                                                        <operand> {kind=CST, scope=GLOBAL}
+                                                            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                                                            <constant-int> [0]
+                                                <operand-var> {uid=10, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
+                                                (skipped for possible initialization infloop)
+                                        <unop-src>
+                                            <operand> {kind=CST, scope=GLOBAL}
+                                                <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                                                <constant-int> [0]
+                                    <instruction> [ASSIGN (UNOP)]: A-instructions/40-load.c:3:23
+                                        <unop-dst>
+                                            <operand> {kind=VAR, scope=STATIC}
+                                                <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                                                <accessor> {kind=DEREF_ARRAY}
+                                                    <type> {kind=ARRAY, uid=28, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:3:13
+                                                        <type-item> {name=(anonymous)}
+                                                            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                                                    <array-index>
+                                                        <operand> {kind=CST, scope=GLOBAL}
+                                                            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                                                            <constant-int> [1]
+                                                <operand-var> {uid=10, name=j, artificial=N, initialized=N}: A-instructions/40-load.c:3:12
+                                                (skipped for possible initialization infloop)
+                                        <unop-src>
+                                            <operand> {kind=CST, scope=GLOBAL}
+                                                <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                                                <constant-int> [1]
 	debug: initializer-expression: cl <<<
-                (ignored)
+                (only base operand taken)
 	debug: initializer-expression: stop
 A-instructions/40-load.c:3:12: debug: operand-symbol: cl <<< j
         <operand> {kind=VAR, scope=STATIC}

@@ -62,7 +62,7 @@ extern const struct cl_operand no_operand;
 #define NO_OPERAND_USE  ((struct cl_operand *) &no_operand)
 
 /* self-explanatory "pretty" accessors */
-#define CST(op)      (&op->data.cst)
+#define CST(op)      (&(op)->data.cst)
 #define CST_INT(op)  (&CST(op)->data.cst_int)
 #define CST_STR(op)  (&CST(op)->data.cst_string)
 #define CST_FNC(op)  (&CST(op)->data.cst_fnc)

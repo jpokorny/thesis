@@ -244,6 +244,7 @@ build_referenced_type(struct cl_type *orig_clt)
         prev->next->free_type = true;
     }
 
+    assert(prev->next->clt);
     return prev->next->clt;
 }
 

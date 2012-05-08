@@ -8,6 +8,7 @@ sel_1 (void)
 
 /*
     clsp-options:   -d 1848
+    makeinv:        yes
 
     vim: ft=c:
  */
