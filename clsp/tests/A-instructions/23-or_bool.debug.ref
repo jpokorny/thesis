@@ -308,7 +308,7 @@ A-instructions/23-or_bool.c:23:18: debug: instruction: sp >>>
         $1
 	debug: operand-pseudo: cl <<<
         <operand> {kind=CST, scope=GLOBAL}
-            <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+            <type> {kind=BOOL, uid=19, name=bool, sizeof=1, item_cnt=0, is_unsigned=Y}: (null):-1:-1
             <constant-int> [1]
 A-instructions/23-or_bool.c:23:18: debug: instruction: cl <<<
         <instruction> [TRUTH_OR (BINOP)]: A-instructions/23-or_bool.c:23:18
@@ -322,7 +322,7 @@ A-instructions/23-or_bool.c:23:18: debug: instruction: cl <<<
                     <operand-var> {uid=10, name=a, artificial=N, initialized=N}: A-instructions/23-or_bool.c:21:16
             <binop-src2>
                 <operand> {kind=CST, scope=GLOBAL}
-                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                    <type> {kind=BOOL, uid=19, name=bool, sizeof=1, item_cnt=0, is_unsigned=Y}: (null):-1:-1
                     <constant-int> [1]
 A-instructions/23-or_bool.c:23:18: debug: instruction: sp >>>
         cast.32     %r16 <- (1) %r15

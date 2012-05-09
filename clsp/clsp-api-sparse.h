@@ -129,7 +129,7 @@ pseudo_t linearize_expression(struct entrypoint *ep, struct expression *expr);
 #define API_SPARSE_clear_asm_rules_alloc      C,N,0,X
 
 /*symbol.h:     struct symbol *examine_symbol_type (struct symbol *)*/
-#define API_SPARSE_examine_symbol_type        C,N,1,E  /* unuseful retval */
+#define API_SPARSE_examine_symbol_type        C,R,1,E
 /*expression.h: int expand_symbol (struct symbol *)*/
 #define API_SPARSE_expand_symbol              C,N,1,E  /* unuseful retval ("cost") */
 /*FIXME:        pseudo_t linearize_expression(struct entrypoint *ep, struct expression *expr)*/

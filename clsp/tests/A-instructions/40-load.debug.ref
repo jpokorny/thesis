@@ -126,14 +126,15 @@ A-instructions/40-load.c:14:10: debug: instruction: cl <<<
             <unop-src>
                 <operand> {kind=VAR, scope=FUNCTION}
                     <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                    <accessor> {kind=DEREF_ARRAY}
+                    <accessor> {kind=DEREF}
                         <type> {kind=PTR, uid=26, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
                             <type-item> {name=(anonymous)}
                                 <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                        <array-index>
-                            <operand> {kind=CST, scope=GLOBAL}
-                                <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
-                                <constant-int> [1]
+                        <accessor> {kind=OFFSET}
+                            <type> {kind=PTR, uid=26, name=(none), sizeof=8, item_cnt=1, is_unsigned=N}: A-instructions/40-load.c:12:20
+                                <type-item> {name=(anonymous)}
+                                    <type> {kind=INT, uid=4, name=int, sizeof=4, item_cnt=0, is_unsigned=N}: (null):-1:-1
+                            {off=4}
                     <operand-var> {uid=4, name=arg, artificial=N, initialized=N}: A-instructions/40-load.c:12:16
 A-instructions/40-load.c:14:10: debug: instruction: sp >>>
         ret.32      %r4
