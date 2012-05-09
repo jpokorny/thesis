@@ -188,7 +188,7 @@ print_help(const char *cmd)
     B("k", "keep-going"    , "Defect file does not end the run, it is skipped" )
     B("t", "try-hard"      , "Make best effort to proceed even defective file" )
     B("n", "dry-run"       , "Skip the final confirmation of emitted code"     )
-    B("i", "interactive"   , "Simple interactive mode, instruction granularity")
+    B("A", "interactive"   , "Simple interactive mode, instruction granularity")
     B("E", "preprocessor"  , "Terminate showing output of sparse preprocessor" )
     O("file descriptors, use FD>file redirection for FD > 2, empty/0:/dev/null")
     O("sparse: `D[FD]' for output to optional FD (none=stderr) to be deferred" )
@@ -279,7 +279,7 @@ print_help(const char *cmd)
     APPLY(x, LONG,  try-hard)            \
     APPLY(x, SHORT, n)                   \
     APPLY(x, LONG,  dry-run)             \
-    APPLY(x, SHORT, i)                   \
+    APPLY(x, SHORT, A)                   \
     APPLY(x, LONG,  interactive)         \
     APPLY(x, SHORT, E)                   \
     APPLY(x, LONG,  preprocessor)        \
@@ -488,7 +488,7 @@ options_proceed_internal(struct options *opts, const char *args[],
         else
             ret = proceeded_unconsumed;
 
-    } else if ((value = PREFIXEQ(*args, SHORT_BIN, "i"))
+    } else if ((value = PREFIXEQ(*args, SHORT_BIN, "A"))
       || (value = PREFIXEQ(*args, LONG_BIN, "interactive"))) {
 
         if (*value == '\0')

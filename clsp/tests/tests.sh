@@ -86,7 +86,7 @@ run_clsp () {
 # $2 = rel. path to input C file
 run_clsp_i () {
     if [ "${BATCH}" -eq 0 ]; then
-        ${CLSP_RUNNER} $1 -i -- "$2"
+        ${CLSP_RUNNER} $1 -A -- "$2"
     else
         ${CLSP_RUNNER} $1 -- "$2"
     fi
