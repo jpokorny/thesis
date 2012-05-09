@@ -268,8 +268,15 @@ interact(int *emit_props)
     for (;;) {
         PUT__(out, 0, PROMPT, GLOBALS(basename));  /* omit newline */
         cmd = fgets(buffer, sizeof(buffer), stdin);
+#if ERROR
         if (!cmd)
             buffer[0] = '\0';
+#else
+        if (!cmd) {
+            buffer[0] = '\0';
+            cmd = buffer;
+        }
+#endif
         while (isspace(*cmd))
             ++cmd;
 
