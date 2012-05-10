@@ -59,7 +59,7 @@ verbosely () {
     exec -a "$0" ${@}
 }
 
-# or parse ${EXEC} --version
+# or parse ${EXEC} --version (ideally, but more likely check if it fails)
 if LANG=C ldd ${EXEC} | grep -q "not found"; then
     verbosely "${WRAPPER}" env LD_LIBRARY_PATH="${LIBDIR}" "${EXEC}" ${INT_ARGS} "${@}"
 else
