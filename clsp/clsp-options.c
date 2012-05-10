@@ -182,16 +182,16 @@ print_help(const char *cmd)
     _("GCC should be compatible);  see `"_1(s)"' below.", PREFIX(CL) "plugin"  )
     __                                                                         ;
 #endif
-    _("This Code Listener front-end defines a few internal options (INT-OPTS):")
+    _("This Code Listener adapter defines a few internal options (INT-OPTS):"  )
     B("h", "help"          , "Prints this help text"                           )
     L("version"            , "Prints the version information"                  )
-    B("k", "keep-going"    , "Defect file does not end the run, it is skipped" )
+    B("k", "keep-going"    , "Allegedly defective file skipped, run continue"  )
     B("t", "try-hard"      , "Make best effort to proceed even defective file" )
     B("n", "dry-run"       , "Skip the final confirmation of emitted code"     )
     B("A", "interactive"   , "Simple interactive mode, instruction granularity")
     B("E", "preprocessor"  , "Terminate showing output of sparse preprocessor" )
-    O("file descriptors, use FD>file redirection for FD > 2, empty/0:/dev/null")
-    O("sparse: `D[FD]' for output to optional FD (none=stderr) to be deferred" )
+    O("file descriptors, use FD>file redirection for FD > 2 (empty: /dev/null)")
+    O("sparse: `D[FD]' for output to optional FD (none: stderr) to be deferred")
     O("note:   fatal errors are always produced on stderr"                     )
     L("fd-debug[=FD]"      , "Debugging (incl. entities)    ["DFD(DEBUG)"]"    )
     L("fd-sp[=FD]"         , "Sparse defect reports         ["DFD(SP)"]"       )
@@ -218,9 +218,9 @@ print_help(const char *cmd)
     C("plugin=FILE[:ARGS]" , "Path to a shared library containg symbols of"    )
     I(___                  , "Code Listener (for instance, GCC plugins can be" )
 #ifdef HAS_CL
-    I(___                  , "used directly), passing it optional ARGS"        )
+    I(___                  , "used directly), passing it optional ARGS (TBD)"  )
 #else
-    I(___                  , "used directly), passing it optional ARGS;"       )
+    I(___                  , "used directly), passing it optional ARGS (TBD);" )
     I(___                  , "the first one is a base one and must be provided")
 #endif
     __                                                                         ;
@@ -252,7 +252,7 @@ print_help(const char *cmd)
     _("Return values:")    ;           for (int i = ec_first; ec_last >= i; i++)
     V(ECVALUE(i)           ,                                          ec_str[i])
     NORETWRN(fflush(STREAM(out)));
-    /* about to exit, thus not bothering with buffering restoration */
+    /* about to exit, thus not bothering with restoring the buffering */
 #undef DPLT
 #undef DFD
 #undef O
