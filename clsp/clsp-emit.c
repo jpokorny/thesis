@@ -364,6 +364,11 @@ read_and_append_subtypes(struct cl_type *clt, struct symbol_list *subtypes)
     return !!subtype;
 }
 
+/**
+    Read type of a function
+
+    XXX OP_CALL: sym->fntype
+ */
 static inline void
 read_type_fnc(struct cl_type *clt, const struct symbol *raw_symbol,
               const struct symbol *type)
@@ -653,9 +658,9 @@ type_from_register(const pseudo_t pseudo)
 
         case OP_NOP: {
             /*
-                most accurate way of getting the output type (type of target
+                pretty accurate way of getting the output type (type of target
                 pseudo) when not properly available by some instructions
-                (OP_CALL, binary comparisons) or instruction is not directly
+                (binary comparisons) or instruction is not directly
                 available from pseudo->def (OP_COPY)
 
                 check whether immediate user (instruction) of target pseudo
@@ -667,6 +672,8 @@ type_from_register(const pseudo_t pseudo)
 
                 note: the target of CALL may not be used at all (no users), still
                       it (probably) cannot be removed by sparse optimizations
+
+                XXX OP_CALL: sym->fntype
              */
             FOR_EACH_PTR(pseudo->users, pu) {
                 if (!pu->insn->bb)  /* "zombie" instruction */
@@ -1762,7 +1769,6 @@ insn_assignment_load_from(const struct cl_operand *const op_rhs, pseudo_t rhs,
     struct cl_accessor *ac;
 
     if (!type_match(op_rhs->type, expected_type) || PSEUDO_SYM != rhs->type) {
-
 
         if (!op_accessible(op_rhs) || PSEUDO_SYM != rhs->type) {
 

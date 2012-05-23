@@ -136,7 +136,7 @@ stream_output_deferred(outstreams outstreams, enum outstreams which)
 
     }
 
-    fclose(file);
+    fclose(file);  /* tmpfile -> deleted automatically */
 
     file = stream_setup(outstreams, which,
                         OUTSTREAM_PROPS(fd_deferred_restore, PALETTE_NONE));
